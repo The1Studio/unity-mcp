@@ -101,6 +101,77 @@ When updating versions, synchronize:
 - `UnityMcpBridge/package.json` - Unity package version
 - `UnityMcpBridge/UnityMcpServer~/src/pyproject.toml` - Python server version
 
+## Available MCP Tools
+
+The following tools are available for Unity control:
+
+1. **`read_console`** - Read/clear Unity console messages
+2. **`manage_script`** - Full C# script CRUD and editing operations
+3. **`manage_editor`** - Control Unity Editor state and settings
+4. **`manage_scene`** - Scene operations (load, save, create, hierarchy)
+5. **`manage_asset`** - Asset operations (import, create, modify, delete)
+6. **`manage_shader`** - Shader CRUD operations
+7. **`manage_gameobject`** - GameObject and component manipulation
+8. **`execute_menu_item`** - Execute Unity menu items (e.g., "File/Save Project")
+9. **`apply_text_edits`** - Advanced text editing with LSP-style ranges
+10. **`script_apply_edits`** - Structured C# method/class edits
+11. **`validate_script`** - Script validation (basic/standard/strict)
+
+## Installation & Setup
+
+### Prerequisites
+- Python 3.12+ with `uv` package manager
+- Unity 2021.3 LTS or newer
+- MCP Client (Claude Desktop, Claude Code, Cursor, VSCode Copilot, Windsurf)
+
+### Unity Package Installation
+```bash
+# Via Git URL in Unity Package Manager
+https://github.com/CoplayDev/unity-mcp.git?path=/UnityMcpBridge
+
+# Or via OpenUPM
+openupm add com.coplaydev.unity-mcp
+```
+
+### MCP Client Configuration
+- Use Auto-Setup in Unity: `Window > MCP for Unity > Auto-Setup`
+- Or manually configure client's JSON config with server path
+
+## CI/CD Workflows
+
+### GitHub Actions
+- **Unity Tests** (`unity-tests.yml`): Runs on push to main for Unity test projects
+- **Claude NL Suite** (`claude-nl-suite-mini.yml`): Natural language editing tests
+- **Version Bump** (`bump-version.yml`): Automated version management
+
+### Test Locations
+- Python tests: `tests/` directory
+- Unity tests: `TestProjects/UnityMCPTests/`
+- Test script for large edits: `TestProjects/UnityMCPTests/Assets/Scripts/LongUnityScriptClaudeTest.cs`
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Unity Bridge Not Connecting**
+   - Check status: `Window > MCP for Unity`
+   - Restart Unity Editor
+   - Verify TCP port (default 9400) is not in use
+
+2. **MCP Client Not Starting Server**
+   - Verify `uv` is installed: `uv --version`
+   - Check server path in client config matches installation
+   - Run server manually to see errors: `uv run server.py`
+
+3. **Windows UV Path Issues**
+   - Use WinGet Links shim: `%LOCALAPPDATA%\Microsoft\WinGet\Links\uv.exe`
+   - Set via: `Window > MCP for Unity > Choose uv Install Location`
+   - See `CursorHelp.md` for detailed Windows troubleshooting
+
+4. **Auto-Configure Failed**
+   - Use manual configuration with correct paths
+   - Check client config file permissions
+
 ## Testing Checklist
 
 Before completing changes:
