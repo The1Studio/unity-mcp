@@ -5,6 +5,7 @@
 .codeiumignore
 .kiro
 CLAUDE.md
+.serena
 
 # Code-copy related files
 .clipignore
