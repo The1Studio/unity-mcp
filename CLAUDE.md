@@ -109,7 +109,7 @@ When updating versions, synchronize:
 
 ## Available MCP Tools
 
-The following tools are available for Unity control:
+The following tools are available for Unity control (all use snake_case names):
 
 1. **`read_console`** - Read/clear Unity console messages
 2. **`manage_script`** - Full C# script CRUD and editing operations
@@ -180,6 +180,13 @@ openupm add com.coplaydev.unity-mcp
 
 ## Adding New MCP Tools
 
+### Tool Implementation Flow
+```
+MCP Client → Python Tool (@mcp.tool) → send_command_with_retry("tool_name") 
+    → Unity Bridge (switch on "tool_name") → C# Handler (HandleCommand) 
+    → Response back through chain
+```
+
 To add a new MCP tool to this project, you need to implement it in both the Python server and Unity Bridge:
 
 ### 1. Python Server Side (`UnityMcpBridge/UnityMcpServer~/src/tools/`)
@@ -197,7 +204,7 @@ def register_your_new_tool(mcp: FastMCP):
     """Register your new tool with the MCP server."""
     
     @mcp.tool()
-    def your_new_tool(
+    def your_new_tool(  # Can be sync or async - use async if you need await
         ctx: Context,
         action: str,
         name: str = None,
@@ -363,7 +370,11 @@ object result = command.type switch
 };
 ```
 
-**Note**: The `CommandRegistry.cs` is currently NOT used by the actual message routing. The bridge uses a direct switch statement matching the tool name from Python.
+**Important Notes**:
+- The `CommandRegistry.cs` exists but is NOT used - routing happens via the switch statement in MCPForUnityBridge.cs
+- Tool names must be lowercase with underscores (e.g., `manage_script`, `read_console`)
+- Most tools are synchronous, but `manage_asset` and `execute_menu_item` are async
+- The Python tool name must exactly match the case in the Unity switch statement
 
 ### 4. Testing Your New Tool
 
