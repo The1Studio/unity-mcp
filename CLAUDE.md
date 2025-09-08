@@ -172,6 +172,107 @@ openupm add com.coplaydev.unity-mcp
    - Use manual configuration with correct paths
    - Check client config file permissions
 
+## Adding New MCP Tools
+
+To add a new MCP tool to this project, you need to implement it in both the Python server and Unity Bridge:
+
+### 1. Python Server Side (`UnityMcpBridge/UnityMcpServer~/src/tools/`)
+
+Create a new Python file for your tool:
+
+```python
+# tools/your_new_tool.py
+from mcp.server.fastmcp import FastMCP, Context
+from unity_connection import send_command_with_retry
+
+def register_your_new_tool(mcp: FastMCP):
+    @mcp.tool(
+        name="your_new_tool",
+        description="Description of what your tool does"
+    )
+    async def your_new_tool(
+        context: Context,
+        param1: str,
+        param2: int = None
+    ) -> str:
+        # Send command to Unity
+        result = await send_command_with_retry(
+            "HandleYourNewTool",  # Must match Unity handler name
+            {"action": "your_action", "param1": param1, "param2": param2}
+        )
+        return result
+```
+
+Register it in `tools/__init__.py`:
+```python
+from .your_new_tool import register_your_new_tool
+
+def register_all_tools(mcp):
+    # ... existing registrations ...
+    register_your_new_tool(mcp)
+```
+
+### 2. Unity Bridge Side (`UnityMcpBridge/Editor/Tools/`)
+
+Create a C# handler class:
+
+```csharp
+// YourNewTool.cs
+using Newtonsoft.Json.Linq;
+using UnityEngine;
+using UnityEditor;
+
+namespace MCPForUnity.Editor.Tools
+{
+    public static class YourNewTool
+    {
+        public static object HandleCommand(JObject args)
+        {
+            string action = args["action"]?.Value<string>();
+            
+            switch (action)
+            {
+                case "your_action":
+                    return HandleYourAction(args);
+                default:
+                    return new { error = $"Unknown action: {action}" };
+            }
+        }
+        
+        private static object HandleYourAction(JObject args)
+        {
+            // Your implementation here
+            string param1 = args["param1"]?.Value<string>();
+            // Process and return result
+            return new { success = true, data = "result" };
+        }
+    }
+}
+```
+
+Register it in `CommandRegistry.cs`:
+```csharp
+private static readonly Dictionary<string, Func<JObject, object>> _handlers = new()
+{
+    // ... existing handlers ...
+    { "HandleYourNewTool", YourNewTool.HandleCommand },
+};
+```
+
+### 3. Testing Your New Tool
+
+1. **Python tests** - Add tests in `tests/test_your_tool.py`
+2. **Unity testing** - Test in Unity Editor via Window > MCP for Unity
+3. **Integration testing** - Test with actual MCP client connection
+
+### Tool Design Guidelines
+
+- **Naming**: Use descriptive names matching the pattern `manage_*`, `read_*`, or action verbs
+- **Error Handling**: Always wrap Unity operations in try-catch blocks
+- **Validation**: Validate all inputs, especially file paths
+- **Return Format**: Return consistent JSON structures with `success`/`error` fields
+- **Documentation**: Include clear descriptions in the `@mcp.tool` decorator
+
 ## Testing Checklist
 
 Before completing changes:
