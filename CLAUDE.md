@@ -390,6 +390,64 @@ object result = command.type switch
 - **Return Format**: Return consistent JSON structures with `success`/`error` fields
 - **Documentation**: Include clear descriptions in the `@mcp.tool` decorator
 
+## How AI Agents Discover and Use MCP Tools
+
+AI agents like Claude Code discover and decide when to use MCP tools through several mechanisms:
+
+### 1. Tool Discovery via MCP Protocol
+When the MCP server starts, it registers all tools with descriptions that the AI can see:
+- Each `@mcp.tool()` decorator can include a `description` parameter
+- The description explains what the tool does, its parameters, and usage patterns
+- AI agents receive this tool list when connecting to the MCP server
+
+### 2. Tool Descriptions (Examples from codebase)
+```python
+@mcp.tool(description=(
+    "Apply small text edits to a C# script identified by URI.\n\n"
+    "⚠️ IMPORTANT: This tool replaces EXACT character positions...\n"
+    "Common mistakes:\n"
+    "- Assuming what's on a line without checking\n"
+    "- Using wrong line numbers (they're 1-indexed)"
+))
+```
+
+### 3. MCP Prompts
+The server provides a prompt that lists available tools:
+```python
+@mcp.prompt()
+def asset_creation_strategy() -> str:
+    """Guide for discovering and using MCP for Unity tools effectively."""
+    return (
+        "Available MCP for Unity Server Tools:\n\n"
+        "- `manage_editor`: Controls editor state and queries info.\n"
+        "- `execute_menu_item`: Executes Unity Editor menu items by path.\n"
+        # ... etc
+    )
+```
+
+### 4. How AI Decides Which Tool to Use
+
+The AI agent selects tools based on:
+1. **User Intent**: "Create a shader" → `manage_shader` with action='create'
+2. **Tool Descriptions**: Detailed descriptions help AI understand capabilities
+3. **Parameter Names**: Self-documenting parameters like `action`, `name`, `path`
+4. **Error Messages**: Tools return helpful errors guiding correct usage
+5. **Context**: The AI maintains conversation context to chain tools appropriately
+
+### 5. Tool Chaining Example
+For "Create a player controller script":
+1. AI uses `manage_script` with action='create' to create the C# file
+2. May use `manage_gameobject` to create a GameObject
+3. Could use `manage_scene` to save the scene
+4. Might use `read_console` to check for compilation errors
+
+### Best Practices for Tool Descriptions
+- Start with a one-line summary
+- List all parameters with types and defaults
+- Include usage examples in the description
+- Mention any prerequisites or limitations
+- Provide helpful error messages for common mistakes
+
 ## Testing Checklist
 
 Before completing changes:
