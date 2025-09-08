@@ -191,32 +191,61 @@ Create a new Python file for your tool:
 from mcp.server.fastmcp import FastMCP, Context
 from unity_connection import send_command_with_retry
 from typing import Dict, Any
+import base64  # If handling large text content
 
 def register_your_new_tool(mcp: FastMCP):
+    """Register your new tool with the MCP server."""
+    
     @mcp.tool()
     def your_new_tool(
         ctx: Context,
         action: str,
-        param1: str = None,
-        param2: int = None
+        name: str = None,
+        path: str = None,
+        contents: str = None
     ) -> Dict[str, Any]:
-        """Description of what your tool does.
+        """Brief description of what your tool does.
         
         Args:
             ctx: The MCP context
-            action: The action to perform
-            param1: Description of param1
-            param2: Description of param2
+            action: Operation to perform (e.g., 'create', 'read', 'update', 'delete')
+            name: Name of the resource
+            path: Path to the resource (relative to Assets/)
+            contents: Content for create/update operations
             
         Returns:
-            Dictionary with results
+            Dictionary with 'success', 'message', and optional 'data'
         """
-        # Send command to Unity
-        result = send_command_with_retry(
-            "HandleYourNewTool",  # Must match Unity handler name
-            {"action": action, "param1": param1, "param2": param2}
-        )
-        return result
+        try:
+            # Prepare parameters for Unity
+            params = {
+                "action": action,
+                "name": name,
+                "path": path
+            }
+            
+            # Optional: Base64 encode contents for safe transmission
+            if contents is not None and action in ['create', 'update']:
+                params["encodedContents"] = base64.b64encode(contents.encode('utf-8')).decode('utf-8')
+                params["contentsEncoded"] = True
+            
+            # Remove None values
+            params = {k: v for k, v in params.items() if v is not None}
+            
+            # Send to Unity - use the tool name, NOT a "Handle" prefix!
+            response = send_command_with_retry("your_new_tool", params)
+            
+            # Process response
+            if isinstance(response, dict) and response.get("success"):
+                return {
+                    "success": True, 
+                    "message": response.get("message", "Operation successful"),
+                    "data": response.get("data")
+                }
+            return response if isinstance(response, dict) else {"success": False, "message": str(response)}
+            
+        except Exception as e:
+            return {"success": False, "message": f"Python error: {str(e)}"}
 ```
 
 Register it in `tools/__init__.py`:
@@ -226,6 +255,7 @@ from .your_new_tool import register_your_new_tool
 def register_all_tools(mcp):
     # ... existing registrations ...
     register_your_new_tool(mcp)
+    logger.info("MCP for Unity Server tool registration complete.")
 ```
 
 ### 2. Unity Bridge Side (`UnityMcpBridge/Editor/Tools/`)
@@ -234,48 +264,108 @@ Create a C# handler class:
 
 ```csharp
 // YourNewTool.cs
+using System;
+using System.IO;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
 using UnityEditor;
+using MCPForUnity.Editor.Helpers;  // For Response class
 
 namespace MCPForUnity.Editor.Tools
 {
+    /// <summary>
+    /// Handles operations for your new tool.
+    /// </summary>
     public static class YourNewTool
     {
-        public static object HandleCommand(JObject args)
+        /// <summary>
+        /// Main handler for tool commands.
+        /// </summary>
+        public static object HandleCommand(JObject @params)
         {
-            string action = args["action"]?.Value<string>();
+            // Extract parameters
+            string action = @params["action"]?.ToString()?.ToLower();
+            string name = @params["name"]?.ToString();
+            string path = @params["path"]?.ToString();
+            string contents = null;
             
+            // Handle base64 encoded contents if needed
+            bool contentsEncoded = @params["contentsEncoded"]?.ToObject<bool>() ?? false;
+            if (contentsEncoded && @params["encodedContents"] != null)
+            {
+                try
+                {
+                    byte[] data = Convert.FromBase64String(@params["encodedContents"].ToString());
+                    contents = System.Text.Encoding.UTF8.GetString(data);
+                }
+                catch (Exception e)
+                {
+                    return Response.Error($"Failed to decode contents: {e.Message}");
+                }
+            }
+            else
+            {
+                contents = @params["contents"]?.ToString();
+            }
+            
+            // Validate required parameters
+            if (string.IsNullOrEmpty(action))
+                return Response.Error("Action parameter is required.");
+            
+            // Route to specific action handlers
             switch (action)
             {
-                case "your_action":
-                    return HandleYourAction(args);
+                case "create":
+                    return CreateResource(name, path, contents);
+                case "read":
+                    return ReadResource(name, path);
+                case "update":
+                    return UpdateResource(name, path, contents);
+                case "delete":
+                    return DeleteResource(name, path);
                 default:
-                    return new { error = $"Unknown action: {action}" };
+                    return Response.Error($"Unknown action: '{action}'");
             }
         }
         
-        private static object HandleYourAction(JObject args)
+        private static object CreateResource(string name, string path, string contents)
         {
-            // Your implementation here
-            string param1 = args["param1"]?.Value<string>();
-            // Process and return result
-            return new { success = true, data = "result" };
+            try
+            {
+                // Your implementation here
+                // Use AssetDatabase APIs for Unity operations
+                return Response.Success(
+                    $"Resource '{name}' created successfully",
+                    new { path = path }
+                );
+            }
+            catch (Exception e)
+            {
+                return Response.Error($"Failed to create: {e.Message}");
+            }
         }
+        
+        // ... implement other methods ...
     }
 }
 ```
 
-Register it in `CommandRegistry.cs`:
+### 3. Register in Unity Bridge (`UnityMcpBridge/Editor/MCPForUnityBridge.cs`)
+
+Add your tool to the command routing switch statement (around line 881):
+
 ```csharp
-private static readonly Dictionary<string, Func<JObject, object>> _handlers = new()
+object result = command.type switch
 {
-    // ... existing handlers ...
-    { "HandleYourNewTool", YourNewTool.HandleCommand },
+    // ... existing cases ...
+    "your_new_tool" => YourNewTool.HandleCommand(paramsObject),
+    _ => throw new ArgumentException($"Unknown command type: {command.type}")
 };
 ```
 
-### 3. Testing Your New Tool
+**Note**: The `CommandRegistry.cs` is currently NOT used by the actual message routing. The bridge uses a direct switch statement matching the tool name from Python.
+
+### 4. Testing Your New Tool
 
 1. **Python tests** - Add tests in `tests/test_your_tool.py`
 2. **Unity testing** - Test in Unity Editor via Window > MCP for Unity
