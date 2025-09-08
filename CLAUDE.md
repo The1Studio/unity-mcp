@@ -4,7 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-MCP for Unity is a bridge enabling AI assistants to interact with Unity Editor via the Model Context Protocol (MCP). It consists of:
+MCP for Unity is a bridge enabling AI assistants to interact with Unity Editor via the Model Context Protocol (MCP). 
+
+**Repository**: https://github.com/CoplayDev/unity-mcp (maintained by Coplay)
+**Discord**: https://discord.gg/y4p8KfzrN4
+
+The project consists of:
 - **Unity Package** (`UnityMcpBridge/`): C# code running inside Unity Editor
 - **Python MCP Server** (`UnityMcpBridge/UnityMcpServer~/src/`): Communicates between Unity and MCP clients
 - **Test Suite** (`tests/`): Python tests using pytest framework
@@ -69,6 +74,7 @@ python tools/stress_mcp.py --duration 60 --clients 8 --unity-file "TestProjects/
 - Custom framing protocol with 8-byte header for reliability
 - Handshake: `{"command": "handshake", "strict_framing": true}`
 - JSON-RPC style messages with request/response pattern
+- Port discovery via status files in `~/.unity-mcp/` directory (default port: 6400)
 
 ## Code Validation Levels
 
@@ -120,7 +126,7 @@ The following tools are available for Unity control:
 ## Installation & Setup
 
 ### Prerequisites
-- Python 3.12+ with `uv` package manager
+- Python 3.10+ with `uv` package manager
 - Unity 2021.3 LTS or newer
 - MCP Client (Claude Desktop, Claude Code, Cursor, VSCode Copilot, Windsurf)
 
@@ -156,7 +162,7 @@ openupm add com.coplaydev.unity-mcp
 1. **Unity Bridge Not Connecting**
    - Check status: `Window > MCP for Unity`
    - Restart Unity Editor
-   - Verify TCP port (default 9400) is not in use
+   - Verify TCP port (default 6400) is not in use
 
 2. **MCP Client Not Starting Server**
    - Verify `uv` is installed: `uv --version`
@@ -184,21 +190,31 @@ Create a new Python file for your tool:
 # tools/your_new_tool.py
 from mcp.server.fastmcp import FastMCP, Context
 from unity_connection import send_command_with_retry
+from typing import Dict, Any
 
 def register_your_new_tool(mcp: FastMCP):
-    @mcp.tool(
-        name="your_new_tool",
-        description="Description of what your tool does"
-    )
-    async def your_new_tool(
-        context: Context,
-        param1: str,
+    @mcp.tool()
+    def your_new_tool(
+        ctx: Context,
+        action: str,
+        param1: str = None,
         param2: int = None
-    ) -> str:
+    ) -> Dict[str, Any]:
+        """Description of what your tool does.
+        
+        Args:
+            ctx: The MCP context
+            action: The action to perform
+            param1: Description of param1
+            param2: Description of param2
+            
+        Returns:
+            Dictionary with results
+        """
         # Send command to Unity
-        result = await send_command_with_retry(
+        result = send_command_with_retry(
             "HandleYourNewTool",  # Must match Unity handler name
-            {"action": "your_action", "param1": param1, "param2": param2}
+            {"action": action, "param1": param1, "param2": param2}
         )
         return result
 ```
