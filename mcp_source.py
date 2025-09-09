@@ -23,7 +23,7 @@ import subprocess
 import sys
 from typing import Optional
 
-PKG_NAME = "com.coplaydev.unity-mcp"
+PKG_NAME = "com.theonegamestudio.unity-mcp"
 BRIDGE_SUBPATH = "UnityMcpBridge"
 
 

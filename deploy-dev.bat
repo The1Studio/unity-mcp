@@ -19,7 +19,7 @@ echo.
 
 :: Package cache location
 echo Unity Package Cache Location:
-echo Example: X:\UnityProject\Library\PackageCache\com.coplaydev.unity-mcp@1.0.0
+echo Example: X:\UnityProject\Library\PackageCache\com.theonegamestudio.unity-mcp@1.0.0
 set /p "PACKAGE_CACHE_PATH=Enter Unity package cache path: "
 
 if "%PACKAGE_CACHE_PATH%"=="" (

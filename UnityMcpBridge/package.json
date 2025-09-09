@@ -1,8 +1,8 @@
 {
-  "name": "com.coplaydev.unity-mcp",
-  "version": "3.3.2",
-  "displayName": "MCP for Unity",
-  "description": "A bridge that connects an LLM to Unity via the MCP (Model Context Protocol). This allows MCP Clients like Claude Desktop or Cursor to directly control your Unity Editor.\n\nJoin Our Discord: https://discord.gg/y4p8KfzrN4",
+  "name": "com.theonegamestudio.unity-mcp",
+  "version": "3.3.2-studio.1",
+  "displayName": "MCP for Unity - The One Game Studio Edition",
+  "description": "The One Game Studio's enhanced fork of MCP for Unity. A bridge that connects an LLM to Unity via the MCP (Model Context Protocol) with additional studio features for automation testing, Addressables management, and more.\n\nOriginal project by Coplay: https://github.com/CoplayDev/unity-mcp",
   "unity": "2021.3",
   "documentationUrl": "https://github.com/CoplayDev/unity-mcp",
   "licensesUrl": "https://github.com/CoplayDev/unity-mcp/blob/main/LICENSE",
@@ -16,11 +16,22 @@
     "mcp",
     "model-context-protocol",
     "mcp-server",
-    "mcp-client"
+    "mcp-client",
+    "automation",
+    "testing",
+    "addressables",
+    "the-one-game-studio"
   ],
   "author": {
-    "name": "Coplay",
-    "email": "support@coplay.dev",
-    "url": "https://coplay.dev"
-  }
+    "name": "The One Game Studio",
+    "email": "dev@theonegamestudio.com",
+    "url": "https://theonegamestudio.com"
+  },
+  "contributors": [
+    {
+      "name": "Coplay (Original Author)",
+      "email": "support@coplay.dev",
+      "url": "https://coplay.dev"
+    }
+  ]
 }

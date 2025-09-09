@@ -1,6 +1,18 @@
 <img width="676" height="380" alt="MCP for Unity" src="https://github.com/user-attachments/assets/b712e41d-273c-48b2-9041-82bd17ace267" />
 
-#### Proudly sponsored and maintained by [Coplay](https://www.coplay.dev/?ref=unity-mcp) -- the best AI assistant for Unity. [Read the backstory here.](https://www.coplay.dev/blog/coplay-and-open-source-unity-mcp-join-forces)
+> **📌 The One Game Studio Fork**  
+> This is **The One Game Studio's** enhanced fork of the original [MCP for Unity](https://github.com/CoplayDev/unity-mcp) project.  
+> We're extending it with studio-specific features for our production pipeline:
+> - 🧪 **Automation Testing** - Automated test execution and reporting within Unity
+> - 📦 **Addressables Management** - Full control over Unity Addressable Asset System
+> - 🚀 **DOTS Implementation** *(Wishlist)* - Unity Data-Oriented Technology Stack integration
+> 
+> **Original project**: https://github.com/CoplayDev/unity-mcp  
+> **Studio support**: Contact The One Game Studio development team
+
+---
+
+#### Originally sponsored and maintained by [Coplay](https://www.coplay.dev/?ref=unity-mcp) -- the best AI assistant for Unity. [Read the backstory here.](https://www.coplay.dev/blog/coplay-and-open-source-unity-mcp-join-forces)
 
 [![Discord](https://img.shields.io/badge/discord-join-red.svg?logo=discord&logoColor=white)](https://discord.gg/y4p8KfzrN4)
 [![](https://img.shields.io/badge/Unity-000000?style=flat&logo=unity&logoColor=blue 'Unity')](https://unity.com/releases/editor/archive)
@@ -111,7 +123,9 @@ MCP for Unity connects your tools using two components:
 3.  Click `+` -> `Add package from git URL...`.
 4.  Enter:
     ```
-    https://github.com/CoplayDev/unity-mcp.git?path=/UnityMcpBridge
+    https://github.com/The1Studio/unity-mcp.git?path=/UnityMcpBridge
+    
+    **Original project**: https://github.com/CoplayDev/unity-mcp.git?path=/UnityMcpBridge
     ```
 5.  Click `Add`.
 6. The MCP server is installed automatically by the package on first run or via Auto-Setup. If that fails, use Manual Configuration (below).
@@ -120,7 +134,9 @@ MCP for Unity connects your tools using two components:
 
 1.  Install the [OpenUPM CLI](https://openupm.com/docs/getting-started-cli.html)
 2.  Open a terminal (PowerShell, Terminal, etc.) and navigate to your Unity project directory
-3.  Run `openupm add com.coplaydev.unity-mcp`
+3.  Run `openupm add com.theonegamestudio.unity-mcp`
+    
+    **Note**: This is The One Game Studio's fork. For the original package, use `com.coplaydev.unity-mcp`
 
 **Note:** If you installed the MCP Server before Coplay's maintenance, you will need to uninstall the old package before re-installing the new one.
 

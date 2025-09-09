@@ -50,11 +50,11 @@ Restores original files from backup.
 
 Unity stores Git packages under a version-or-hash folder. Expect something like:
 ```
-X:\UnityProject\Library\PackageCache\com.coplaydev.unity-mcp@<version-or-hash>
+X:\UnityProject\Library\PackageCache\com.theonegamestudio.unity-mcp@<version-or-hash>
 ```
 Example (hash):
 ```
-X:\UnityProject\Library\PackageCache\com.coplaydev.unity-mcp@272123cfd97e
+X:\UnityProject\Library\PackageCache\com.theonegamestudio.unity-mcp@272123cfd97e
 
 ```
 

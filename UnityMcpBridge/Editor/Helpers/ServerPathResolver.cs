@@ -101,7 +101,7 @@ namespace MCPForUnity.Editor.Helpers
 
         private static bool TryResolveWithinPackage(UnityEditor.PackageManager.PackageInfo p, out string srcPath, bool warnOnLegacyPackageId)
         {
-            const string CurrentId = "com.coplaydev.unity-mcp";
+            const string CurrentId = "com.theonegamestudio.unity-mcp";
             const string LegacyId = "com.justinpbarnett.unity-mcp";
 
             srcPath = null;
@@ -114,7 +114,7 @@ namespace MCPForUnity.Editor.Helpers
             {
                 Debug.LogWarning(
                     "MCP for Unity: Detected legacy package id 'com.justinpbarnett.unity-mcp'. " +
-                    "Please update Packages/manifest.json to 'com.coplaydev.unity-mcp' to avoid future breakage.");
+                    "Please update Packages/manifest.json to 'com.theonegamestudio.unity-mcp' (The One Game Studio fork) to avoid future breakage.");
             }
 
             string packagePath = p.resolvedPath;

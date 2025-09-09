@@ -136,7 +136,7 @@ The following tools are available for Unity control (all use snake_case names):
 https://github.com/CoplayDev/unity-mcp.git?path=/UnityMcpBridge
 
 # Or via OpenUPM
-openupm add com.coplaydev.unity-mcp
+openupm add com.theonegamestudio.unity-mcp
 ```
 
 ### MCP Client Configuration

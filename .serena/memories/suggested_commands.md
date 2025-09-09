@@ -41,10 +41,11 @@ uv run server.py
 ## Unity Package Management
 ```bash
 # Install via Git URL in Unity Package Manager
-# URL: https://github.com/CoplayDev/unity-mcp.git?path=/UnityMcpBridge
+# URL: https://github.com/The1Studio/unity-mcp.git?path=/UnityMcpBridge
+# Original: https://github.com/CoplayDev/unity-mcp.git?path=/UnityMcpBridge
 
-# Or via OpenUPM
-openupm add com.coplaydev.unity-mcp
+# Or via OpenUPM (Studio fork)
+openupm add com.theonegamestudio.unity-mcp
 ```
 
 ## Version Management
