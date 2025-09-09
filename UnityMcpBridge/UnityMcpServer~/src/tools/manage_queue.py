@@ -16,20 +16,23 @@ def register_manage_queue(mcp: FastMCP):
     @mcp.tool(description=(
         "STUDIO: Manage operation queue for batch execution of Unity MCP commands.\n\n"
         "Actions:\n"
-        "- 'add': Add operation to queue (requires 'tool' and 'parameters')\n"
-        "- 'execute': Execute all queued operations in batch\n"
+        "- 'add': Add operation to queue (requires 'tool', 'parameters', optional 'timeout_ms')\n"
+        "- 'execute': Execute all queued operations in batch (synchronous)\n"
+        "- 'execute_async': Execute all queued operations asynchronously (non-blocking)\n"
         "- 'list': List operations in queue (optional 'status' and 'limit' filters)\n"
         "- 'clear': Clear completed operations from queue (optional 'status' filter)\n"
         "- 'stats': Get queue statistics\n"
-        "- 'remove': Remove specific operation (requires 'operation_id')\n\n"
+        "- 'remove': Remove specific operation (requires 'operation_id')\n"
+        "- 'cancel': Cancel running operation (requires 'operation_id')\n\n"
         "Benefits:\n"
         "- Reduced Unity Editor freezing during multiple operations\n"
-        "- Atomic execution with rollback on failure\n"
-        "- Better performance for bulk operations\n\n"
+        "- Async execution with timeout support\n"
+        "- Better performance for bulk operations\n"
+        "- Operation cancellation support\n\n"
         "Example usage:\n"
-        "1. Add script creation: action='add', tool='manage_script', parameters={'action': 'create', 'name': 'Player'}\n"
+        "1. Add script creation: action='add', tool='manage_script', parameters={'action': 'create', 'name': 'Player'}, timeout_ms=30000\n"
         "2. Add asset import: action='add', tool='manage_asset', parameters={'action': 'import', 'path': 'model.fbx'}\n"
-        "3. Execute batch: action='execute'"
+        "3. Execute async: action='execute_async'"
     ))
     def manage_queue(
         ctx: Context,
@@ -38,19 +41,21 @@ def register_manage_queue(mcp: FastMCP):
         parameters: Optional[Dict[str, Any]] = None,
         operation_id: Optional[str] = None,
         status: Optional[str] = None,
-        limit: Optional[int] = None
+        limit: Optional[int] = None,
+        timeout_ms: Optional[int] = None
     ) -> Dict[str, Any]:
         """
         Manage operation queue for batch execution of Unity MCP commands.
         
         Args:
             ctx: The MCP context
-            action: Operation to perform (add, execute, list, clear, stats, remove)
+            action: Operation to perform (add, execute, execute_async, list, clear, stats, remove, cancel)
             tool: Tool name for 'add' action (e.g., 'manage_script', 'manage_asset')
             parameters: Parameters for the tool (required for 'add' action)
-            operation_id: Operation ID for 'remove' action
-            status: Status filter for 'list' and 'clear' actions (pending, executed, failed)
+            operation_id: Operation ID for 'remove'/'cancel' actions
+            status: Status filter for 'list' and 'clear' actions (pending, executing, executed, failed, timeout)
             limit: Maximum number of operations to return for 'list' action
+            timeout_ms: Timeout in milliseconds for 'add' action (default: 30000)
             
         Returns:
             Dictionary with success status and operation results
@@ -77,12 +82,14 @@ def register_manage_queue(mcp: FastMCP):
                     }
                 params["tool"] = tool
                 params["parameters"] = parameters
+                if timeout_ms is not None:
+                    params["timeout_ms"] = max(1000, timeout_ms)  # Minimum 1 second
                 
-            elif action.lower() == "remove":
+            elif action.lower() in ["remove", "cancel"]:
                 if not operation_id:
                     return {
                         "success": False, 
-                        "error": "Operation ID is required for 'remove' action",
+                        "error": f"Operation ID is required for '{action}' action",
                         "suggestion": "Use 'list' action to see available operation IDs"
                     }
                 params["operation_id"] = operation_id
@@ -126,25 +133,30 @@ def register_manage_queue(mcp: FastMCP):
     @mcp.tool(description=(
         "STUDIO: Quick helper to add multiple operations to the queue at once.\n\n"
         "This is a convenience function that adds multiple operations and optionally executes them.\n"
-        "Each operation should be a dict with 'tool' and 'parameters' keys.\n\n"
+        "Each operation should be a dict with 'tool' and 'parameters' keys.\n"
+        "Optional 'timeout_ms' can be added per operation or set globally.\n\n"
         "Example:\n"
         "operations=[\n"
-        "  {'tool': 'manage_script', 'parameters': {'action': 'create', 'name': 'Player'}},\n"
-        "  {'tool': 'manage_script', 'parameters': {'action': 'create', 'name': 'Enemy'}}\n"
-        "], execute_immediately=True"
+        "  {'tool': 'manage_script', 'parameters': {'action': 'create', 'name': 'Player'}, 'timeout_ms': 15000},\n"
+        "  {'tool': 'manage_asset', 'parameters': {'action': 'import', 'path': 'model.fbx'}}\n"
+        "], execute_immediately=True, use_async=True"
     ))
     def queue_batch_operations(
         ctx: Context,
         operations: List[Dict[str, Any]],
-        execute_immediately: bool = True
+        execute_immediately: bool = True,
+        use_async: bool = False,
+        default_timeout_ms: Optional[int] = None
     ) -> Dict[str, Any]:
         """
         Add multiple operations to the queue and optionally execute them.
         
         Args:
             ctx: The MCP context
-            operations: List of operations, each with 'tool' and 'parameters' keys
+            operations: List of operations, each with 'tool' and 'parameters' keys, optional 'timeout_ms'
             execute_immediately: Whether to execute the batch immediately after queuing
+            use_async: Whether to use asynchronous execution (non-blocking)
+            default_timeout_ms: Default timeout for operations that don't specify one
             
         Returns:
             Dictionary with batch results
@@ -167,8 +179,9 @@ def register_manage_queue(mcp: FastMCP):
                         "suggestion": "Each operation should be: {'tool': 'tool_name', 'parameters': {...}}"
                     }
                 
-                # Add individual operation
-                add_result = manage_queue(ctx, "add", op['tool'], op['parameters'])
+                # Add individual operation with timeout support
+                timeout_ms = op.get('timeout_ms', default_timeout_ms)
+                add_result = manage_queue(ctx, "add", op['tool'], op['parameters'], timeout_ms=timeout_ms)
                 if not add_result.get("success"):
                     return {
                         "success": False,
@@ -183,13 +196,16 @@ def register_manage_queue(mcp: FastMCP):
             
             # Execute if requested
             if execute_immediately:
-                execute_result = manage_queue(ctx, "execute")
+                execute_action = "execute_async" if use_async else "execute"
+                execute_result = manage_queue(ctx, execute_action)
+                execution_type = "async" if use_async else "sync"
                 return {
                     "success": True,
-                    "message": f"Queued and executed {len(operations)} operations",
+                    "message": f"Queued and executed {len(operations)} operations ({execution_type})",
                     "data": {
                         "queued_operations": operation_ids,
-                        "execution_result": execute_result.get("data")
+                        "execution_result": execute_result.get("data"),
+                        "execution_type": execution_type
                     }
                 }
             else:

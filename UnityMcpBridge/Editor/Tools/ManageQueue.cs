@@ -1,7 +1,9 @@
 using System;
 using System.Linq;
+using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
+using UnityEditor;
 using MCPForUnity.Editor.Helpers;
 
 namespace MCPForUnity.Editor.Tools
@@ -22,8 +24,8 @@ namespace MCPForUnity.Editor.Tools
                 return Response.EnhancedError(
                     "Parameters cannot be null",
                     "Queue management command received null parameters",
-                    "Provide action parameter (add, execute, list, clear, stats)",
-                    new[] { "add", "execute", "list", "clear", "stats" },
+                    "Provide action parameter (add, execute, execute_async, list, clear, stats, cancel)",
+                    new[] { "add", "execute", "execute_async", "list", "clear", "stats", "cancel" },
                     "NULL_PARAMS"
                 );
             }
@@ -35,8 +37,8 @@ namespace MCPForUnity.Editor.Tools
                 return Response.EnhancedError(
                     "Action parameter is required",
                     "Queue management requires an action to be specified",
-                    "Use one of: add, execute, list, clear, stats, remove",
-                    new[] { "add", "execute", "list", "clear", "stats", "remove" },
+                    "Use one of: add, execute, execute_async, list, clear, stats, remove, cancel",
+                    new[] { "add", "execute", "execute_async", "list", "clear", "stats", "remove", "cancel" },
                     "MISSING_ACTION"
                 );
             }
@@ -48,6 +50,9 @@ namespace MCPForUnity.Editor.Tools
                 
                 case "execute":
                     return ExecuteBatch(@params);
+                
+                case "execute_async":
+                    return ExecuteBatchAsync(@params);
                 
                 case "list":
                     return ListOperations(@params);
@@ -61,12 +66,15 @@ namespace MCPForUnity.Editor.Tools
                 case "remove":
                     return RemoveOperation(@params);
                 
+                case "cancel":
+                    return CancelOperation(@params);
+                
                 default:
                     return Response.EnhancedError(
                         $"Unknown queue action: '{action}'",
                         "Queue management action not recognized",
-                        "Use one of: add, execute, list, clear, stats, remove",
-                        new[] { "add", "execute", "list", "clear", "stats", "remove" },
+                        "Use one of: add, execute, execute_async, list, clear, stats, remove, cancel",
+                        new[] { "add", "execute", "execute_async", "list", "clear", "stats", "remove", "cancel" },
                         "UNKNOWN_ACTION"
                     );
             }
@@ -81,6 +89,7 @@ namespace MCPForUnity.Editor.Tools
             {
                 string tool = @params["tool"]?.ToString();
                 JObject operationParams = @params["parameters"] as JObject;
+                int timeoutMs = @params["timeout_ms"]?.ToObject<int>() ?? 30000;
 
                 if (string.IsNullOrEmpty(tool))
                 {
@@ -104,7 +113,7 @@ namespace MCPForUnity.Editor.Tools
                     );
                 }
 
-                string operationId = OperationQueue.AddOperation(tool, operationParams);
+                string operationId = OperationQueue.AddOperation(tool, operationParams, timeoutMs);
                 
                 return Response.Success(
                     $"Operation queued successfully with ID: {operationId}",
@@ -112,6 +121,7 @@ namespace MCPForUnity.Editor.Tools
                     {
                         operation_id = operationId,
                         tool = tool,
+                        timeout_ms = timeoutMs,
                         queued_at = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss UTC"),
                         queue_stats = OperationQueue.GetQueueStats()
                     }
@@ -146,6 +156,188 @@ namespace MCPForUnity.Editor.Tools
                     "Check Unity console for detailed error messages",
                     null,
                     "BATCH_EXECUTION_ERROR"
+                );
+            }
+        }
+
+        /// <summary>
+        /// Execute all queued operations asynchronously
+        /// </summary>
+        private static object ExecuteBatchAsync(JObject @params)
+        {
+            try
+            {
+                // For Unity Editor, we need to use Unity's main thread dispatcher
+                // Since Unity doesn't handle async well in the editor, we'll use a coroutine approach
+                var asyncResult = ExecuteBatchAsyncUnityCompatible();
+                return asyncResult;
+            }
+            catch (Exception ex)
+            {
+                return Response.EnhancedError(
+                    $"Failed to execute batch operations asynchronously: {ex.Message}",
+                    "Error occurred during async batch execution of queued operations",
+                    "Check Unity console for detailed error messages, consider using synchronous execution",
+                    null,
+                    "ASYNC_BATCH_EXECUTION_ERROR"
+                );
+            }
+        }
+
+        /// <summary>
+        /// Unity-compatible async batch execution using EditorCoroutines
+        /// </summary>
+        private static object ExecuteBatchAsyncUnityCompatible()
+        {
+            // For Unity Editor compatibility, we'll execute with yielding between operations
+            // This prevents UI freezing while still being "async" from Unity's perspective
+            
+            var pendingOps = OperationQueue.GetOperations("pending");
+            if (pendingOps.Count == 0)
+            {
+                return Response.Success("No pending operations to execute.", new { executed_count = 0 });
+            }
+
+            Debug.Log($"STUDIO: Starting async execution of {pendingOps.Count} operations");
+            
+            // Start the async execution using Unity's EditorApplication.delayCall
+            // This allows Unity Editor to remain responsive
+            EditorApplication.delayCall += () => ExecuteOperationsWithYield(pendingOps);
+            
+            return Response.Success(
+                $"Started async execution of {pendingOps.Count} operations",
+                new
+                {
+                    total_operations = pendingOps.Count,
+                    status = "started_async",
+                    message = "Use 'stats' action to monitor progress"
+                }
+            );
+        }
+
+        /// <summary>
+        /// Execute operations with yielding to keep Unity Editor responsive
+        /// </summary>
+        private static async void ExecuteOperationsWithYield(List<OperationQueue.QueuedOperation> operations)
+        {
+            foreach (var operation in operations)
+            {
+                try
+                {
+                    // Update status to executing
+                    operation.Status = "executing";
+                    operation.ExecutionStartTime = DateTime.UtcNow;
+                    
+                    Debug.Log($"STUDIO: Executing operation {operation.Id} ({operation.Tool})");
+                    
+                    // Execute the operation
+                    var result = await Task.Run(() => 
+                    {
+                        try
+                        {
+                            switch (operation.Tool.ToLowerInvariant())
+                            {
+                                case "manage_script":
+                                    return Tools.ManageScript.HandleCommand(operation.Parameters);
+                                case "manage_asset":
+                                    return Tools.ManageAsset.HandleCommand(operation.Parameters);
+                                case "manage_scene":
+                                    return Tools.ManageScene.HandleCommand(operation.Parameters);
+                                case "manage_gameobject":
+                                    return Tools.ManageGameObject.HandleCommand(operation.Parameters);
+                                case "manage_shader":
+                                    return Tools.ManageShader.HandleCommand(operation.Parameters);
+                                case "manage_editor":
+                                    return Tools.ManageEditor.HandleCommand(operation.Parameters);
+                                case "read_console":
+                                    return Tools.ReadConsole.HandleCommand(operation.Parameters);
+                                case "execute_menu_item":
+                                    return Tools.ExecuteMenuItem.HandleCommand(operation.Parameters);
+                                default:
+                                    throw new ArgumentException($"Unknown tool: {operation.Tool}");
+                            }
+                        }
+                        catch (Exception e)
+                        {
+                            throw new Exception($"Operation {operation.Id} failed: {e.Message}", e);
+                        }
+                    });
+                    
+                    // Update operation status
+                    operation.Result = result;
+                    operation.Status = "executed";
+                    operation.ExecutionEndTime = DateTime.UtcNow;
+                    
+                    Debug.Log($"STUDIO: Completed operation {operation.Id}");
+                }
+                catch (Exception ex)
+                {
+                    operation.Error = ex;
+                    operation.Status = "failed";
+                    operation.ExecutionEndTime = DateTime.UtcNow;
+                    Debug.LogError($"STUDIO: Operation {operation.Id} failed: {ex.Message}");
+                }
+                
+                // Yield control back to Unity Editor to keep it responsive
+                await Task.Yield();
+            }
+            
+            Debug.Log("STUDIO: Async batch execution completed");
+        }
+
+        /// <summary>
+        /// Cancel a running operation
+        /// </summary>
+        private static object CancelOperation(JObject @params)
+        {
+            try
+            {
+                string operationId = @params["operation_id"]?.ToString();
+                
+                if (string.IsNullOrEmpty(operationId))
+                {
+                    return Response.EnhancedError(
+                        "Operation ID is required for cancel action",
+                        "Cancelling operation requires operation ID",
+                        "Use 'list' action to see available operation IDs",
+                        null,
+                        "MISSING_OPERATION_ID"
+                    );
+                }
+
+                bool cancelled = OperationQueue.CancelOperation(operationId);
+                
+                if (cancelled)
+                {
+                    return Response.Success(
+                        $"Operation {operationId} cancelled successfully",
+                        new
+                        {
+                            operation_id = operationId,
+                            cancelled = true,
+                            queue_stats = OperationQueue.GetQueueStats()
+                        }
+                    );
+                }
+                else
+                {
+                    return Response.EnhancedError(
+                        $"Operation {operationId} could not be cancelled",
+                        "Operation may not exist or is not currently executing",
+                        "Use 'list' action to see available operation IDs and their status",
+                        null,
+                        "CANCEL_FAILED"
+                    );
+                }
+            }
+            catch (Exception ex)
+            {
+                return Response.EnhancedError(
+                    $"Failed to cancel operation: {ex.Message}",
+                    "Error occurred while cancelling operation",
+                    "Check operation ID format and queue accessibility",
+                    null,
+                    "CANCEL_OPERATION_ERROR"
                 );
             }
         }
