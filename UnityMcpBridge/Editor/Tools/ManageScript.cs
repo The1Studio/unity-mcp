@@ -163,7 +163,14 @@ namespace MCPForUnity.Editor.Tools
             // Resolve and harden target directory under Assets/
             if (!TryResolveUnderAssets(path, out string fullPathDir, out string relPathSafeDir))
             {
-                return Response.Error($"Invalid path. Target directory must be within 'Assets/'. Provided: '{(path ?? "(null)")}'");
+                return Response.EnhancedError(
+                    $"Invalid path. Target directory must be within 'Assets/'. Provided: '{(path ?? "(null)")}'",
+                    $"Script creation attempted outside Assets folder",
+                    "Use a path starting with 'Assets/' (e.g., 'Assets/Scripts/MyScript.cs')",
+                    new[] { "Assets/Scripts/", "Assets/", "Assets/Scripts/Player/" },
+                    "INVALID_PATH",
+                    path
+                );
             }
 
             // Construct file paths
@@ -371,7 +378,11 @@ namespace MCPForUnity.Editor.Tools
             }
             catch (Exception e)
             {
-                return Response.Error($"Failed to create script '{relativePath}': {e.Message}");
+                return Response.ScriptError($"Failed to create script '{relativePath}': {e.Message}", relativePath, null, new[] {
+                    "Check directory permissions",
+                    "Ensure parent directory exists", 
+                    "Verify script name follows C# naming conventions"
+                });
             }
         }
 
@@ -379,7 +390,11 @@ namespace MCPForUnity.Editor.Tools
         {
             if (!File.Exists(fullPath))
             {
-                return Response.Error($"Script not found at '{relativePath}'.");
+                return Response.ScriptError($"Script not found at '{relativePath}'.", relativePath, null, new[] {
+                    "Check if the script path is correct",
+                    "Ensure the script exists in the Assets folder", 
+                    "Try using 'list' action to see available scripts"
+                });
             }
 
             try

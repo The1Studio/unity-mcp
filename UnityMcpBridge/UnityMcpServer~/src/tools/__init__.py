@@ -9,6 +9,7 @@ from .manage_shader import register_manage_shader_tools
 from .read_console import register_read_console_tools
 from .execute_menu_item import register_execute_menu_item_tools
 from .resource_tools import register_resource_tools
+from .manage_queue import register_manage_queue
 
 logger = logging.getLogger("mcp-for-unity-server")
 
@@ -25,6 +26,8 @@ def register_all_tools(mcp):
     register_manage_shader_tools(mcp)
     register_read_console_tools(mcp)
     register_execute_menu_item_tools(mcp)
+    # STUDIO: Register operation queuing tools
+    register_manage_queue(mcp)
     # Expose resource wrappers as normal tools so IDEs without resources primitive can use them
     register_resource_tools(mcp)
     logger.info("MCP for Unity Server tool registration complete.")
