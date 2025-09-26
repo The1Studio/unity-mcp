@@ -333,7 +333,7 @@ Help make MCP for Unity better!
 - **Running Multiple Unity Projects:**
     - If you need to run multiple Unity projects with MCP simultaneously, configure different ports to avoid conflicts
     - Default port is 6400; use Window > MCP for Unity > Settings to change port
-    - Test projects like `TestProjects/UnityMCPTests` use port 6401
+    - Test projects like `TestProjects/UnityMCPTests` use the default port 6400
     - Update your MCP client configuration with the matching port number
 
 </details>  

@@ -2,17 +2,17 @@
 
 ## Test Project Configuration
 
-This UnityMCPTests project is configured to use **port 6401** instead of the default 6400 to avoid conflicts when running multiple Unity projects simultaneously.
+This UnityMCPTests project is configured to use the **default port 6400**.
 
 ### Local Configuration
-- Port: 6401
+- Port: 6400 (default)
 - Configuration file: `.claude/claude-code.json` (gitignored, local only)
-- Unity setting: Window → MCP for Unity → Settings → Port: 6401
+- Unity setting: Window → MCP for Unity → Settings → Port: 6400
 
-### Why Port 6401?
-- Allows running multiple Unity projects with MCP simultaneously
-- Prevents port conflicts with other Unity instances using default port 6400
-- Each project can have its own dedicated port
+### Port Configuration
+- Uses the standard default port 6400
+- If you need to run multiple Unity projects simultaneously, consider changing to a different port
+- Each project can have its own dedicated port if needed
 
 ### To Change Port
 1. Update Unity: Window → MCP for Unity → Settings → Port
@@ -21,7 +21,7 @@ This UnityMCPTests project is configured to use **port 6401** instead of the def
 
 ### Status Check
 You can verify the connection by:
-- Checking Unity: Window → MCP for Unity (should show "Running" on port 6401)
+- Checking Unity: Window → MCP for Unity (should show "Running" on port 6400)
 - Running MCP tools in Claude Code to test connectivity
 - Checking `~/.unity-mcp/unity-mcp-status-*.json` files for port information
 
