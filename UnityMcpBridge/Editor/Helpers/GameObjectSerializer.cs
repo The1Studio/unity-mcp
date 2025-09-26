@@ -4,7 +4,6 @@ using System.Linq;
 using System.Reflection;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using UnityEditor;
 using UnityEngine;
 using MCPForUnity.Runtime.Serialization; // For Converters
 
@@ -13,7 +12,7 @@ namespace MCPForUnity.Editor.Helpers
     /// <summary>
     /// Handles serialization of GameObjects and Components for MCP responses.
     /// Includes reflection helpers and caching for performance.
-    /// </summary> 
+    /// </summary>
     public static class GameObjectSerializer
     {
         // --- Data Serialization ---
@@ -27,13 +26,13 @@ namespace MCPForUnity.Editor.Helpers
                 return null;
             return new
             {
-                name = go.name,
+                go.name,
                 instanceID = go.GetInstanceID(),
-                tag = go.tag,
-                layer = go.layer,
-                activeSelf = go.activeSelf,
-                activeInHierarchy = go.activeInHierarchy,
-                isStatic = go.isStatic,
+                go.tag,
+                go.layer,
+                go.activeSelf,
+                go.activeInHierarchy,
+                go.isStatic,
                 scenePath = go.scene.path, // Identify which scene it belongs to
                 transform = new // Serialize transform components carefully to avoid JSON issues
                 {
@@ -41,51 +40,51 @@ namespace MCPForUnity.Editor.Helpers
                     // The default serializer can struggle with properties like Vector3.normalized.
                     position = new
                     {
-                        x = go.transform.position.x,
-                        y = go.transform.position.y,
-                        z = go.transform.position.z,
+                        go.transform.position.x,
+                        go.transform.position.y,
+                        go.transform.position.z,
                     },
                     localPosition = new
                     {
-                        x = go.transform.localPosition.x,
-                        y = go.transform.localPosition.y,
-                        z = go.transform.localPosition.z,
+                        go.transform.localPosition.x,
+                        go.transform.localPosition.y,
+                        go.transform.localPosition.z,
                     },
                     rotation = new
                     {
-                        x = go.transform.rotation.eulerAngles.x,
-                        y = go.transform.rotation.eulerAngles.y,
-                        z = go.transform.rotation.eulerAngles.z,
+                        go.transform.rotation.eulerAngles.x,
+                        go.transform.rotation.eulerAngles.y,
+                        go.transform.rotation.eulerAngles.z,
                     },
                     localRotation = new
                     {
-                        x = go.transform.localRotation.eulerAngles.x,
-                        y = go.transform.localRotation.eulerAngles.y,
-                        z = go.transform.localRotation.eulerAngles.z,
+                        go.transform.localRotation.eulerAngles.x,
+                        go.transform.localRotation.eulerAngles.y,
+                        go.transform.localRotation.eulerAngles.z,
                     },
                     scale = new
                     {
-                        x = go.transform.localScale.x,
-                        y = go.transform.localScale.y,
-                        z = go.transform.localScale.z,
+                        go.transform.localScale.x,
+                        go.transform.localScale.y,
+                        go.transform.localScale.z,
                     },
                     forward = new
                     {
-                        x = go.transform.forward.x,
-                        y = go.transform.forward.y,
-                        z = go.transform.forward.z,
+                        go.transform.forward.x,
+                        go.transform.forward.y,
+                        go.transform.forward.z,
                     },
                     up = new
                     {
-                        x = go.transform.up.x,
-                        y = go.transform.up.y,
-                        z = go.transform.up.z,
+                        go.transform.up.x,
+                        go.transform.up.y,
+                        go.transform.up.z,
                     },
                     right = new
                     {
-                        x = go.transform.right.x,
-                        y = go.transform.right.y,
-                        z = go.transform.right.z,
+                        go.transform.right.x,
+                        go.transform.right.y,
+                        go.transform.right.z,
                     },
                 },
                 parentInstanceID = go.transform.parent?.gameObject.GetInstanceID() ?? 0, // 0 if no parent
@@ -121,17 +120,17 @@ namespace MCPForUnity.Editor.Helpers
         // Add the flag parameter here
         public static object GetComponentData(Component c, bool includeNonPublicSerializedFields = true)
         {
-            // --- Add Early Logging --- 
+            // --- Add Early Logging ---
             // Debug.Log($"[GetComponentData] Starting for component: {c?.GetType()?.FullName ?? "null"} (ID: {c?.GetInstanceID() ?? 0})");
             // --- End Early Logging ---
-            
-            if (c == null) return null;
-            Type componentType = c.GetType();
 
-            // --- Special handling for Transform to avoid reflection crashes and problematic properties --- 
+            if (c == null) return null;
+            var componentType = c.GetType();
+
+            // --- Special handling for Transform to avoid reflection crashes and problematic properties ---
             if (componentType == typeof(Transform))
             {
-                Transform tr = c as Transform;
+                var tr = c as Transform;
                 // Debug.Log($"[GetComponentData] Manually serializing Transform (ID: {tr.GetInstanceID()})");
                 return new Dictionary<string, object>
                 {
@@ -150,17 +149,17 @@ namespace MCPForUnity.Editor.Helpers
                     { "rootInstanceID", tr.root?.gameObject.GetInstanceID() ?? 0 },
                     { "childCount", tr.childCount },
                     // Include standard Object/Component properties
-                    { "name", tr.name }, 
-                    { "tag", tr.tag }, 
-                    { "gameObjectInstanceID", tr.gameObject?.GetInstanceID() ?? 0 }
+                    { "name", tr.name },
+                    { "tag", tr.tag },
+                    { "gameObjectInstanceID", tr.gameObject?.GetInstanceID() ?? 0 },
                 };
             }
-            // --- End Special handling for Transform --- 
+            // --- End Special handling for Transform ---
 
             // --- Special handling for Camera to avoid matrix-related crashes ---
             if (componentType == typeof(Camera))
             {
-                Camera cam = c as Camera;
+                var cam = c as Camera;
                 var cameraProperties = new Dictionary<string, object>();
 
                 // List of safe properties to serialize
@@ -191,7 +190,7 @@ namespace MCPForUnity.Editor.Helpers
                     { "enabled", () => cam.enabled },
                     { "name", () => cam.name },
                     { "tag", () => cam.tag },
-                    { "gameObject", () => new { name = cam.gameObject.name, instanceID = cam.gameObject.GetInstanceID() } }
+                    { "gameObject", () => new { cam.gameObject.name, instanceID = cam.gameObject.GetInstanceID() } },
                 };
 
                 foreach (var prop in safeProperties)
@@ -215,7 +214,7 @@ namespace MCPForUnity.Editor.Helpers
                 {
                     { "typeName", componentType.FullName },
                     { "instanceID", cam.GetInstanceID() },
-                    { "properties", cameraProperties }
+                    { "properties", cameraProperties },
                 };
             }
             // --- End Special handling for Camera ---
@@ -223,22 +222,22 @@ namespace MCPForUnity.Editor.Helpers
             var data = new Dictionary<string, object>
             {
                 { "typeName", componentType.FullName },
-                { "instanceID", c.GetInstanceID() }
+                { "instanceID", c.GetInstanceID() },
             };
 
             // --- Get Cached or Generate Metadata (using new cache key) ---
-            Tuple<Type, bool> cacheKey = new Tuple<Type, bool>(componentType, includeNonPublicSerializedFields);
-            if (!_metadataCache.TryGetValue(cacheKey, out CachedMetadata cachedData))
+            var cacheKey = new Tuple<Type, bool>(componentType, includeNonPublicSerializedFields);
+            if (!_metadataCache.TryGetValue(cacheKey, out var cachedData))
             {
                 var propertiesToCache = new List<PropertyInfo>();
                 var fieldsToCache = new List<FieldInfo>();
 
                 // Traverse the hierarchy from the component type up to MonoBehaviour
-                Type currentType = componentType;
+                var currentType = componentType;
                 while (currentType != null && currentType != typeof(MonoBehaviour) && currentType != typeof(object))
                 {
                     // Get properties declared only at the current type level
-                    BindingFlags propFlags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly;
+                    var propFlags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly;
                     foreach (var propInfo in currentType.GetProperties(propFlags))
                     {
                         // Basic filtering (readable, not indexer, not transform which is handled elsewhere)
@@ -250,7 +249,7 @@ namespace MCPForUnity.Editor.Helpers
                     }
 
                     // Get fields declared only at the current type level (both public and non-public)
-                    BindingFlags fieldFlags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly;
+                    var fieldFlags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly;
                     var declaredFields = currentType.GetFields(fieldFlags);
 
                     // Process the declared Fields for caching
@@ -261,7 +260,7 @@ namespace MCPForUnity.Editor.Helpers
                          // Add if not already added (handles hiding - keep the most derived version)
                          if (fieldsToCache.Any(f => f.Name == fieldInfo.Name)) continue;
 
-                        bool shouldInclude = false;
+                        var shouldInclude = false;
                         if (includeNonPublicSerializedFields)
                         {
                             // If TRUE, include Public OR NonPublic with [SerializeField]
@@ -291,7 +290,7 @@ namespace MCPForUnity.Editor.Helpers
 
             // --- Use cached metadata ---
             var serializablePropertiesOutput = new Dictionary<string, object>();
-            
+
             // --- Add Logging Before Property Loop ---
             // Debug.Log($"[GetComponentData] Starting property loop for {componentType.Name}...");
             // --- End Logging Before Property Loop ---
@@ -299,34 +298,29 @@ namespace MCPForUnity.Editor.Helpers
             // Use cached properties
             foreach (var propInfo in cachedData.SerializableProperties)
             {
-                string propName = propInfo.Name;
+                var propName = propInfo.Name;
 
                 // --- Skip known obsolete/problematic Component shortcut properties ---
-                bool skipProperty = false;
-                if (propName == "rigidbody" || propName == "rigidbody2D" || propName == "camera" ||
+                var skipProperty = propName == "rigidbody" || propName == "rigidbody2D" || propName == "camera" ||
                     propName == "light" || propName == "animation" || propName == "constantForce" ||
                     propName == "renderer" || propName == "audio" || propName == "networkView" ||
                     propName == "collider" || propName == "collider2D" || propName == "hingeJoint" ||
                     propName == "particleSystem" ||
                     // Also skip potentially problematic Matrix properties prone to cycles/errors
-                    propName == "worldToLocalMatrix" || propName == "localToWorldMatrix")
-                 {
-                     // Debug.Log($"[GetComponentData] Explicitly skipping generic property: {propName}"); // Optional log
-                     skipProperty = true;
-                 }
+                    propName == "worldToLocalMatrix" || propName == "localToWorldMatrix";
                 // --- End Skip Generic Properties ---
 
                 // --- Skip specific potentially problematic Camera properties ---
-                if (componentType == typeof(Camera) && 
-                    (propName == "pixelRect" || 
-                     propName == "rect" || 
-                     propName == "cullingMatrix" ||
-                     propName == "useOcclusionCulling" ||
-                     propName == "worldToCameraMatrix" ||
-                     propName == "projectionMatrix" ||
-                     propName == "nonJitteredProjectionMatrix" ||
-                     propName == "previousViewProjectionMatrix" ||
-                     propName == "cameraToWorldMatrix"))
+                if (componentType == typeof(Camera) &&
+                    (propName == "pixelRect" ||
+                        propName == "rect" ||
+                        propName == "cullingMatrix" ||
+                        propName == "useOcclusionCulling" ||
+                        propName == "worldToCameraMatrix" ||
+                        propName == "projectionMatrix" ||
+                        propName == "nonJitteredProjectionMatrix" ||
+                        propName == "previousViewProjectionMatrix" ||
+                        propName == "cameraToWorldMatrix"))
                 {
                     // Debug.Log($"[GetComponentData] Explicitly skipping Camera property: {propName}");
                     skipProperty = true;
@@ -334,35 +328,35 @@ namespace MCPForUnity.Editor.Helpers
                 // --- End Skip Camera Properties ---
 
                 // --- Skip specific potentially problematic Transform properties ---
-                if (componentType == typeof(Transform) && 
-                    (propName == "lossyScale" || 
-                     propName == "rotation" ||
-                     propName == "worldToLocalMatrix" ||
-                     propName == "localToWorldMatrix"))
+                if (componentType == typeof(Transform) &&
+                    (propName == "lossyScale" ||
+                        propName == "rotation" ||
+                        propName == "worldToLocalMatrix" ||
+                        propName == "localToWorldMatrix"))
                 {
                     // Debug.Log($"[GetComponentData] Explicitly skipping Transform property: {propName}");
                     skipProperty = true;
                 }
                 // --- End Skip Transform Properties ---
 
-                 // Skip if flagged
-                 if (skipProperty)
-                 {
+                // Skip if flagged
+                if (skipProperty)
+                {
                     continue;
-                 }
+                }
 
                 try
                 {
-                    // --- Add detailed logging --- 
+                    // --- Add detailed logging ---
                     // Debug.Log($"[GetComponentData] Accessing: {componentType.Name}.{propName}");
                     // --- End detailed logging ---
-                    object value = propInfo.GetValue(c);
-                    Type propType = propInfo.PropertyType;
+                    var value    = propInfo.GetValue(c);
+                    var propType = propInfo.PropertyType;
                     AddSerializableValue(serializablePropertiesOutput, propName, propType, value);
                 }
                 catch (Exception)
                 {
-                     // Debug.LogWarning($"Could not read property {propName} on {componentType.Name}");
+                    // Debug.LogWarning($"Could not read property {propName} on {componentType.Name}");
                 }
             }
 
@@ -375,12 +369,12 @@ namespace MCPForUnity.Editor.Helpers
             {
                  try
                 {
-                    // --- Add detailed logging for fields --- 
+                    // --- Add detailed logging for fields ---
                     // Debug.Log($"[GetComponentData] Accessing Field: {componentType.Name}.{fieldInfo.Name}");
                     // --- End detailed logging for fields ---
-                    object value = fieldInfo.GetValue(c);
-                    string fieldName = fieldInfo.Name;
-                    Type fieldType = fieldInfo.FieldType;
+                    var value = fieldInfo.GetValue(c);
+                    var fieldName = fieldInfo.Name;
+                    var fieldType = fieldInfo.FieldType;
                     AddSerializableValue(serializablePropertiesOutput, fieldName, fieldType, value);
                 }
                 catch (Exception)
@@ -411,7 +405,7 @@ namespace MCPForUnity.Editor.Helpers
             try
             {
                 // Use the helper that employs our custom serializer settings
-                JToken token = CreateTokenFromValue(value, type);
+                var token = CreateTokenFromValue(value, type);
                 if (token != null) // Check if serialization succeeded in the helper
                 {
                     // Convert JToken back to a basic object structure for the dictionary
@@ -494,7 +488,7 @@ namespace MCPForUnity.Editor.Helpers
                 new ColorConverter(),
                 new RectConverter(),
                 new BoundsConverter(),
-                new UnityEngineObjectConverter() // Handles serialization of references
+                new UnityEngineObjectConverter(), // Handles serialization of references
             },
             ReferenceLoopHandling = ReferenceLoopHandling.Ignore,
             // ContractResolver = new DefaultContractResolver { NamingStrategy = new CamelCaseNamingStrategy() } // Example if needed
@@ -524,4 +518,4 @@ namespace MCPForUnity.Editor.Helpers
             }
         }
     }
-} 
+}

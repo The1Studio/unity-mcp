@@ -3,7 +3,8 @@ using Newtonsoft.Json.Linq;
 using System;
 using UnityEngine;
 #if UNITY_EDITOR
-using UnityEditor; // Required for AssetDatabase and EditorUtility
+
+// Required for AssetDatabase and EditorUtility
 #endif
 
 namespace MCPForUnity.Runtime.Serialization
@@ -24,7 +25,7 @@ namespace MCPForUnity.Runtime.Serialization
 
         public override Vector3 ReadJson(JsonReader reader, Type objectType, Vector3 existingValue, bool hasExistingValue, JsonSerializer serializer)
         {
-            JObject jo = JObject.Load(reader);
+            var jo = JObject.Load(reader);
             return new Vector3(
                 (float)jo["x"],
                 (float)jo["y"],
@@ -47,7 +48,7 @@ namespace MCPForUnity.Runtime.Serialization
 
         public override Vector2 ReadJson(JsonReader reader, Type objectType, Vector2 existingValue, bool hasExistingValue, JsonSerializer serializer)
         {
-            JObject jo = JObject.Load(reader);
+            var jo = JObject.Load(reader);
             return new Vector2(
                 (float)jo["x"],
                 (float)jo["y"]
@@ -73,7 +74,7 @@ namespace MCPForUnity.Runtime.Serialization
 
         public override Quaternion ReadJson(JsonReader reader, Type objectType, Quaternion existingValue, bool hasExistingValue, JsonSerializer serializer)
         {
-            JObject jo = JObject.Load(reader);
+            var jo = JObject.Load(reader);
             return new Quaternion(
                 (float)jo["x"],
                 (float)jo["y"],
@@ -101,7 +102,7 @@ namespace MCPForUnity.Runtime.Serialization
 
         public override Color ReadJson(JsonReader reader, Type objectType, Color existingValue, bool hasExistingValue, JsonSerializer serializer)
         {
-            JObject jo = JObject.Load(reader);
+            var jo = JObject.Load(reader);
             return new Color(
                 (float)jo["r"],
                 (float)jo["g"],
@@ -110,7 +111,7 @@ namespace MCPForUnity.Runtime.Serialization
             );
         }
     }
-    
+
     public class RectConverter : JsonConverter<Rect>
     {
         public override void WriteJson(JsonWriter writer, Rect value, JsonSerializer serializer)
@@ -129,7 +130,7 @@ namespace MCPForUnity.Runtime.Serialization
 
         public override Rect ReadJson(JsonReader reader, Type objectType, Rect existingValue, bool hasExistingValue, JsonSerializer serializer)
         {
-            JObject jo = JObject.Load(reader);
+            var jo = JObject.Load(reader);
             return new Rect(
                 (float)jo["x"],
                 (float)jo["y"],
@@ -138,7 +139,7 @@ namespace MCPForUnity.Runtime.Serialization
             );
         }
     }
-    
+
     public class BoundsConverter : JsonConverter<Bounds>
     {
         public override void WriteJson(JsonWriter writer, Bounds value, JsonSerializer serializer)
@@ -153,9 +154,9 @@ namespace MCPForUnity.Runtime.Serialization
 
         public override Bounds ReadJson(JsonReader reader, Type objectType, Bounds existingValue, bool hasExistingValue, JsonSerializer serializer)
         {
-            JObject jo = JObject.Load(reader);
-            Vector3 center = jo["center"].ToObject<Vector3>(serializer); // Use serializer to handle nested Vector3
-            Vector3 size = jo["size"].ToObject<Vector3>(serializer);     // Use serializer to handle nested Vector3
+            var jo = JObject.Load(reader);
+            var center = jo["center"].ToObject<Vector3>(serializer); // Use serializer to handle nested Vector3
+            var size = jo["size"].ToObject<Vector3>(serializer);     // Use serializer to handle nested Vector3
             return new Bounds(center, size);
         }
     }
@@ -178,7 +179,7 @@ namespace MCPForUnity.Runtime.Serialization
             if (UnityEditor.AssetDatabase.Contains(value))
             {
                 // It's an asset (Material, Texture, Prefab, etc.)
-                string path = UnityEditor.AssetDatabase.GetAssetPath(value);
+                var path = UnityEditor.AssetDatabase.GetAssetPath(value);
                 if (!string.IsNullOrEmpty(path))
                 {
                     writer.WriteValue(path);
@@ -230,17 +231,17 @@ namespace MCPForUnity.Runtime.Serialization
             if (reader.TokenType == JsonToken.String)
             {
                 // Assume it's an asset path
-                string path = reader.Value.ToString();
+                var path = reader.Value.ToString();
                 return UnityEditor.AssetDatabase.LoadAssetAtPath(path, objectType);
             }
 
             if (reader.TokenType == JsonToken.StartObject)
             {
-                JObject jo = JObject.Load(reader);
-                if (jo.TryGetValue("instanceID", out JToken idToken) && idToken.Type == JTokenType.Integer)
+                var jo = JObject.Load(reader);
+                if (jo.TryGetValue("instanceID", out var idToken) && idToken.Type == JTokenType.Integer)
                 {
-                    int instanceId = idToken.ToObject<int>();
-                    UnityEngine.Object obj = UnityEditor.EditorUtility.InstanceIDToObject(instanceId);
+                    var instanceId = idToken.ToObject<int>();
+                    var obj = UnityEditor.EditorUtility.InstanceIDToObject(instanceId);
                     if (obj != null && objectType.IsAssignableFrom(obj.GetType()))
                     {
                         return obj;
@@ -255,9 +256,9 @@ namespace MCPForUnity.Runtime.Serialization
              Debug.LogWarning("UnityEngineObjectConverter cannot deserialize complex objects in non-Editor mode.");
              // Skip the token to avoid breaking the reader
              if (reader.TokenType == JsonToken.StartObject) JObject.Load(reader);
-             else if (reader.TokenType == JsonToken.String) reader.ReadAsString(); 
+             else if (reader.TokenType == JsonToken.String) reader.ReadAsString();
              // Return null or existing value, depending on desired behavior
-             return existingValue; 
+             return existingValue;
 #endif
 
             throw new JsonSerializationException($"Unexpected token type '{reader.TokenType}' when deserializing UnityEngine.Object");

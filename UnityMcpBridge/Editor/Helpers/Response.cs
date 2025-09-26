@@ -24,13 +24,13 @@ namespace MCPForUnity.Editor.Helpers
                 return new
                 {
                     success = true,
-                    message = message,
-                    data = data,
+                    message,
+                    data,
                 };
             }
             else
             {
-                return new { success = true, message = message };
+                return new { success = true, message };
             }
         }
 
@@ -52,7 +52,7 @@ namespace MCPForUnity.Editor.Helpers
                     // If callers pass a code string, it will be echoed in both code and error.
                     code = errorCodeOrMessage,
                     error = errorCodeOrMessage,
-                    data = data,
+                    data,
                 };
             }
             else
@@ -74,10 +74,10 @@ namespace MCPForUnity.Editor.Helpers
         /// <param name="lineNumber">Line number where error occurred (if applicable)</param>
         /// <returns>Enhanced error response object</returns>
         public static object EnhancedError(
-            string message, 
-            string context = null, 
-            string suggestion = null, 
-            string[] relatedItems = null, 
+            string message,
+            string context = null,
+            string suggestion = null,
+            string[] relatedItems = null,
             string errorCode = null,
             string filePath = null,
             int? lineNumber = null)
@@ -86,7 +86,7 @@ namespace MCPForUnity.Editor.Helpers
             {
                 { "timestamp", DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss UTC") },
                 { "unity_version", Application.unityVersion },
-                { "platform", Application.platform.ToString() }
+                { "platform", Application.platform.ToString() },
             };
 
             if (!string.IsNullOrEmpty(context))
@@ -109,7 +109,7 @@ namespace MCPForUnity.Editor.Helpers
                 success = false,
                 error = message,
                 code = errorCode ?? "STUDIO_ERROR",
-                error_details = errorDetails
+                error_details = errorDetails,
             };
         }
 
@@ -162,13 +162,13 @@ namespace MCPForUnity.Editor.Helpers
 
                 var fileName = System.IO.Path.GetFileNameWithoutExtension(assetPath);
                 var directory = System.IO.Path.GetDirectoryName(assetPath);
-                
+
                 if (string.IsNullOrEmpty(fileName) || string.IsNullOrEmpty(directory))
                     return new string[0];
 
                 // Find assets with similar names in the same directory
                 var similarAssets = new List<string>();
-                
+
                 if (System.IO.Directory.Exists(directory))
                 {
                     var files = System.IO.Directory.GetFiles(directory, "*" + fileName + "*", System.IO.SearchOption.TopDirectoryOnly);
@@ -189,4 +189,3 @@ namespace MCPForUnity.Editor.Helpers
         }
     }
 }
-

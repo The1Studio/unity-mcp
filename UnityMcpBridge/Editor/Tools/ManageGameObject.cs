@@ -6,8 +6,7 @@ using System.Reflection;
 using Newtonsoft.Json; // Added for JsonSerializationException
 using Newtonsoft.Json.Linq;
 using UnityEditor;
-using UnityEditor.Compilation; // For CompilationPipeline
-using UnityEditor.SceneManagement;
+// For CompilationPipeline
 using UnityEditorInternal;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -27,7 +26,7 @@ namespace MCPForUnity.Editor.Tools
             Converters = new List<JsonConverter>
             {
                 new Vector3Converter(),
-                new Vector2Converter(), 
+                new Vector2Converter(),
                 new QuaternionConverter(),
                 new ColorConverter(),
                 new RectConverter(),
@@ -35,7 +34,7 @@ namespace MCPForUnity.Editor.Tools
                 new UnityEngineObjectConverter()
             }
         });
-        
+
         // --- Main Handler ---
 
         public static object HandleCommand(JObject @params)
@@ -45,28 +44,28 @@ namespace MCPForUnity.Editor.Tools
                 return Response.Error("Parameters cannot be null.");
             }
 
-            string action = @params["action"]?.ToString().ToLower();
+            var action = @params["action"]?.ToString().ToLower();
             if (string.IsNullOrEmpty(action))
             {
                 return Response.Error("Action parameter is required.");
             }
 
             // Parameters used by various actions
-            JToken targetToken = @params["target"]; // Can be string (name/path) or int (instanceID)
-            string searchMethod = @params["searchMethod"]?.ToString().ToLower();
+            var targetToken = @params["target"]; // Can be string (name/path) or int (instanceID)
+            var searchMethod = @params["searchMethod"]?.ToString().ToLower();
 
             // Get common parameters (consolidated)
-            string name = @params["name"]?.ToString();
-            string tag = @params["tag"]?.ToString();
-            string layer = @params["layer"]?.ToString();
-            JToken parentToken = @params["parent"];
+            var name = @params["name"]?.ToString();
+            var tag = @params["tag"]?.ToString();
+            var layer = @params["layer"]?.ToString();
+            var parentToken = @params["parent"];
 
             // --- Add parameter for controlling non-public field inclusion ---
-            bool includeNonPublicSerialized = @params["includeNonPublicSerialized"]?.ToObject<bool>() ?? true; // Default to true
+            var includeNonPublicSerialized = @params["includeNonPublicSerialized"]?.ToObject<bool>() ?? true; // Default to true
             // --- End add parameter ---
 
             // --- Prefab Redirection Check ---
-            string targetPath =
+            var targetPath =
                 targetToken?.Type == JTokenType.String ? targetToken.ToString() : null;
             if (
                 !string.IsNullOrEmpty(targetPath)
@@ -80,7 +79,7 @@ namespace MCPForUnity.Editor.Tools
                         $"[ManageGameObject->ManageAsset] Redirecting action '{action}' for prefab '{targetPath}' to ManageAsset."
                     );
                     // Prepare params for ManageAsset.ModifyAsset
-                    JObject assetParams = new JObject();
+                    var assetParams = new JObject();
                     assetParams["action"] = "modify"; // ManageAsset uses "modify"
                     assetParams["path"] = targetPath;
 
@@ -90,8 +89,8 @@ namespace MCPForUnity.Editor.Tools
                     JObject properties = null;
                     if (action == "set_component_property")
                     {
-                        string compName = @params["componentName"]?.ToString();
-                        JObject compProps = @params["componentProperties"]?[compName] as JObject; // Handle potential nesting
+                        var compName = @params["componentName"]?.ToString();
+                        var compProps = @params["componentProperties"]?[compName] as JObject; // Handle potential nesting
                         if (string.IsNullOrEmpty(compName))
                             return Response.Error(
                                 "Missing 'componentName' for 'set_component_property' on prefab."
@@ -148,7 +147,7 @@ namespace MCPForUnity.Editor.Tools
                     case "find":
                         return FindGameObjects(@params, targetToken, searchMethod);
                     case "get_components":
-                        string getCompTarget = targetToken?.ToString(); // Expect name, path, or ID string
+                        var getCompTarget = targetToken?.ToString(); // Expect name, path, or ID string
                         if (getCompTarget == null)
                             return Response.Error(
                                 "'target' parameter required for get_components."
@@ -177,21 +176,21 @@ namespace MCPForUnity.Editor.Tools
 
         private static object CreateGameObject(JObject @params)
         {
-            string name = @params["name"]?.ToString();
+            var name = @params["name"]?.ToString();
             if (string.IsNullOrEmpty(name))
             {
                 return Response.Error("'name' parameter is required for 'create' action.");
             }
 
             // Get prefab creation parameters
-            bool saveAsPrefab = @params["saveAsPrefab"]?.ToObject<bool>() ?? false;
-            string prefabPath = @params["prefabPath"]?.ToString();
-            string tag = @params["tag"]?.ToString(); // Get tag for creation
-            string primitiveType = @params["primitiveType"]?.ToString(); // Keep primitiveType check
+            var saveAsPrefab = @params["saveAsPrefab"]?.ToObject<bool>() ?? false;
+            var prefabPath = @params["prefabPath"]?.ToString();
+            var tag = @params["tag"]?.ToString(); // Get tag for creation
+            var primitiveType = @params["primitiveType"]?.ToString(); // Keep primitiveType check
             GameObject newGo = null; // Initialize as null
 
             // --- Try Instantiating Prefab First ---
-            string originalPrefabPath = prefabPath; // Keep original for messages
+            var originalPrefabPath = prefabPath; // Keep original for messages
             if (!string.IsNullOrEmpty(prefabPath))
             {
                 // If no extension, search for the prefab by name
@@ -200,11 +199,11 @@ namespace MCPForUnity.Editor.Tools
                     && !prefabPath.EndsWith(".prefab", StringComparison.OrdinalIgnoreCase)
                 )
                 {
-                    string prefabNameOnly = prefabPath;
+                    var prefabNameOnly = prefabPath;
                     Debug.Log(
                         $"[ManageGameObject.Create] Searching for prefab named: '{prefabNameOnly}'"
                     );
-                    string[] guids = AssetDatabase.FindAssets($"t:Prefab {prefabNameOnly}");
+                    var guids = AssetDatabase.FindAssets($"t:Prefab {prefabNameOnly}");
                     if (guids.Length == 0)
                     {
                         return Response.Error(
@@ -213,7 +212,7 @@ namespace MCPForUnity.Editor.Tools
                     }
                     else if (guids.Length > 1)
                     {
-                        string foundPaths = string.Join(
+                        var foundPaths = string.Join(
                             ", ",
                             guids.Select(g => AssetDatabase.GUIDToAssetPath(g))
                         );
@@ -240,7 +239,7 @@ namespace MCPForUnity.Editor.Tools
                 }
                 // The logic above now handles finding or assuming the .prefab extension.
 
-                GameObject prefabAsset = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
+                var prefabAsset = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
                 if (prefabAsset != null)
                 {
                     try
@@ -292,14 +291,14 @@ namespace MCPForUnity.Editor.Tools
             }
 
             // --- Fallback: Create Primitive or Empty GameObject ---
-            bool createdNewObject = false; // Flag to track if we created (not instantiated)
+            var createdNewObject = false; // Flag to track if we created (not instantiated)
             if (newGo == null) // Only proceed if prefab instantiation didn't happen
             {
                 if (!string.IsNullOrEmpty(primitiveType))
                 {
                     try
                     {
-                        PrimitiveType type = (PrimitiveType)
+                        var type = (PrimitiveType)
                             Enum.Parse(typeof(PrimitiveType), primitiveType, true);
                         newGo = GameObject.CreatePrimitive(type);
                         // Set name *after* creation for primitives
@@ -359,10 +358,10 @@ namespace MCPForUnity.Editor.Tools
             Undo.RecordObject(newGo, "Set GameObject Properties");
 
             // Set Parent
-            JToken parentToken = @params["parent"];
+            var parentToken = @params["parent"];
             if (parentToken != null)
             {
-                GameObject parentGo = FindObjectInternal(parentToken, "by_id_or_name_or_path"); // Flexible parent finding
+                var parentGo = FindObjectInternal(parentToken, "by_id_or_name_or_path"); // Flexible parent finding
                 if (parentGo == null)
                 {
                     UnityEngine.Object.DestroyImmediate(newGo); // Clean up created object
@@ -372,9 +371,9 @@ namespace MCPForUnity.Editor.Tools
             }
 
             // Set Transform
-            Vector3? position = ParseVector3(@params["position"] as JArray);
-            Vector3? rotation = ParseVector3(@params["rotation"] as JArray);
-            Vector3? scale = ParseVector3(@params["scale"] as JArray);
+            var position = ParseVector3(@params["position"] as JArray);
+            var rotation = ParseVector3(@params["rotation"] as JArray);
+            var scale = ParseVector3(@params["scale"] as JArray);
 
             if (position.HasValue)
                 newGo.transform.localPosition = position.Value;
@@ -387,7 +386,7 @@ namespace MCPForUnity.Editor.Tools
             if (!string.IsNullOrEmpty(tag))
             {
                 // Similar logic as in ModifyGameObject for setting/creating tags
-                string tagToSet = string.IsNullOrEmpty(tag) ? "Untagged" : tag;
+                var tagToSet = string.IsNullOrEmpty(tag) ? "Untagged" : tag;
                 try
                 {
                     newGo.tag = tagToSet;
@@ -426,10 +425,10 @@ namespace MCPForUnity.Editor.Tools
             }
 
             // Set Layer (new for create action)
-            string layerName = @params["layer"]?.ToString();
+            var layerName = @params["layer"]?.ToString();
             if (!string.IsNullOrEmpty(layerName))
             {
-                int layerId = LayerMask.NameToLayer(layerName);
+                var layerId = LayerMask.NameToLayer(layerName);
                 if (layerId != -1)
                 {
                     newGo.layer = layerId;
@@ -479,10 +478,10 @@ namespace MCPForUnity.Editor.Tools
             }
 
             // Save as Prefab ONLY if we *created* a new object AND saveAsPrefab is true
-            GameObject finalInstance = newGo; // Use this for selection and return data
+            var finalInstance = newGo; // Use this for selection and return data
             if (createdNewObject && saveAsPrefab)
             {
-                string finalPrefabPath = prefabPath; // Use a separate variable for saving path
+                var finalPrefabPath = prefabPath; // Use a separate variable for saving path
                 // This check should now happen *before* attempting to save
                 if (string.IsNullOrEmpty(finalPrefabPath))
                 {
@@ -504,7 +503,7 @@ namespace MCPForUnity.Editor.Tools
                 try
                 {
                     // Ensure directory exists using the final saving path
-                    string directoryPath = System.IO.Path.GetDirectoryName(finalPrefabPath);
+                    var directoryPath = System.IO.Path.GetDirectoryName(finalPrefabPath);
                     if (
                         !string.IsNullOrEmpty(directoryPath)
                         && !System.IO.Directory.Exists(directoryPath)
@@ -549,7 +548,7 @@ namespace MCPForUnity.Editor.Tools
             Selection.activeGameObject = finalInstance;
 
             // Determine appropriate success message using the potentially updated or original path
-            string messagePrefabPath =
+            var messagePrefabPath =
                 finalInstance == null
                     ? originalPrefabPath
                     : AssetDatabase.GetAssetPath(
@@ -584,7 +583,7 @@ namespace MCPForUnity.Editor.Tools
             string searchMethod
         )
         {
-            GameObject targetGo = FindObjectInternal(targetToken, searchMethod);
+            var targetGo = FindObjectInternal(targetToken, searchMethod);
             if (targetGo == null)
             {
                 return Response.Error(
@@ -596,10 +595,10 @@ namespace MCPForUnity.Editor.Tools
             Undo.RecordObject(targetGo.transform, "Modify GameObject Transform");
             Undo.RecordObject(targetGo, "Modify GameObject Properties");
 
-            bool modified = false;
+            var modified = false;
 
             // Rename (using consolidated 'name' parameter)
-            string name = @params["name"]?.ToString();
+            var name = @params["name"]?.ToString();
             if (!string.IsNullOrEmpty(name) && targetGo.name != name)
             {
                 targetGo.name = name;
@@ -607,10 +606,10 @@ namespace MCPForUnity.Editor.Tools
             }
 
             // Change Parent (using consolidated 'parent' parameter)
-            JToken parentToken = @params["parent"];
+            var parentToken = @params["parent"];
             if (parentToken != null)
             {
-                GameObject newParentGo = FindObjectInternal(parentToken, "by_id_or_name_or_path");
+                var newParentGo = FindObjectInternal(parentToken, "by_id_or_name_or_path");
                 // Check for hierarchy loops
                 if (
                     newParentGo == null
@@ -639,7 +638,7 @@ namespace MCPForUnity.Editor.Tools
             }
 
             // Set Active State
-            bool? setActive = @params["setActive"]?.ToObject<bool?>();
+            var setActive = @params["setActive"]?.ToObject<bool?>();
             if (setActive.HasValue && targetGo.activeSelf != setActive.Value)
             {
                 targetGo.SetActive(setActive.Value);
@@ -647,13 +646,13 @@ namespace MCPForUnity.Editor.Tools
             }
 
             // Change Tag (using consolidated 'tag' parameter)
-            string tag = @params["tag"]?.ToString();
+            var tag = @params["tag"]?.ToString();
             // Only attempt to change tag if a non-null tag is provided and it's different from the current one.
             // Allow setting an empty string to remove the tag (Unity uses "Untagged").
             if (tag != null && targetGo.tag != tag)
             {
                 // Ensure the tag is not empty, if empty, it means "Untagged" implicitly
-                string tagToSet = string.IsNullOrEmpty(tag) ? "Untagged" : tag;
+                var tagToSet = string.IsNullOrEmpty(tag) ? "Untagged" : tag;
                 try
                 {
                     targetGo.tag = tagToSet;
@@ -701,10 +700,10 @@ namespace MCPForUnity.Editor.Tools
             }
 
             // Change Layer (using consolidated 'layer' parameter)
-            string layerName = @params["layer"]?.ToString();
+            var layerName = @params["layer"]?.ToString();
             if (!string.IsNullOrEmpty(layerName))
             {
-                int layerId = LayerMask.NameToLayer(layerName);
+                var layerId = LayerMask.NameToLayer(layerName);
                 if (layerId == -1 && layerName != "Default")
                 {
                     return Response.Error(
@@ -719,9 +718,9 @@ namespace MCPForUnity.Editor.Tools
             }
 
             // Transform Modifications
-            Vector3? position = ParseVector3(@params["position"] as JArray);
-            Vector3? rotation = ParseVector3(@params["rotation"] as JArray);
-            Vector3? scale = ParseVector3(@params["scale"] as JArray);
+            var position = ParseVector3(@params["position"] as JArray);
+            var rotation = ParseVector3(@params["rotation"] as JArray);
+            var scale = ParseVector3(@params["scale"] as JArray);
 
             if (position.HasValue && targetGo.transform.localPosition != position.Value)
             {
@@ -748,7 +747,7 @@ namespace MCPForUnity.Editor.Tools
                 foreach (var compToken in componentsToRemoveArray)
                 {
                     // ... (parsing logic as in CreateGameObject) ...
-                    string typeName = compToken.ToString();
+                    var typeName = compToken.ToString();
                     if (!string.IsNullOrEmpty(typeName))
                     {
                         var removeResult = RemoveComponentInternal(targetGo, typeName);
@@ -790,8 +789,8 @@ namespace MCPForUnity.Editor.Tools
             {
                 foreach (var prop in componentPropertiesObj.Properties())
                 {
-                    string compName = prop.Name;
-                    JObject propertiesToSet = prop.Value as JObject;
+                    var compName = prop.Name;
+                    var propertiesToSet = prop.Value as JObject;
                     if (propertiesToSet != null)
                     {
                         var setResult = SetComponentPropertiesInternal(
@@ -841,7 +840,7 @@ namespace MCPForUnity.Editor.Tools
 
                 return Response.Error(
                     $"One or more component property operations failed on '{targetGo.name}'.",
-                    new { componentErrors = componentErrors, errors = aggregatedErrors }
+                    new { componentErrors, errors = aggregatedErrors }
                 );
             }
 
@@ -873,7 +872,7 @@ namespace MCPForUnity.Editor.Tools
         private static object DeleteGameObject(JToken targetToken, string searchMethod)
         {
             // Find potentially multiple objects if name/tag search is used without find_all=false implicitly
-            List<GameObject> targets = FindObjectsInternal(targetToken, searchMethod, true); // find_all=true for delete safety
+            var targets = FindObjectsInternal(targetToken, searchMethod, true); // find_all=true for delete safety
 
             if (targets.Count == 0)
             {
@@ -882,13 +881,13 @@ namespace MCPForUnity.Editor.Tools
                 );
             }
 
-            List<object> deletedObjects = new List<object>();
+            var deletedObjects = new List<object>();
             foreach (var targetGo in targets)
             {
                 if (targetGo != null)
                 {
-                    string goName = targetGo.name;
-                    int goId = targetGo.GetInstanceID();
+                    var goName = targetGo.name;
+                    var goId = targetGo.GetInstanceID();
                     // Use Undo.DestroyObjectImmediate for undo support
                     Undo.DestroyObjectImmediate(targetGo);
                     deletedObjects.Add(new { name = goName, instanceID = goId });
@@ -897,7 +896,7 @@ namespace MCPForUnity.Editor.Tools
 
             if (deletedObjects.Count > 0)
             {
-                string message =
+                var message =
                     targets.Count == 1
                         ? $"GameObject '{deletedObjects[0].GetType().GetProperty("name").GetValue(deletedObjects[0])}' deleted successfully."
                         : $"{deletedObjects.Count} GameObjects deleted successfully.";
@@ -916,8 +915,8 @@ namespace MCPForUnity.Editor.Tools
             string searchMethod
         )
         {
-            bool findAll = @params["findAll"]?.ToObject<bool>() ?? false;
-            List<GameObject> foundObjects = FindObjectsInternal(
+            var findAll = @params["findAll"]?.ToObject<bool>() ?? false;
+            var foundObjects = FindObjectsInternal(
                 targetToken,
                 searchMethod,
                 findAll,
@@ -937,7 +936,7 @@ namespace MCPForUnity.Editor.Tools
 
         private static object GetComponentsFromTarget(string target, string searchMethod, bool includeNonPublicSerialized = true)
         {
-            GameObject targetGo = FindObjectInternal(target, searchMethod);
+            var targetGo = FindObjectInternal(target, searchMethod);
             if (targetGo == null)
             {
                 return Response.Error(
@@ -947,26 +946,26 @@ namespace MCPForUnity.Editor.Tools
 
             try
             {
-                // --- Get components, immediately copy to list, and null original array --- 
-                Component[] originalComponents = targetGo.GetComponents<Component>();
-                List<Component> componentsToIterate = new List<Component>(originalComponents ?? Array.Empty<Component>()); // Copy immediately, handle null case
-                int componentCount = componentsToIterate.Count; 
+                // --- Get components, immediately copy to list, and null original array ---
+                var originalComponents = targetGo.GetComponents<Component>();
+                var componentsToIterate = new List<Component>(originalComponents ?? Array.Empty<Component>()); // Copy immediately, handle null case
+                var componentCount = componentsToIterate.Count;
                 originalComponents = null; // Null the original reference
                 // Debug.Log($"[GetComponentsFromTarget] Found {componentCount} components on {targetGo.name}. Copied to list, nulled original. Starting REVERSE for loop...");
-                // --- End Copy and Null --- 
-                
+                // --- End Copy and Null ---
+
                 var componentData = new List<object>();
-                
-                for (int i = componentCount - 1; i >= 0; i--) // Iterate backwards over the COPY
+
+                for (var i = componentCount - 1; i >= 0; i--) // Iterate backwards over the COPY
                 {
-                    Component c = componentsToIterate[i]; // Use the copy
-                    if (c == null) 
+                    var c = componentsToIterate[i]; // Use the copy
+                    if (c == null)
                     {
                         // Debug.LogWarning($"[GetComponentsFromTarget REVERSE for] Encountered a null component at index {i} on {targetGo.name}. Skipping.");
                         continue; // Safety check
                     }
                     // Debug.Log($"[GetComponentsFromTarget REVERSE for] Processing component: {c.GetType()?.FullName ?? "null"} (ID: {c.GetInstanceID()}) at index {i} on {targetGo.name}");
-                    try 
+                    try
                     {
                         var data = Helpers.GameObjectSerializer.GetComponentData(c, includeNonPublicSerialized);
                         if (data != null) // Ensure GetComponentData didn't return null
@@ -990,7 +989,7 @@ namespace MCPForUnity.Editor.Tools
                     }
                 }
                 // Debug.Log($"[GetComponentsFromTarget] Finished REVERSE for loop.");
-                
+
                 // Cleanup the list we created
                 componentsToIterate.Clear();
                 componentsToIterate = null;
@@ -1014,7 +1013,7 @@ namespace MCPForUnity.Editor.Tools
             string searchMethod
         )
         {
-            GameObject targetGo = FindObjectInternal(targetToken, searchMethod);
+            var targetGo = FindObjectInternal(targetToken, searchMethod);
             if (targetGo == null)
             {
                 return Response.Error(
@@ -1071,7 +1070,7 @@ namespace MCPForUnity.Editor.Tools
             string searchMethod
         )
         {
-            GameObject targetGo = FindObjectInternal(targetToken, searchMethod);
+            var targetGo = FindObjectInternal(targetToken, searchMethod);
             if (targetGo == null)
             {
                 return Response.Error(
@@ -1118,7 +1117,7 @@ namespace MCPForUnity.Editor.Tools
             string searchMethod
         )
         {
-            GameObject targetGo = FindObjectInternal(targetToken, searchMethod);
+            var targetGo = FindObjectInternal(targetToken, searchMethod);
             if (targetGo == null)
             {
                 return Response.Error(
@@ -1126,7 +1125,7 @@ namespace MCPForUnity.Editor.Tools
                 );
             }
 
-            string compName = @params["componentName"]?.ToString();
+            var compName = @params["componentName"]?.ToString();
             JObject propertiesToSet = null;
 
             if (!string.IsNullOrEmpty(compName))
@@ -1196,7 +1195,7 @@ namespace MCPForUnity.Editor.Tools
         )
         {
             // If find_all is not explicitly false, we still want only one for most single-target operations.
-            bool findAll = findParams?["findAll"]?.ToObject<bool>() ?? false;
+            var findAll = findParams?["findAll"]?.ToObject<bool>() ?? false;
             // If a specific target ID is given, always find just that one.
             if (
                 targetToken?.Type == JTokenType.Integer
@@ -1205,7 +1204,7 @@ namespace MCPForUnity.Editor.Tools
             {
                 findAll = false;
             }
-            List<GameObject> results = FindObjectsInternal(
+            var results = FindObjectsInternal(
                 targetToken,
                 searchMethod,
                 findAll,
@@ -1224,10 +1223,10 @@ namespace MCPForUnity.Editor.Tools
             JObject findParams = null
         )
         {
-            List<GameObject> results = new List<GameObject>();
-            string searchTerm = findParams?["searchTerm"]?.ToString() ?? targetToken?.ToString(); // Use searchTerm if provided, else the target itself
-            bool searchInChildren = findParams?["searchInChildren"]?.ToObject<bool>() ?? false;
-            bool searchInactive = findParams?["searchInactive"]?.ToObject<bool>() ?? false;
+            var results = new List<GameObject>();
+            var searchTerm = findParams?["searchTerm"]?.ToString() ?? targetToken?.ToString(); // Use searchTerm if provided, else the target itself
+            var searchInChildren = findParams?["searchInChildren"]?.ToObject<bool>() ?? false;
+            var searchInactive = findParams?["searchInactive"]?.ToObject<bool>() ?? false;
 
             // Default search method if not specified
             if (string.IsNullOrEmpty(searchMethod))
@@ -1257,12 +1256,12 @@ namespace MCPForUnity.Editor.Tools
             switch (searchMethod)
             {
                 case "by_id":
-                    if (int.TryParse(searchTerm, out int instanceId))
+                    if (int.TryParse(searchTerm, out var instanceId))
                     {
                         // EditorUtility.InstanceIDToObject is slow, iterate manually if possible
                         // GameObject obj = EditorUtility.InstanceIDToObject(instanceId) as GameObject;
                         var allObjects = GetAllSceneObjects(searchInactive); // More efficient
-                        GameObject obj = allObjects.FirstOrDefault(go =>
+                        var obj = allObjects.FirstOrDefault(go =>
                             go.GetInstanceID() == instanceId
                         );
                         if (obj != null)
@@ -1279,7 +1278,7 @@ namespace MCPForUnity.Editor.Tools
                     break;
                 case "by_path":
                     // Path is relative to scene root or rootSearchObject
-                    Transform foundTransform = rootSearchObject
+                    var foundTransform = rootSearchObject
                         ? rootSearchObject.transform.Find(searchTerm)
                         : GameObject.Find(searchTerm)?.transform;
                     if (foundTransform != null)
@@ -1299,23 +1298,23 @@ namespace MCPForUnity.Editor.Tools
                             .GetComponentsInChildren<Transform>(searchInactive)
                             .Select(t => t.gameObject)
                         : GetAllSceneObjects(searchInactive);
-                    if (int.TryParse(searchTerm, out int layerIndex))
+                    if (int.TryParse(searchTerm, out var layerIndex))
                     {
                         results.AddRange(searchPoolLayer.Where(go => go.layer == layerIndex));
                     }
                     else
                     {
-                        int namedLayer = LayerMask.NameToLayer(searchTerm);
+                        var namedLayer = LayerMask.NameToLayer(searchTerm);
                         if (namedLayer != -1)
                             results.AddRange(searchPoolLayer.Where(go => go.layer == namedLayer));
                     }
                     break;
                 case "by_component":
-                    Type componentType = FindType(searchTerm);
+                    var componentType = FindType(searchTerm);
                     if (componentType != null)
                     {
                         // Determine FindObjectsInactive based on the searchInactive flag
-                        FindObjectsInactive findInactive = searchInactive
+                        var findInactive = searchInactive
                             ? FindObjectsInactive.Include
                             : FindObjectsInactive.Exclude;
                         // Replace FindObjectsOfType with FindObjectsByType, specifying the sorting mode and inactive state
@@ -1340,10 +1339,10 @@ namespace MCPForUnity.Editor.Tools
                     }
                     break;
                 case "by_id_or_name_or_path": // Helper method used internally
-                    if (int.TryParse(searchTerm, out int id))
+                    if (int.TryParse(searchTerm, out var id))
                     {
                         var allObjectsId = GetAllSceneObjects(true); // Search inactive for internal lookup
-                        GameObject objById = allObjectsId.FirstOrDefault(go =>
+                        var objById = allObjectsId.FirstOrDefault(go =>
                             go.GetInstanceID() == id
                         );
                         if (objById != null)
@@ -1352,7 +1351,7 @@ namespace MCPForUnity.Editor.Tools
                             break;
                         }
                     }
-                    GameObject objByPath = GameObject.Find(searchTerm);
+                    var objByPath = GameObject.Find(searchTerm);
                     if (objByPath != null)
                     {
                         results.Add(objByPath);
@@ -1404,7 +1403,7 @@ namespace MCPForUnity.Editor.Tools
             JObject properties
         )
         {
-            Type componentType = FindType(typeName);
+            var componentType = FindType(typeName);
             if (componentType == null)
             {
                 return Response.Error(
@@ -1423,10 +1422,10 @@ namespace MCPForUnity.Editor.Tools
             }
 
             // Check for 2D/3D physics component conflicts
-            bool isAdding2DPhysics =
+            var isAdding2DPhysics =
                 typeof(Rigidbody2D).IsAssignableFrom(componentType)
                 || typeof(Collider2D).IsAssignableFrom(componentType);
-            bool isAdding3DPhysics =
+            var isAdding3DPhysics =
                 typeof(Rigidbody).IsAssignableFrom(componentType)
                 || typeof(Collider).IsAssignableFrom(componentType);
 
@@ -1460,7 +1459,7 @@ namespace MCPForUnity.Editor.Tools
             try
             {
                 // Use Undo.AddComponent for undo support
-                Component newComponent = Undo.AddComponent(targetGo, componentType);
+                var newComponent = Undo.AddComponent(targetGo, componentType);
                 if (newComponent == null)
                 {
                     return Response.Error(
@@ -1508,7 +1507,7 @@ namespace MCPForUnity.Editor.Tools
         /// </summary>
         private static object RemoveComponentInternal(GameObject targetGo, string typeName)
         {
-            Type componentType = FindType(typeName);
+            var componentType = FindType(typeName);
             if (componentType == null)
             {
                 return Response.Error($"Component type '{typeName}' not found for removal.");
@@ -1520,7 +1519,7 @@ namespace MCPForUnity.Editor.Tools
                 return Response.Error("Cannot remove the Transform component.");
             }
 
-            Component componentToRemove = targetGo.GetComponent(componentType);
+            var componentToRemove = targetGo.GetComponent(componentType);
             if (componentToRemove == null)
             {
                 return Response.Error(
@@ -1553,7 +1552,7 @@ namespace MCPForUnity.Editor.Tools
             Component targetComponentInstance = null
         )
         {
-            Component targetComponent = targetComponentInstance;
+            var targetComponent = targetComponentInstance;
             if (targetComponent == null)
             {
                 if (ComponentResolver.TryResolve(compName, out var compType, out var compError))
@@ -1577,12 +1576,12 @@ namespace MCPForUnity.Editor.Tools
             var failures = new List<string>();
             foreach (var prop in propertiesToSet.Properties())
             {
-                string propName = prop.Name;
-                JToken propValue = prop.Value;
+                var propName = prop.Name;
+                var propValue = prop.Value;
 
                 try
                 {
-                    bool setResult = SetProperty(targetComponent, propName, propValue);
+                    var setResult = SetProperty(targetComponent, propName, propValue);
                     if (!setResult)
                     {
                         var availableProperties = ComponentResolver.GetAllComponentProperties(targetComponent.GetType());
@@ -1613,8 +1612,8 @@ namespace MCPForUnity.Editor.Tools
         /// </summary>
         private static bool SetProperty(object target, string memberName, JToken value)
         {
-            Type type = target.GetType();
-            BindingFlags flags =
+            var type = target.GetType();
+            var flags =
                 BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase;
 
              // Use shared serializer to avoid per-call allocation
@@ -1630,11 +1629,11 @@ namespace MCPForUnity.Editor.Tools
                     return SetNestedProperty(target, memberName, value, inputSerializer);
                 }
 
-                PropertyInfo propInfo = type.GetProperty(memberName, flags);
+                var propInfo = type.GetProperty(memberName, flags);
                 if (propInfo != null && propInfo.CanWrite)
                 {
                     // Use the inputSerializer for conversion
-                    object convertedValue = ConvertJTokenToType(value, propInfo.PropertyType, inputSerializer);
+                    var convertedValue = ConvertJTokenToType(value, propInfo.PropertyType, inputSerializer);
                     if (convertedValue != null || value.Type == JTokenType.Null) // Allow setting null
                     {
                         propInfo.SetValue(target, convertedValue);
@@ -1646,11 +1645,11 @@ namespace MCPForUnity.Editor.Tools
                 }
                 else
                 {
-                    FieldInfo fieldInfo = type.GetField(memberName, flags);
+                    var fieldInfo = type.GetField(memberName, flags);
                     if (fieldInfo != null) // Check if !IsLiteral?
                     {
                          // Use the inputSerializer for conversion
-                        object convertedValue = ConvertJTokenToType(value, fieldInfo.FieldType, inputSerializer);
+                        var convertedValue = ConvertJTokenToType(value, fieldInfo.FieldType, inputSerializer);
                          if (convertedValue != null || value.Type == JTokenType.Null) // Allow setting null
                         {
                             fieldInfo.SetValue(target, convertedValue);
@@ -1666,7 +1665,7 @@ namespace MCPForUnity.Editor.Tools
                         var npField = type.GetField(memberName, BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.IgnoreCase);
                         if (npField != null && npField.GetCustomAttribute<SerializeField>() != null)
                         {
-                            object convertedValue = ConvertJTokenToType(value, npField.FieldType, inputSerializer);
+                            var convertedValue = ConvertJTokenToType(value, npField.FieldType, inputSerializer);
                             if (convertedValue != null || value.Type == JTokenType.Null)
                             {
                                 npField.SetValue(target, convertedValue);
@@ -1695,30 +1694,30 @@ namespace MCPForUnity.Editor.Tools
             try
             {
                 // Split the path into parts (handling both dot notation and array indexing)
-                string[] pathParts = SplitPropertyPath(path);
+                var pathParts = SplitPropertyPath(path);
                 if (pathParts.Length == 0)
                     return false;
 
-                object currentObject = target;
-                Type currentType = currentObject.GetType();
-                BindingFlags flags =
+                var currentObject = target;
+                var currentType = currentObject.GetType();
+                var flags =
                     BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase;
 
                 // Traverse the path until we reach the final property
-                for (int i = 0; i < pathParts.Length - 1; i++)
+                for (var i = 0; i < pathParts.Length - 1; i++)
                 {
-                    string part = pathParts[i];
-                    bool isArray = false;
-                    int arrayIndex = -1;
+                    var part = pathParts[i];
+                    var isArray = false;
+                    var arrayIndex = -1;
 
                     // Check if this part contains array indexing
                     if (part.Contains("["))
                     {
-                        int startBracket = part.IndexOf('[');
-                        int endBracket = part.IndexOf(']');
+                        var startBracket = part.IndexOf('[');
+                        var endBracket = part.IndexOf(']');
                         if (startBracket > 0 && endBracket > startBracket)
                         {
-                            string indexStr = part.Substring(
+                            var indexStr = part.Substring(
                                 startBracket + 1,
                                 endBracket - startBracket - 1
                             );
@@ -1730,7 +1729,7 @@ namespace MCPForUnity.Editor.Tools
                         }
                     }
                     // Get the property/field
-                    PropertyInfo propInfo = currentType.GetProperty(part, flags);
+                    var propInfo = currentType.GetProperty(part, flags);
                     FieldInfo fieldInfo = null;
                     if (propInfo == null)
                     {
@@ -1796,7 +1795,7 @@ namespace MCPForUnity.Editor.Tools
                 }
 
                 // Set the final property
-                string finalPart = pathParts[pathParts.Length - 1];
+                var finalPart = pathParts[pathParts.Length - 1];
 
                 // Special handling for Material properties (shader properties)
                 if (currentObject is Material material && finalPart.StartsWith("_"))
@@ -1806,12 +1805,12 @@ namespace MCPForUnity.Editor.Tools
                     {
                         // Try converting to known types that SetColor/SetVector accept
                         if (jArray.Count == 4) {
-                            try { Color color = value.ToObject<Color>(inputSerializer); material.SetColor(finalPart, color); return true; } catch { }
-                            try { Vector4 vec = value.ToObject<Vector4>(inputSerializer); material.SetVector(finalPart, vec); return true; } catch { }
+                            try { var color = value.ToObject<Color>(inputSerializer); material.SetColor(finalPart, color); return true; } catch { }
+                            try { var vec = value.ToObject<Vector4>(inputSerializer); material.SetVector(finalPart, vec); return true; } catch { }
                         } else if (jArray.Count == 3) {
-                            try { Color color = value.ToObject<Color>(inputSerializer); material.SetColor(finalPart, color); return true; } catch { } // ToObject handles conversion to Color
+                            try { var color = value.ToObject<Color>(inputSerializer); material.SetColor(finalPart, color); return true; } catch { } // ToObject handles conversion to Color
                         } else if (jArray.Count == 2) {
-                            try { Vector2 vec = value.ToObject<Vector2>(inputSerializer); material.SetVector(finalPart, vec); return true; } catch { }
+                            try { var vec = value.ToObject<Vector2>(inputSerializer); material.SetVector(finalPart, vec); return true; } catch { }
                         }
                     }
                     else if (value.Type == JTokenType.Float || value.Type == JTokenType.Integer)
@@ -1826,7 +1825,7 @@ namespace MCPForUnity.Editor.Tools
                     {
                         // Try converting to Texture using the serializer/converter
                         try {
-                            Texture texture = value.ToObject<Texture>(inputSerializer);
+                            var texture = value.ToObject<Texture>(inputSerializer);
                             if (texture != null) {
                                 material.SetTexture(finalPart, texture);
                                 return true;
@@ -1841,11 +1840,11 @@ namespace MCPForUnity.Editor.Tools
                 }
 
                 // For standard properties (not shader specific)
-                PropertyInfo finalPropInfo = currentType.GetProperty(finalPart, flags);
+                var finalPropInfo = currentType.GetProperty(finalPart, flags);
                 if (finalPropInfo != null && finalPropInfo.CanWrite)
                 {
                     // Use the inputSerializer for conversion
-                    object convertedValue = ConvertJTokenToType(value, finalPropInfo.PropertyType, inputSerializer);
+                    var convertedValue = ConvertJTokenToType(value, finalPropInfo.PropertyType, inputSerializer);
                     if (convertedValue != null || value.Type == JTokenType.Null)
                     {
                         finalPropInfo.SetValue(currentObject, convertedValue);
@@ -1857,11 +1856,11 @@ namespace MCPForUnity.Editor.Tools
                 }
                 else
                 {
-                    FieldInfo finalFieldInfo = currentType.GetField(finalPart, flags);
+                    var finalFieldInfo = currentType.GetField(finalPart, flags);
                     if (finalFieldInfo != null)
                     {
                         // Use the inputSerializer for conversion
-                        object convertedValue = ConvertJTokenToType(value, finalFieldInfo.FieldType, inputSerializer);
+                        var convertedValue = ConvertJTokenToType(value, finalFieldInfo.FieldType, inputSerializer);
                         if (convertedValue != null || value.Type == JTokenType.Null)
                         {
                             finalFieldInfo.SetValue(currentObject, convertedValue);
@@ -1896,13 +1895,13 @@ namespace MCPForUnity.Editor.Tools
         private static string[] SplitPropertyPath(string path)
         {
             // Handle complex paths with both dots and array indexers
-            List<string> parts = new List<string>();
-            int startIndex = 0;
-            bool inBrackets = false;
+            var parts = new List<string>();
+            var startIndex = 0;
+            var inBrackets = false;
 
-            for (int i = 0; i < path.Length; i++)
+            for (var i = 0; i < path.Length; i++)
             {
-                char c = path[i];
+                var c = path[i];
 
                 if (c == '[')
                 {
@@ -2051,8 +2050,8 @@ namespace MCPForUnity.Editor.Tools
             if (token is JObject obj && obj.ContainsKey("center") && obj.ContainsKey("size"))
             {
                 // Requires Vector3 conversion, which should ideally use the serializer too
-                 Vector3 center = ParseJTokenToVector3(obj["center"]); // Or use obj["center"].ToObject<Vector3>(inputSerializer)
-                 Vector3 size = ParseJTokenToVector3(obj["size"]);     // Or use obj["size"].ToObject<Vector3>(inputSerializer)
+                 var center = ParseJTokenToVector3(obj["center"]); // Or use obj["center"].ToObject<Vector3>(inputSerializer)
+                 var size = ParseJTokenToVector3(obj["size"]);     // Or use obj["size"].ToObject<Vector3>(inputSerializer)
                 return new Bounds(center, size);
             }
             // Array fallback for Bounds is less intuitive, maybe remove?
@@ -2072,9 +2071,9 @@ namespace MCPForUnity.Editor.Tools
          // Made public static so UnityEngineObjectConverter can call it. Moved from ConvertJTokenToType.
          public static UnityEngine.Object FindObjectByInstruction(JObject instruction, Type targetType)
          {
-             string findTerm = instruction["find"]?.ToString();
-             string method = instruction["method"]?.ToString()?.ToLower();
-             string componentName = instruction["component"]?.ToString(); // Specific component to get
+             var findTerm = instruction["find"]?.ToString();
+             var method = instruction["method"]?.ToString()?.ToLower();
+             var componentName = instruction["component"]?.ToString(); // Specific component to get
 
              if (string.IsNullOrEmpty(findTerm))
              {
@@ -2083,7 +2082,7 @@ namespace MCPForUnity.Editor.Tools
              }
 
              // Use a flexible default search method if none provided
-             string searchMethodToUse = string.IsNullOrEmpty(method) ? "by_id_or_name_or_path" : method;
+             var searchMethodToUse = string.IsNullOrEmpty(method) ? "by_id_or_name_or_path" : method;
 
              // If the target is an asset (Material, Texture, ScriptableObject etc.) try AssetDatabase first
              if (typeof(Material).IsAssignableFrom(targetType) ||
@@ -2098,15 +2097,15 @@ namespace MCPForUnity.Editor.Tools
                  typeof(GameObject).IsAssignableFrom(targetType) && findTerm.StartsWith("Assets/")) // Prefab check
              {
                 // Try loading directly by path/GUID first
-                UnityEngine.Object asset = AssetDatabase.LoadAssetAtPath(findTerm, targetType);
+                var asset = AssetDatabase.LoadAssetAtPath(findTerm, targetType);
                  if (asset != null) return asset;
                  asset = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(findTerm); // Try generic if type specific failed
                  if (asset != null && targetType.IsAssignableFrom(asset.GetType())) return asset;
 
 
                  // If direct path failed, try finding by name/type using FindAssets
-                 string searchFilter = $"t:{targetType.Name} {System.IO.Path.GetFileNameWithoutExtension(findTerm)}"; // Search by type and name
-                 string[] guids = AssetDatabase.FindAssets(searchFilter);
+                 var searchFilter = $"t:{targetType.Name} {System.IO.Path.GetFileNameWithoutExtension(findTerm)}"; // Search by type and name
+                 var guids = AssetDatabase.FindAssets(searchFilter);
 
                  if (guids.Length == 1)
                  {
@@ -2125,7 +2124,7 @@ namespace MCPForUnity.Editor.Tools
 
              // --- Scene Object Search ---
              // Find the GameObject using the internal finder
-             GameObject foundGo = FindObjectInternal(new JValue(findTerm), searchMethodToUse);
+             var foundGo = FindObjectInternal(new JValue(findTerm), searchMethodToUse);
 
              if (foundGo == null)
              {
@@ -2141,10 +2140,10 @@ namespace MCPForUnity.Editor.Tools
              }
              else if (typeof(Component).IsAssignableFrom(targetType))
              {
-                 Type componentToGetType = targetType;
+                 var componentToGetType = targetType;
                  if (!string.IsNullOrEmpty(componentName))
                  {
-                     Type specificCompType = FindType(componentName);
+                     var specificCompType = FindType(componentName);
                      if (specificCompType != null && typeof(Component).IsAssignableFrom(specificCompType))
                      {
                          componentToGetType = specificCompType;
@@ -2155,7 +2154,7 @@ namespace MCPForUnity.Editor.Tools
                      }
                  }
 
-                 Component foundComp = foundGo.GetComponent(componentToGetType);
+                 var foundComp = foundGo.GetComponent(componentToGetType);
                  if (foundComp == null)
                  {
                      Debug.LogWarning($"Found GameObject '{foundGo.name}' but could not find component of type '{componentToGetType.Name}'.");
@@ -2176,7 +2175,7 @@ namespace MCPForUnity.Editor.Tools
         /// </summary>
         private static Type FindType(string typeName)
         {
-            if (ComponentResolver.TryResolve(typeName, out Type resolvedType, out string error))
+            if (ComponentResolver.TryResolve(typeName, out var resolvedType, out var error))
             {
                 return resolvedType;
             }
@@ -2190,7 +2189,7 @@ namespace MCPForUnity.Editor.Tools
             return null;
         }
     }
-    
+
     /// <summary>
     /// Robust component resolver that avoids Assembly.LoadFrom and supports assembly definitions.
     /// Prioritizes runtime (Player) assemblies over Editor assemblies.
@@ -2258,7 +2257,7 @@ namespace MCPForUnity.Editor.Tools
 
         private static List<Type> FindCandidates(string query)
         {
-            bool isShort = !query.Contains('.');
+            var isShort = !query.Contains('.');
             var loaded = AppDomain.CurrentDomain.GetAssemblies();
 
 #if UNITY_EDITOR
@@ -2267,8 +2266,8 @@ namespace MCPForUnity.Editor.Tools
                 UnityEditor.Compilation.CompilationPipeline.GetAssemblies(UnityEditor.Compilation.AssembliesType.Player).Select(a => a.name),
                 StringComparer.Ordinal);
 
-            IEnumerable<System.Reflection.Assembly> playerAsms = loaded.Where(a => playerAsmNames.Contains(a.GetName().Name));
-            IEnumerable<System.Reflection.Assembly> editorAsms = loaded.Except(playerAsms);
+            var playerAsms = loaded.Where(a => playerAsmNames.Contains(a.GetName().Name));
+            var editorAsms = loaded.Except(playerAsms);
 #else
             IEnumerable<System.Reflection.Assembly> playerAsms = loaded;
             IEnumerable<System.Reflection.Assembly> editorAsms = Array.Empty<System.Reflection.Assembly>();
@@ -2369,7 +2368,7 @@ namespace MCPForUnity.Editor.Tools
                 // For now, we'll use a simple rule-based approach that mimics AI behavior
                 // This can be replaced with actual AI calls later
                 var suggestions = GetRuleBasedSuggestions(userInput, availableProperties);
-                
+
                 PropertySuggestionCache[cacheKey] = suggestions;
                 return suggestions;
             }
@@ -2394,7 +2393,7 @@ namespace MCPForUnity.Editor.Tools
             foreach (var property in availableProperties)
             {
                 var cleanedProperty = property.ToLowerInvariant().Replace(" ", "").Replace("-", "").Replace("_", "");
-                
+
                 // Exact match after cleaning
                 if (cleanedProperty == cleanedInput)
                 {
@@ -2433,14 +2432,14 @@ namespace MCPForUnity.Editor.Tools
 
             var matrix = new int[s1.Length + 1, s2.Length + 1];
 
-            for (int i = 0; i <= s1.Length; i++) matrix[i, 0] = i;
-            for (int j = 0; j <= s2.Length; j++) matrix[0, j] = j;
+            for (var i = 0; i <= s1.Length; i++) matrix[i, 0] = i;
+            for (var j = 0; j <= s2.Length; j++) matrix[0, j] = j;
 
-            for (int i = 1; i <= s1.Length; i++)
+            for (var i = 1; i <= s1.Length; i++)
             {
-                for (int j = 1; j <= s2.Length; j++)
+                for (var j = 1; j <= s2.Length; j++)
                 {
-                    int cost = (s2[j - 1] == s1[i - 1]) ? 0 : 1;
+                    var cost = (s2[j - 1] == s1[i - 1]) ? 0 : 1;
                     matrix[i, j] = Math.Min(Math.Min(
                         matrix[i - 1, j] + 1,      // deletion
                         matrix[i, j - 1] + 1),     // insertion
@@ -2457,4 +2456,3 @@ namespace MCPForUnity.Editor.Tools
         // They are now in Helpers.GameObjectSerializer
     }
 }
-

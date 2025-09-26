@@ -43,8 +43,8 @@ namespace MCPForUnity.Editor.Helpers
         {
             // Try to load stored port first, but only if it's from the current project
             var storedConfig = GetStoredPortConfig();
-            if (storedConfig != null && 
-                storedConfig.unity_port > 0 && 
+            if (storedConfig != null &&
+                storedConfig.unity_port > 0 &&
                 string.Equals(storedConfig.project_path ?? string.Empty, Application.dataPath ?? string.Empty, StringComparison.OrdinalIgnoreCase) &&
                 IsPortAvailable(storedConfig.unity_port))
             {
@@ -65,7 +65,7 @@ namespace MCPForUnity.Editor.Helpers
             }
 
             // If no valid stored port, find a new one and save it
-            int newPort = FindAvailablePort();
+            var newPort = FindAvailablePort();
             SavePort(newPort);
             return newPort;
         }
@@ -76,7 +76,7 @@ namespace MCPForUnity.Editor.Helpers
         /// <returns>New available port</returns>
         public static int DiscoverNewPort()
         {
-            int newPort = FindAvailablePort();
+            var newPort = FindAvailablePort();
             SavePort(newPort);
             if (IsDebugEnabled()) Debug.Log($"<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: Discovered and saved new port: {newPort}");
             return newPort;
@@ -98,7 +98,7 @@ namespace MCPForUnity.Editor.Helpers
             if (IsDebugEnabled()) Debug.Log($"<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: Default port {DefaultPort} is in use, searching for alternative...");
 
             // Search for alternatives
-            for (int port = DefaultPort + 1; port < DefaultPort + MaxPortAttempts; port++)
+            for (var port = DefaultPort + 1; port < DefaultPort + MaxPortAttempts; port++)
             {
                 if (IsPortAvailable(port))
                 {
@@ -163,7 +163,7 @@ namespace MCPForUnity.Editor.Helpers
         /// </summary>
         private static bool WaitForPortRelease(int port, int timeoutMs)
         {
-            int waited = 0;
+            var waited = 0;
             const int step = 100;
             while (waited < timeoutMs)
             {
@@ -197,18 +197,18 @@ namespace MCPForUnity.Editor.Helpers
                 {
                     unity_port = port,
                     created_date = DateTime.UtcNow.ToString("O"),
-                    project_path = Application.dataPath
+                    project_path = Application.dataPath,
                 };
 
-                string registryDir = GetRegistryDirectory();
+                var registryDir = GetRegistryDirectory();
                 Directory.CreateDirectory(registryDir);
 
-                string registryFile = GetRegistryFilePath();
-                string json = JsonConvert.SerializeObject(portConfig, Formatting.Indented);
+                var registryFile = GetRegistryFilePath();
+                var json = JsonConvert.SerializeObject(portConfig, Formatting.Indented);
                 // Write to hashed, project-scoped file
                 File.WriteAllText(registryFile, json, new System.Text.UTF8Encoding(false));
                 // Also write to legacy stable filename to avoid hash/case drift across reloads
-                string legacy = Path.Combine(GetRegistryDirectory(), RegistryFileName);
+                var legacy = Path.Combine(GetRegistryDirectory(), RegistryFileName);
                 File.WriteAllText(legacy, json, new System.Text.UTF8Encoding(false));
 
                 if (IsDebugEnabled()) Debug.Log($"<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: Saved port {port} to storage");
@@ -227,12 +227,12 @@ namespace MCPForUnity.Editor.Helpers
         {
             try
             {
-                string registryFile = GetRegistryFilePath();
-                
+                var registryFile = GetRegistryFilePath();
+
                 if (!File.Exists(registryFile))
                 {
                     // Backwards compatibility: try the legacy file name
-                    string legacy = Path.Combine(GetRegistryDirectory(), RegistryFileName);
+                    var legacy = Path.Combine(GetRegistryDirectory(), RegistryFileName);
                     if (!File.Exists(legacy))
                     {
                         return 0;
@@ -240,7 +240,7 @@ namespace MCPForUnity.Editor.Helpers
                     registryFile = legacy;
                 }
 
-                string json = File.ReadAllText(registryFile);
+                var json = File.ReadAllText(registryFile);
                 var portConfig = JsonConvert.DeserializeObject<PortConfig>(json);
 
                 return portConfig?.unity_port ?? 0;
@@ -260,12 +260,12 @@ namespace MCPForUnity.Editor.Helpers
         {
             try
             {
-                string registryFile = GetRegistryFilePath();
-                
+                var registryFile = GetRegistryFilePath();
+
                 if (!File.Exists(registryFile))
                 {
                     // Backwards compatibility: try the legacy file
-                    string legacy = Path.Combine(GetRegistryDirectory(), RegistryFileName);
+                    var legacy = Path.Combine(GetRegistryDirectory(), RegistryFileName);
                     if (!File.Exists(legacy))
                     {
                         return null;
@@ -273,7 +273,7 @@ namespace MCPForUnity.Editor.Helpers
                     registryFile = legacy;
                 }
 
-                string json = File.ReadAllText(registryFile);
+                var json = File.ReadAllText(registryFile);
                 return JsonConvert.DeserializeObject<PortConfig>(json);
             }
             catch (Exception ex)
@@ -290,9 +290,9 @@ namespace MCPForUnity.Editor.Helpers
 
         private static string GetRegistryFilePath()
         {
-            string dir = GetRegistryDirectory();
-            string hash = ComputeProjectHash(Application.dataPath);
-            string fileName = $"unity-mcp-port-{hash}.json";
+            var dir = GetRegistryDirectory();
+            var hash = ComputeProjectHash(Application.dataPath);
+            var fileName = $"unity-mcp-port-{hash}.json";
             return Path.Combine(dir, fileName);
         }
 
@@ -300,11 +300,11 @@ namespace MCPForUnity.Editor.Helpers
         {
             try
             {
-                using SHA1 sha1 = SHA1.Create();
-                byte[] bytes = Encoding.UTF8.GetBytes(input ?? string.Empty);
-                byte[] hashBytes = sha1.ComputeHash(bytes);
+                using var sha1 = SHA1.Create();
+                var bytes = Encoding.UTF8.GetBytes(input ?? string.Empty);
+                var hashBytes = sha1.ComputeHash(bytes);
                 var sb = new StringBuilder();
-                foreach (byte b in hashBytes)
+                foreach (var b in hashBytes)
                 {
                     sb.Append(b.ToString("x2"));
                 }

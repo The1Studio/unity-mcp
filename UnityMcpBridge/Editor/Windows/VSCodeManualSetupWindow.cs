@@ -30,7 +30,7 @@ namespace MCPForUnity.Editor.Windows
 
             // Header with improved styling
             EditorGUILayout.Space(10);
-            Rect titleRect = EditorGUILayout.GetControlRect(false, 30);
+            var titleRect = EditorGUILayout.GetControlRect(false, 30);
             EditorGUI.DrawRect(
                 new Rect(titleRect.x, titleRect.y, titleRect.width, titleRect.height),
                 new Color(0.2f, 0.2f, 0.2f, 0.1f)
@@ -45,7 +45,7 @@ namespace MCPForUnity.Editor.Windows
             // Instructions with improved styling
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
 
-            Rect headerRect = EditorGUILayout.GetControlRect(false, 24);
+            var headerRect = EditorGUILayout.GetControlRect(false, 24);
             EditorGUI.DrawRect(
                 new Rect(headerRect.x, headerRect.y, headerRect.width, headerRect.height),
                 new Color(0.1f, 0.1f, 0.1f, 0.2f)
@@ -84,7 +84,7 @@ namespace MCPForUnity.Editor.Windows
                 instructionStyle
             );
             EditorGUILayout.Space(5);
-            
+
             EditorGUILayout.LabelField(
                 "2. Steps to Configure",
                 EditorStyles.boldLabel
@@ -102,7 +102,7 @@ namespace MCPForUnity.Editor.Windows
                 instructionStyle
             );
             EditorGUILayout.Space(5);
-            
+
             EditorGUILayout.LabelField(
                 "3. VSCode mcp.json location:",
                 EditorStyles.boldLabel
@@ -120,7 +120,7 @@ namespace MCPForUnity.Editor.Windows
                     "mcp.json"
                 );
             }
-            else 
+            else
             {
                 displayPath = System.IO.Path.Combine(
                     System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile),

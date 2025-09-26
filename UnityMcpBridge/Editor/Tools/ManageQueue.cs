@@ -8,6 +8,8 @@ using MCPForUnity.Editor.Helpers;
 
 namespace MCPForUnity.Editor.Tools
 {
+    using System.Collections.Generic;
+
     /// <summary>
     /// STUDIO: Handles operation queuing for batch execution of MCP commands.
     /// Allows AI assistants to queue multiple operations and execute them atomically.
@@ -30,8 +32,8 @@ namespace MCPForUnity.Editor.Tools
                 );
             }
 
-            string action = @params["action"]?.ToString()?.ToLower();
-            
+            var action = @params["action"]?.ToString()?.ToLower();
+
             if (string.IsNullOrEmpty(action))
             {
                 return Response.EnhancedError(
@@ -47,28 +49,28 @@ namespace MCPForUnity.Editor.Tools
             {
                 case "add":
                     return AddOperation(@params);
-                
+
                 case "execute":
                     return ExecuteBatch(@params);
-                
+
                 case "execute_async":
                     return ExecuteBatchAsync(@params);
-                
+
                 case "list":
                     return ListOperations(@params);
-                
+
                 case "clear":
                     return ClearQueue(@params);
-                
+
                 case "stats":
                     return GetQueueStats(@params);
-                
+
                 case "remove":
                     return RemoveOperation(@params);
-                
+
                 case "cancel":
                     return CancelOperation(@params);
-                
+
                 default:
                     return Response.EnhancedError(
                         $"Unknown queue action: '{action}'",
@@ -87,9 +89,9 @@ namespace MCPForUnity.Editor.Tools
         {
             try
             {
-                string tool = @params["tool"]?.ToString();
-                JObject operationParams = @params["parameters"] as JObject;
-                int timeoutMs = @params["timeout_ms"]?.ToObject<int>() ?? 30000;
+                var tool = @params["tool"]?.ToString();
+                var operationParams = @params["parameters"] as JObject;
+                var timeoutMs = @params["timeout_ms"]?.ToObject<int>() ?? 30000;
 
                 if (string.IsNullOrEmpty(tool))
                 {
@@ -113,14 +115,14 @@ namespace MCPForUnity.Editor.Tools
                     );
                 }
 
-                string operationId = OperationQueue.AddOperation(tool, operationParams, timeoutMs);
-                
+                var operationId = OperationQueue.AddOperation(tool, operationParams, timeoutMs);
+
                 return Response.Success(
                     $"Operation queued successfully with ID: {operationId}",
                     new
                     {
                         operation_id = operationId,
-                        tool = tool,
+                        tool,
                         timeout_ms = timeoutMs,
                         queued_at = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss UTC"),
                         queue_stats = OperationQueue.GetQueueStats()
@@ -191,7 +193,7 @@ namespace MCPForUnity.Editor.Tools
         {
             // For Unity Editor compatibility, we'll execute with yielding between operations
             // This prevents UI freezing while still being "async" from Unity's perspective
-            
+
             var pendingOps = OperationQueue.GetOperations("pending");
             if (pendingOps.Count == 0)
             {
@@ -199,11 +201,11 @@ namespace MCPForUnity.Editor.Tools
             }
 
             Debug.Log($"STUDIO: Starting async execution of {pendingOps.Count} operations");
-            
+
             // Start the async execution using Unity's EditorApplication.delayCall
             // This allows Unity Editor to remain responsive
             EditorApplication.delayCall += () => ExecuteOperationsWithYield(pendingOps);
-            
+
             return Response.Success(
                 $"Started async execution of {pendingOps.Count} operations",
                 new
@@ -227,11 +229,11 @@ namespace MCPForUnity.Editor.Tools
                     // Update status to executing
                     operation.Status = "executing";
                     operation.ExecutionStartTime = DateTime.UtcNow;
-                    
+
                     Debug.Log($"STUDIO: Executing operation {operation.Id} ({operation.Tool})");
-                    
+
                     // Execute the operation
-                    var result = await Task.Run(() => 
+                    var result = await Task.Run(() =>
                     {
                         try
                         {
@@ -262,12 +264,12 @@ namespace MCPForUnity.Editor.Tools
                             throw new Exception($"Operation {operation.Id} failed: {e.Message}", e);
                         }
                     });
-                    
+
                     // Update operation status
                     operation.Result = result;
                     operation.Status = "executed";
                     operation.ExecutionEndTime = DateTime.UtcNow;
-                    
+
                     Debug.Log($"STUDIO: Completed operation {operation.Id}");
                 }
                 catch (Exception ex)
@@ -277,11 +279,11 @@ namespace MCPForUnity.Editor.Tools
                     operation.ExecutionEndTime = DateTime.UtcNow;
                     Debug.LogError($"STUDIO: Operation {operation.Id} failed: {ex.Message}");
                 }
-                
+
                 // Yield control back to Unity Editor to keep it responsive
                 await Task.Yield();
             }
-            
+
             Debug.Log("STUDIO: Async batch execution completed");
         }
 
@@ -292,8 +294,8 @@ namespace MCPForUnity.Editor.Tools
         {
             try
             {
-                string operationId = @params["operation_id"]?.ToString();
-                
+                var operationId = @params["operation_id"]?.ToString();
+
                 if (string.IsNullOrEmpty(operationId))
                 {
                     return Response.EnhancedError(
@@ -305,8 +307,8 @@ namespace MCPForUnity.Editor.Tools
                     );
                 }
 
-                bool cancelled = OperationQueue.CancelOperation(operationId);
-                
+                var cancelled = OperationQueue.CancelOperation(operationId);
+
                 if (cancelled)
                 {
                     return Response.Success(
@@ -349,11 +351,11 @@ namespace MCPForUnity.Editor.Tools
         {
             try
             {
-                string statusFilter = @params["status"]?.ToString()?.ToLower();
-                int? limit = @params["limit"]?.ToObject<int?>();
-                
+                var statusFilter = @params["status"]?.ToString()?.ToLower();
+                var limit = @params["limit"]?.ToObject<int?>();
+
                 var operations = OperationQueue.GetOperations(statusFilter);
-                
+
                 if (limit.HasValue && limit.Value > 0)
                 {
                     operations = operations.Take(limit.Value).ToList();
@@ -400,10 +402,10 @@ namespace MCPForUnity.Editor.Tools
         {
             try
             {
-                string statusFilter = @params["status"]?.ToString()?.ToLower();
-                int removedCount = OperationQueue.ClearQueue(statusFilter);
-                
-                string message = statusFilter != null 
+                var statusFilter = @params["status"]?.ToString()?.ToLower();
+                var removedCount = OperationQueue.ClearQueue(statusFilter);
+
+                var message = statusFilter != null
                     ? $"Cleared {removedCount} operations with status '{statusFilter}'"
                     : $"Cleared {removedCount} completed operations from queue";
 
@@ -440,7 +442,7 @@ namespace MCPForUnity.Editor.Tools
             {
                 return Response.EnhancedError(
                     $"Failed to get queue statistics: {ex.Message}",
-                    "Error occurred while retrieving queue statistics", 
+                    "Error occurred while retrieving queue statistics",
                     "Check if queue system is properly initialized",
                     null,
                     "QUEUE_STATS_ERROR"
@@ -455,8 +457,8 @@ namespace MCPForUnity.Editor.Tools
         {
             try
             {
-                string operationId = @params["operation_id"]?.ToString();
-                
+                var operationId = @params["operation_id"]?.ToString();
+
                 if (string.IsNullOrEmpty(operationId))
                 {
                     return Response.EnhancedError(
@@ -468,8 +470,8 @@ namespace MCPForUnity.Editor.Tools
                     );
                 }
 
-                bool removed = OperationQueue.RemoveOperation(operationId);
-                
+                var removed = OperationQueue.RemoveOperation(operationId);
+
                 if (removed)
                 {
                     return Response.Success(

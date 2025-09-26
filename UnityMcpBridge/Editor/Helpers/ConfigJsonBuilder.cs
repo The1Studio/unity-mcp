@@ -9,7 +9,7 @@ namespace MCPForUnity.Editor.Helpers
         public static string BuildManualConfigJson(string uvPath, string pythonDir, McpClient client)
         {
             var root = new JObject();
-            bool isVSCode = client?.mcpType == McpTypes.VSCode;
+            var isVSCode = client?.mcpType == McpTypes.VSCode;
             JObject container;
             if (isVSCode)
             {
@@ -31,9 +31,9 @@ namespace MCPForUnity.Editor.Helpers
         public static JObject ApplyUnityServerToExistingConfig(JObject root, string uvPath, string serverSrc, McpClient client)
         {
             if (root == null) root = new JObject();
-            bool isVSCode = client?.mcpType == McpTypes.VSCode;
-            JObject container = isVSCode ? EnsureObject(root, "servers") : EnsureObject(root, "mcpServers");
-            JObject unity = container["unityMCP"] as JObject ?? new JObject();
+            var isVSCode = client?.mcpType == McpTypes.VSCode;
+            var container = isVSCode ? EnsureObject(root, "servers") : EnsureObject(root, "mcpServers");
+            var unity = container["unityMCP"] as JObject ?? new JObject();
             PopulateUnityNode(unity, uvPath, serverSrc, client, isVSCode);
 
             container["unityMCP"] = unity;
@@ -52,7 +52,7 @@ namespace MCPForUnity.Editor.Helpers
             unity["command"] = uvPath;
 
             // For Cursor (non-VSCode) on macOS, prefer a no-spaces symlink path to avoid arg parsing issues in some runners
-            string effectiveDir = directory;
+            var effectiveDir = directory;
 #if UNITY_EDITOR_OSX || UNITY_STANDALONE_OSX
             bool isCursor = !isVSCode && (client == null || client.mcpType != McpTypes.VSCode);
             if (isCursor && !string.IsNullOrEmpty(directory))

@@ -1,6 +1,5 @@
 using System;
 using System.IO;
-using UnityEditor;
 using UnityEngine;
 
 namespace MCPForUnity.Editor.Helpers
@@ -17,15 +16,15 @@ namespace MCPForUnity.Editor.Helpers
             // 1) Repo development layouts commonly used alongside this package
             try
             {
-                string projectRoot = Path.GetDirectoryName(Application.dataPath);
+                var projectRoot = Path.GetDirectoryName(Application.dataPath);
                 string[] devCandidates =
                 {
                     Path.Combine(projectRoot ?? string.Empty, "unity-mcp", "UnityMcpServer", "src"),
                     Path.Combine(projectRoot ?? string.Empty, "..", "unity-mcp", "UnityMcpServer", "src"),
                 };
-                foreach (string candidate in devCandidates)
+                foreach (var candidate in devCandidates)
                 {
-                    string full = Path.GetFullPath(candidate);
+                    var full = Path.GetFullPath(candidate);
                     if (Directory.Exists(full) && File.Exists(Path.Combine(full, "server.py")))
                     {
                         srcPath = full;
@@ -78,13 +77,13 @@ namespace MCPForUnity.Editor.Helpers
             // 3) Fallback to previous common install locations
             try
             {
-                string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) ?? string.Empty;
+                var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) ?? string.Empty;
                 string[] candidates =
                 {
                     Path.Combine(home, "unity-mcp", "UnityMcpServer", "src"),
                     Path.Combine(home, "Applications", "UnityMCP", "UnityMcpServer", "src"),
                 };
-                foreach (string candidate in candidates)
+                foreach (var candidate in candidates)
                 {
                     if (Directory.Exists(candidate) && File.Exists(Path.Combine(candidate, "server.py")))
                     {
@@ -117,10 +116,10 @@ namespace MCPForUnity.Editor.Helpers
                     "Please update Packages/manifest.json to 'com.theonegamestudio.unity-mcp' (The One Game Studio fork) to avoid future breakage.");
             }
 
-            string packagePath = p.resolvedPath;
+            var packagePath = p.resolvedPath;
 
             // Preferred tilde folder (embedded but excluded from import)
-            string embeddedTilde = Path.Combine(packagePath, "UnityMcpServer~", "src");
+            var embeddedTilde = Path.Combine(packagePath, "UnityMcpServer~", "src");
             if (Directory.Exists(embeddedTilde) && File.Exists(Path.Combine(embeddedTilde, "server.py")))
             {
                 srcPath = embeddedTilde;
@@ -128,7 +127,7 @@ namespace MCPForUnity.Editor.Helpers
             }
 
             // Legacy non-tilde folder
-            string embedded = Path.Combine(packagePath, "UnityMcpServer", "src");
+            var embedded = Path.Combine(packagePath, "UnityMcpServer", "src");
             if (Directory.Exists(embedded) && File.Exists(Path.Combine(embedded, "server.py")))
             {
                 srcPath = embedded;
@@ -136,7 +135,7 @@ namespace MCPForUnity.Editor.Helpers
             }
 
             // Dev-linked sibling of the package folder
-            string sibling = Path.Combine(Path.GetDirectoryName(packagePath) ?? string.Empty, "UnityMcpServer", "src");
+            var sibling = Path.Combine(Path.GetDirectoryName(packagePath) ?? string.Empty, "UnityMcpServer", "src");
             if (Directory.Exists(sibling) && File.Exists(Path.Combine(sibling, "server.py")))
             {
                 srcPath = sibling;

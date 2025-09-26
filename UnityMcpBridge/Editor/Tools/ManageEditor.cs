@@ -27,11 +27,11 @@ namespace MCPForUnity.Editor.Tools
         /// </summary>
         public static object HandleCommand(JObject @params)
         {
-            string action = @params["action"]?.ToString().ToLower();
+            var action = @params["action"]?.ToString().ToLower();
             // Parameters for specific actions
-            string tagName = @params["tagName"]?.ToString();
-            string layerName = @params["layerName"]?.ToString();
-            bool waitForCompletion = @params["waitForCompletion"]?.ToObject<bool>() ?? false; // Example - not used everywhere
+            var tagName = @params["tagName"]?.ToString();
+            var layerName = @params["layerName"]?.ToString();
+            var waitForCompletion = @params["waitForCompletion"]?.ToObject<bool>() ?? false; // Example - not used everywhere
 
             if (string.IsNullOrEmpty(action))
             {
@@ -99,7 +99,7 @@ namespace MCPForUnity.Editor.Tools
                 case "get_selection":
                     return GetSelection();
                 case "set_active_tool":
-                    string toolName = @params["toolName"]?.ToString();
+                    var toolName = @params["toolName"]?.ToString();
                     if (string.IsNullOrEmpty(toolName))
                         return Response.Error("'toolName' parameter required for set_active_tool.");
                     return SetActiveTool(toolName);
@@ -152,13 +152,13 @@ namespace MCPForUnity.Editor.Tools
             {
                 var state = new
                 {
-                    isPlaying = EditorApplication.isPlaying,
-                    isPaused = EditorApplication.isPaused,
-                    isCompiling = EditorApplication.isCompiling,
-                    isUpdating = EditorApplication.isUpdating,
-                    applicationPath = EditorApplication.applicationPath,
-                    applicationContentsPath = EditorApplication.applicationContentsPath,
-                    timeSinceStartup = EditorApplication.timeSinceStartup,
+                    EditorApplication.isPlaying,
+                    EditorApplication.isPaused,
+                    EditorApplication.isCompiling,
+                    EditorApplication.isUpdating,
+                    EditorApplication.applicationPath,
+                    EditorApplication.applicationContentsPath,
+                    EditorApplication.timeSinceStartup,
                 };
                 return Response.Success("Retrieved editor state.", state);
             }
@@ -173,8 +173,8 @@ namespace MCPForUnity.Editor.Tools
             try
             {
                 // Application.dataPath points to <Project>/Assets
-                string assetsPath = Application.dataPath.Replace('\\', '/');
-                string projectRoot = Directory.GetParent(assetsPath)?.FullName.Replace('\\', '/');
+                var assetsPath = Application.dataPath.Replace('\\', '/');
+                var projectRoot = Directory.GetParent(assetsPath)?.FullName.Replace('\\', '/');
                 if (string.IsNullOrEmpty(projectRoot))
                 {
                     return Response.Error("Could not determine project root from Application.dataPath");
@@ -202,9 +202,9 @@ namespace MCPForUnity.Editor.Tools
 
                 // Find currently open instances
                 // Resources.FindObjectsOfTypeAll seems more reliable than GetWindow for finding *all* open windows
-                EditorWindow[] allWindows = Resources.FindObjectsOfTypeAll<EditorWindow>();
+                var allWindows = Resources.FindObjectsOfTypeAll<EditorWindow>();
 
-                foreach (EditorWindow window in allWindows)
+                foreach (var window in allWindows)
                 {
                     if (window == null)
                         continue; // Skip potentially destroyed windows
@@ -219,10 +219,10 @@ namespace MCPForUnity.Editor.Tools
                                 isFocused = EditorWindow.focusedWindow == window,
                                 position = new
                                 {
-                                    x = window.position.x,
-                                    y = window.position.y,
-                                    width = window.position.width,
-                                    height = window.position.height,
+                                    window.position.x,
+                                    window.position.y,
+                                    window.position.width,
+                                    window.position.height,
                                 },
                                 instanceID = window.GetInstanceID(),
                             }
@@ -248,10 +248,10 @@ namespace MCPForUnity.Editor.Tools
         {
             try
             {
-                Tool currentTool = UnityEditor.Tools.current;
-                string toolName = currentTool.ToString(); // Enum to string
-                bool customToolActive = UnityEditor.Tools.current == Tool.Custom; // Check if a custom tool is active
-                string activeToolName = customToolActive
+                var currentTool = UnityEditor.Tools.current;
+                var toolName = currentTool.ToString(); // Enum to string
+                var customToolActive = UnityEditor.Tools.current == Tool.Custom; // Check if a custom tool is active
+                var activeToolName = customToolActive
                     ? EditorTools.GetActiveToolName()
                     : toolName; // Get custom name if needed
 
@@ -262,7 +262,7 @@ namespace MCPForUnity.Editor.Tools
                     pivotMode = UnityEditor.Tools.pivotMode.ToString(),
                     pivotRotation = UnityEditor.Tools.pivotRotation.ToString(),
                     handleRotation = UnityEditor.Tools.handleRotation.eulerAngles, // Euler for simplicity
-                    handlePosition = UnityEditor.Tools.handlePosition,
+                    UnityEditor.Tools.handlePosition,
                 };
 
                 return Response.Success("Retrieved active tool information.", toolInfo);
@@ -317,12 +317,12 @@ namespace MCPForUnity.Editor.Tools
                     activeObject = Selection.activeObject?.name,
                     activeGameObject = Selection.activeGameObject?.name,
                     activeTransform = Selection.activeTransform?.name,
-                    activeInstanceID = Selection.activeInstanceID,
-                    count = Selection.count,
+                    Selection.activeInstanceID,
+                    Selection.count,
                     objects = Selection
                         .objects.Select(obj => new
                         {
-                            name = obj?.name,
+                            obj?.name,
                             type = obj?.GetType().FullName,
                             instanceID = obj?.GetInstanceID(),
                         })
@@ -330,11 +330,11 @@ namespace MCPForUnity.Editor.Tools
                     gameObjects = Selection
                         .gameObjects.Select(go => new
                         {
-                            name = go?.name,
+                            go?.name,
                             instanceID = go?.GetInstanceID(),
                         })
                         .ToList(),
-                    assetGUIDs = Selection.assetGUIDs, // GUIDs for selected assets in Project view
+                    Selection.assetGUIDs, // GUIDs for selected assets in Project view
                 };
 
                 return Response.Success("Retrieved current selection details.", selectionInfo);
@@ -404,7 +404,7 @@ namespace MCPForUnity.Editor.Tools
         {
             try
             {
-                string[] tags = InternalEditorUtility.tags;
+                var tags = InternalEditorUtility.tags;
                 return Response.Success("Retrieved current tags.", tags);
             }
             catch (Exception e)
@@ -421,18 +421,18 @@ namespace MCPForUnity.Editor.Tools
                 return Response.Error("Layer name cannot be empty or whitespace.");
 
             // Access the TagManager asset
-            SerializedObject tagManager = GetTagManager();
+            var tagManager = GetTagManager();
             if (tagManager == null)
                 return Response.Error("Could not access TagManager asset.");
 
-            SerializedProperty layersProp = tagManager.FindProperty("layers");
+            var layersProp = tagManager.FindProperty("layers");
             if (layersProp == null || !layersProp.isArray)
                 return Response.Error("Could not find 'layers' property in TagManager.");
 
             // Check if layer name already exists (case-insensitive check recommended)
-            for (int i = 0; i < TotalLayerCount; i++)
+            for (var i = 0; i < TotalLayerCount; i++)
             {
-                SerializedProperty layerSP = layersProp.GetArrayElementAtIndex(i);
+                var layerSP = layersProp.GetArrayElementAtIndex(i);
                 if (
                     layerSP != null
                     && layerName.Equals(layerSP.stringValue, StringComparison.OrdinalIgnoreCase)
@@ -443,10 +443,10 @@ namespace MCPForUnity.Editor.Tools
             }
 
             // Find the first empty user layer slot (indices 8 to 31)
-            int firstEmptyUserLayer = -1;
-            for (int i = FirstUserLayerIndex; i < TotalLayerCount; i++)
+            var firstEmptyUserLayer = -1;
+            for (var i = FirstUserLayerIndex; i < TotalLayerCount; i++)
             {
-                SerializedProperty layerSP = layersProp.GetArrayElementAtIndex(i);
+                var layerSP = layersProp.GetArrayElementAtIndex(i);
                 if (layerSP != null && string.IsNullOrEmpty(layerSP.stringValue))
                 {
                     firstEmptyUserLayer = i;
@@ -462,7 +462,7 @@ namespace MCPForUnity.Editor.Tools
             // Assign the name to the found slot
             try
             {
-                SerializedProperty targetLayerSP = layersProp.GetArrayElementAtIndex(
+                var targetLayerSP = layersProp.GetArrayElementAtIndex(
                     firstEmptyUserLayer
                 );
                 targetLayerSP.stringValue = layerName;
@@ -486,19 +486,19 @@ namespace MCPForUnity.Editor.Tools
                 return Response.Error("Layer name cannot be empty or whitespace.");
 
             // Access the TagManager asset
-            SerializedObject tagManager = GetTagManager();
+            var tagManager = GetTagManager();
             if (tagManager == null)
                 return Response.Error("Could not access TagManager asset.");
 
-            SerializedProperty layersProp = tagManager.FindProperty("layers");
+            var layersProp = tagManager.FindProperty("layers");
             if (layersProp == null || !layersProp.isArray)
                 return Response.Error("Could not find 'layers' property in TagManager.");
 
             // Find the layer by name (must be user layer)
-            int layerIndexToRemove = -1;
-            for (int i = FirstUserLayerIndex; i < TotalLayerCount; i++) // Start from user layers
+            var layerIndexToRemove = -1;
+            for (var i = FirstUserLayerIndex; i < TotalLayerCount; i++) // Start from user layers
             {
-                SerializedProperty layerSP = layersProp.GetArrayElementAtIndex(i);
+                var layerSP = layersProp.GetArrayElementAtIndex(i);
                 // Case-insensitive comparison is safer
                 if (
                     layerSP != null
@@ -518,7 +518,7 @@ namespace MCPForUnity.Editor.Tools
             // Clear the name for that index
             try
             {
-                SerializedProperty targetLayerSP = layersProp.GetArrayElementAtIndex(
+                var targetLayerSP = layersProp.GetArrayElementAtIndex(
                     layerIndexToRemove
                 );
                 targetLayerSP.stringValue = string.Empty; // Set to empty string to remove
@@ -541,9 +541,9 @@ namespace MCPForUnity.Editor.Tools
             try
             {
                 var layers = new Dictionary<int, string>();
-                for (int i = 0; i < TotalLayerCount; i++)
+                for (var i = 0; i < TotalLayerCount; i++)
                 {
-                    string layerName = LayerMask.LayerToName(i);
+                    var layerName = LayerMask.LayerToName(i);
                     if (!string.IsNullOrEmpty(layerName)) // Only include layers that have names
                     {
                         layers.Add(i, layerName);
@@ -567,7 +567,7 @@ namespace MCPForUnity.Editor.Tools
             try
             {
                 // Load the TagManager asset from the ProjectSettings folder
-                UnityEngine.Object[] tagManagerAssets = AssetDatabase.LoadAllAssetsAtPath(
+                var tagManagerAssets = AssetDatabase.LoadAllAssetsAtPath(
                     "ProjectSettings/TagManager.asset"
                 );
                 if (tagManagerAssets == null || tagManagerAssets.Length == 0)

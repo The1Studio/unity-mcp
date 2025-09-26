@@ -21,14 +21,14 @@ namespace MCPForUnity.Editor.Tools
         /// </summary>
         public static object HandleCommand(JObject @params)
         {
-            string action = @params["action"]?.ToString().ToLower();
-            string name = @params["name"]?.ToString();
-            string path = @params["path"]?.ToString(); // Relative to Assets/
-            int? buildIndex = @params["buildIndex"]?.ToObject<int?>();
+            var action = @params["action"]?.ToString().ToLower();
+            var name = @params["name"]?.ToString();
+            var path = @params["path"]?.ToString(); // Relative to Assets/
+            var buildIndex = @params["buildIndex"]?.ToObject<int?>();
             // bool loadAdditive = @params["loadAdditive"]?.ToObject<bool>() ?? false; // Example for future extension
 
             // Ensure path is relative to Assets/, removing any leading "Assets/"
-            string relativeDir = path ?? string.Empty;
+            var relativeDir = path ?? string.Empty;
             if (!string.IsNullOrEmpty(relativeDir))
             {
                 relativeDir = relativeDir.Replace('\\', '/').Trim('/');
@@ -49,14 +49,14 @@ namespace MCPForUnity.Editor.Tools
                 return Response.Error("Action parameter is required.");
             }
 
-            string sceneFileName = string.IsNullOrEmpty(name) ? null : $"{name}.unity";
+            var sceneFileName = string.IsNullOrEmpty(name) ? null : $"{name}.unity";
             // Construct full system path correctly: ProjectRoot/Assets/relativeDir/sceneFileName
-            string fullPathDir = Path.Combine(Application.dataPath, relativeDir); // Combine with Assets path (Application.dataPath ends in Assets)
-            string fullPath = string.IsNullOrEmpty(sceneFileName)
+            var fullPathDir = Path.Combine(Application.dataPath, relativeDir); // Combine with Assets path (Application.dataPath ends in Assets)
+            var fullPath = string.IsNullOrEmpty(sceneFileName)
                 ? null
                 : Path.Combine(fullPathDir, sceneFileName);
             // Ensure relativePath always starts with "Assets/" and uses forward slashes
-            string relativePath = string.IsNullOrEmpty(sceneFileName)
+            var relativePath = string.IsNullOrEmpty(sceneFileName)
                 ? null
                 : Path.Combine("Assets", relativeDir, sceneFileName).Replace('\\', '/');
 
@@ -121,12 +121,12 @@ namespace MCPForUnity.Editor.Tools
             try
             {
                 // Create a new empty scene
-                Scene newScene = EditorSceneManager.NewScene(
+                var newScene = EditorSceneManager.NewScene(
                     NewSceneSetup.EmptyScene,
                     NewSceneMode.Single
                 );
                 // Save it to the specified path
-                bool saved = EditorSceneManager.SaveScene(newScene, relativePath);
+                var saved = EditorSceneManager.SaveScene(newScene, relativePath);
 
                 if (saved)
                 {
@@ -214,7 +214,7 @@ namespace MCPForUnity.Editor.Tools
 
             try
             {
-                string scenePath = SceneUtility.GetScenePathByBuildIndex(buildIndex);
+                var scenePath = SceneUtility.GetScenePathByBuildIndex(buildIndex);
                 EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
                 return Response.Success(
                     $"Scene at build index {buildIndex} ('{scenePath}') loaded successfully.",
@@ -222,7 +222,7 @@ namespace MCPForUnity.Editor.Tools
                     {
                         path = scenePath,
                         name = Path.GetFileNameWithoutExtension(scenePath),
-                        buildIndex = buildIndex,
+                        buildIndex,
                     }
                 );
             }
@@ -238,20 +238,20 @@ namespace MCPForUnity.Editor.Tools
         {
             try
             {
-                Scene currentScene = EditorSceneManager.GetActiveScene();
+                var currentScene = EditorSceneManager.GetActiveScene();
                 if (!currentScene.IsValid())
                 {
                     return Response.Error("No valid scene is currently active to save.");
                 }
 
                 bool saved;
-                string finalPath = currentScene.path; // Path where it was last saved or will be saved
+                var finalPath = currentScene.path; // Path where it was last saved or will be saved
 
                 if (!string.IsNullOrEmpty(relativePath) && currentScene.path != relativePath)
                 {
                     // Save As...
                     // Ensure directory exists
-                    string dir = Path.GetDirectoryName(fullPath);
+                    var dir = Path.GetDirectoryName(fullPath);
                     if (!Directory.Exists(dir))
                         Directory.CreateDirectory(dir);
 
@@ -276,7 +276,7 @@ namespace MCPForUnity.Editor.Tools
                     AssetDatabase.Refresh();
                     return Response.Success(
                         $"Scene '{currentScene.name}' saved successfully to '{finalPath}'.",
-                        new { path = finalPath, name = currentScene.name }
+                        new { path = finalPath, currentScene.name }
                     );
                 }
                 else
@@ -294,7 +294,7 @@ namespace MCPForUnity.Editor.Tools
         {
             try
             {
-                Scene activeScene = EditorSceneManager.GetActiveScene();
+                var activeScene = EditorSceneManager.GetActiveScene();
                 if (!activeScene.IsValid())
                 {
                     return Response.Error("No active scene found.");
@@ -302,12 +302,12 @@ namespace MCPForUnity.Editor.Tools
 
                 var sceneInfo = new
                 {
-                    name = activeScene.name,
-                    path = activeScene.path,
-                    buildIndex = activeScene.buildIndex, // -1 if not in build settings
-                    isDirty = activeScene.isDirty,
-                    isLoaded = activeScene.isLoaded,
-                    rootCount = activeScene.rootCount,
+                    activeScene.name,
+                    activeScene.path,
+                    activeScene.buildIndex, // -1 if not in build settings
+                    activeScene.isDirty,
+                    activeScene.isLoaded,
+                    activeScene.rootCount,
                 };
 
                 return Response.Success("Retrieved active scene information.", sceneInfo);
@@ -323,15 +323,15 @@ namespace MCPForUnity.Editor.Tools
             try
             {
                 var scenes = new List<object>();
-                for (int i = 0; i < EditorBuildSettings.scenes.Length; i++)
+                for (var i = 0; i < EditorBuildSettings.scenes.Length; i++)
                 {
                     var scene = EditorBuildSettings.scenes[i];
                     scenes.Add(
                         new
                         {
-                            path = scene.path,
+                            scene.path,
                             guid = scene.guid.ToString(),
-                            enabled = scene.enabled,
+                            scene.enabled,
                             buildIndex = i, // Actual build index considering only enabled scenes might differ
                         }
                     );
@@ -348,7 +348,7 @@ namespace MCPForUnity.Editor.Tools
         {
             try
             {
-                Scene activeScene = EditorSceneManager.GetActiveScene();
+                var activeScene = EditorSceneManager.GetActiveScene();
                 if (!activeScene.IsValid() || !activeScene.isLoaded)
                 {
                     return Response.Error(
@@ -356,7 +356,7 @@ namespace MCPForUnity.Editor.Tools
                     );
                 }
 
-                GameObject[] rootObjects = activeScene.GetRootGameObjects();
+                var rootObjects = activeScene.GetRootGameObjects();
                 var hierarchy = rootObjects.Select(go => GetGameObjectDataRecursive(go)).ToList();
 
                 return Response.Success(
@@ -399,21 +399,21 @@ namespace MCPForUnity.Editor.Tools
                     {
                         position = new
                         {
-                            x = go.transform.localPosition.x,
-                            y = go.transform.localPosition.y,
-                            z = go.transform.localPosition.z,
+                            go.transform.localPosition.x,
+                            go.transform.localPosition.y,
+                            go.transform.localPosition.z,
                         },
                         rotation = new
                         {
-                            x = go.transform.localRotation.eulerAngles.x,
-                            y = go.transform.localRotation.eulerAngles.y,
-                            z = go.transform.localRotation.eulerAngles.z,
+                            go.transform.localRotation.eulerAngles.x,
+                            go.transform.localRotation.eulerAngles.y,
+                            go.transform.localRotation.eulerAngles.z,
                         }, // Euler for simplicity
                         scale = new
                         {
-                            x = go.transform.localScale.x,
-                            y = go.transform.localScale.y,
-                            z = go.transform.localScale.z,
+                            go.transform.localScale.x,
+                            go.transform.localScale.y,
+                            go.transform.localScale.z,
                         },
                     }
                 },
