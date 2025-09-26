@@ -23,24 +23,24 @@ namespace MCPForUnity.Editor.Helpers
         {
             try
             {
-                string saveLocation = GetSaveLocation();
+                var saveLocation = GetSaveLocation();
                 TryCreateMacSymlinkForAppSupport();
-                string destRoot = Path.Combine(saveLocation, ServerFolder);
-                string destSrc = Path.Combine(destRoot, "src");
+                var destRoot = Path.Combine(saveLocation, ServerFolder);
+                var destSrc = Path.Combine(destRoot, "src");
 
                 // Detect legacy installs and version state (logs)
                 DetectAndLogLegacyInstallStates(destRoot);
 
                 // Resolve embedded source and versions
-                if (!TryGetEmbeddedServerSource(out string embeddedSrc))
+                if (!TryGetEmbeddedServerSource(out var embeddedSrc))
                 {
                     throw new Exception("Could not find embedded UnityMcpServer/src in the package.");
                 }
-                string embeddedVer = ReadVersionFile(Path.Combine(embeddedSrc, VersionFileName)) ?? "unknown";
-                string installedVer = ReadVersionFile(Path.Combine(destSrc, VersionFileName));
+                var embeddedVer = ReadVersionFile(Path.Combine(embeddedSrc, VersionFileName)) ?? "unknown";
+                var installedVer = ReadVersionFile(Path.Combine(destSrc, VersionFileName));
 
-                bool destHasServer = File.Exists(Path.Combine(destSrc, "server.py"));
-                bool needOverwrite = !destHasServer
+                var destHasServer = File.Exists(Path.Combine(destSrc, "server.py"));
+                var needOverwrite = !destHasServer
                                      || string.IsNullOrEmpty(installedVer)
                                      || (!string.IsNullOrEmpty(embeddedVer) && CompareSemverSafe(installedVer, embeddedVer) < 0);
 
@@ -50,7 +50,7 @@ namespace MCPForUnity.Editor.Helpers
                 if (needOverwrite)
                 {
                     // Copy the entire UnityMcpServer folder (parent of src)
-                    string embeddedRoot = Path.GetDirectoryName(embeddedSrc) ?? embeddedSrc; // go up from src to UnityMcpServer
+                    var embeddedRoot = Path.GetDirectoryName(embeddedSrc) ?? embeddedSrc; // go up from src to UnityMcpServer
                     CopyDirectoryRecursive(embeddedRoot, destRoot);
                     // Write/refresh version file
                     try { File.WriteAllText(Path.Combine(destSrc, VersionFileName), embeddedVer ?? "unknown"); } catch { }
@@ -62,10 +62,10 @@ namespace MCPForUnity.Editor.Helpers
                 {
                     try
                     {
-                        string legacySrc = Path.Combine(legacyRoot, "src");
+                        var legacySrc = Path.Combine(legacyRoot, "src");
                         if (!File.Exists(Path.Combine(legacySrc, "server.py"))) continue;
-                        string legacyVer = ReadVersionFile(Path.Combine(legacySrc, VersionFileName));
-                        bool legacyOlder = string.IsNullOrEmpty(legacyVer)
+                        var legacyVer = ReadVersionFile(Path.Combine(legacySrc, VersionFileName));
+                        var legacyOlder = string.IsNullOrEmpty(legacyVer)
                                            || (!string.IsNullOrEmpty(embeddedVer) && CompareSemverSafe(legacyVer, embeddedVer) < 0);
                         if (legacyOlder)
                         {
@@ -96,7 +96,7 @@ namespace MCPForUnity.Editor.Helpers
             catch (Exception ex)
             {
                 // If a usable server is already present (installed or embedded), don't fail hard—just warn.
-                bool hasInstalled = false;
+                var hasInstalled = false;
                 try { hasInstalled = File.Exists(Path.Combine(GetServerPath(), "server.py")); } catch { }
 
                 if (hasInstalled || TryGetEmbeddedServerSource(out _))
@@ -141,7 +141,7 @@ namespace MCPForUnity.Editor.Helpers
                 // On macOS, use LocalApplicationData (~/Library/Application Support)
                 var localAppSupport = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
                 // Unity/Mono may map LocalApplicationData to ~/.local/share on macOS; normalize to Application Support
-                bool looksLikeXdg = !string.IsNullOrEmpty(localAppSupport) && localAppSupport.Replace('\\', '/').Contains("/.local/share");
+                var looksLikeXdg = !string.IsNullOrEmpty(localAppSupport) && localAppSupport.Replace('\\', '/').Contains("/.local/share");
                 if (string.IsNullOrEmpty(localAppSupport) || looksLikeXdg)
                 {
                     // Fallback: construct from $HOME
@@ -164,11 +164,11 @@ namespace MCPForUnity.Editor.Helpers
             try
             {
                 if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX)) return;
-                string home = Environment.GetFolderPath(Environment.SpecialFolder.Personal) ?? string.Empty;
+                var home = Environment.GetFolderPath(Environment.SpecialFolder.Personal) ?? string.Empty;
                 if (string.IsNullOrEmpty(home)) return;
 
-                string canonical = Path.Combine(home, "Library", "Application Support");
-                string symlink = Path.Combine(home, "Library", "AppSupport");
+                var canonical = Path.Combine(home, "Library", "Application Support");
+                var symlink = Path.Combine(home, "Library", "AppSupport");
 
                 // If symlink exists already, nothing to do
                 if (Directory.Exists(symlink) || File.Exists(symlink)) return;
@@ -184,7 +184,7 @@ namespace MCPForUnity.Editor.Helpers
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
-                    CreateNoWindow = true
+                    CreateNoWindow = true,
                 };
                 using var p = System.Diagnostics.Process.Start(psi);
                 p?.WaitForExit(2000);
@@ -222,14 +222,14 @@ namespace MCPForUnity.Editor.Helpers
         {
             try
             {
-                string canonicalSrc = Path.Combine(canonicalRoot, "src");
+                var canonicalSrc = Path.Combine(canonicalRoot, "src");
                 // Normalize canonical root for comparisons
-                string normCanonicalRoot = NormalizePathSafe(canonicalRoot);
+                var normCanonicalRoot = NormalizePathSafe(canonicalRoot);
                 string embeddedSrc = null;
                 TryGetEmbeddedServerSource(out embeddedSrc);
 
-                string embeddedVer = ReadVersionFile(Path.Combine(embeddedSrc ?? string.Empty, VersionFileName));
-                string installedVer = ReadVersionFile(Path.Combine(canonicalSrc, VersionFileName));
+                var embeddedVer = ReadVersionFile(Path.Combine(embeddedSrc ?? string.Empty, VersionFileName));
+                var installedVer = ReadVersionFile(Path.Combine(canonicalSrc, VersionFileName));
 
                 // Legacy paths (macOS/Linux .config; Windows roaming as example)
                 foreach (var legacyRoot in GetLegacyRootsForDetection())
@@ -237,9 +237,9 @@ namespace MCPForUnity.Editor.Helpers
                     // Skip logging for the canonical root itself
                     if (PathsEqualSafe(legacyRoot, normCanonicalRoot))
                         continue;
-                    string legacySrc = Path.Combine(legacyRoot, "src");
-                    bool hasServer = File.Exists(Path.Combine(legacySrc, "server.py"));
-                    string legacyVer = ReadVersionFile(Path.Combine(legacySrc, VersionFileName));
+                    var legacySrc = Path.Combine(legacyRoot, "src");
+                    var hasServer = File.Exists(Path.Combine(legacySrc, "server.py"));
+                    var legacyVer = ReadVersionFile(Path.Combine(legacySrc, VersionFileName));
 
                     if (hasServer)
                     {
@@ -288,8 +288,8 @@ namespace MCPForUnity.Editor.Helpers
         private static bool PathsEqualSafe(string a, string b)
         {
             if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b)) return false;
-            string na = NormalizePathSafe(a);
-            string nb = NormalizePathSafe(b);
+            var na = NormalizePathSafe(a);
+            var nb = NormalizePathSafe(b);
             try
             {
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
@@ -304,14 +304,14 @@ namespace MCPForUnity.Editor.Helpers
         private static IEnumerable<string> GetLegacyRootsForDetection()
         {
             var roots = new System.Collections.Generic.List<string>();
-            string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) ?? string.Empty;
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) ?? string.Empty;
             // macOS/Linux legacy
             roots.Add(Path.Combine(home, ".config", "UnityMCP", "UnityMcpServer"));
             roots.Add(Path.Combine(home, ".local", "share", "UnityMCP", "UnityMcpServer"));
             // Windows roaming example
             try
             {
-                string roaming = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) ?? string.Empty;
+                var roaming = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) ?? string.Empty;
                 if (!string.IsNullOrEmpty(roaming))
                     roots.Add(Path.Combine(roaming, "UnityMCP", "UnityMcpServer"));
             }
@@ -333,17 +333,17 @@ namespace MCPForUnity.Editor.Helpers
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
-                    CreateNoWindow = true
+                    CreateNoWindow = true,
                 };
                 using var p = System.Diagnostics.Process.Start(psi);
                 if (p == null) return;
-                string outp = p.StandardOutput.ReadToEnd();
+                var outp = p.StandardOutput.ReadToEnd();
                 p.WaitForExit(1500);
                 if (p.ExitCode == 0 && !string.IsNullOrEmpty(outp))
                 {
                     foreach (var line in outp.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries))
                     {
-                        if (int.TryParse(line.Trim(), out int pid))
+                        if (int.TryParse(line.Trim(), out var pid))
                         {
                             try { System.Diagnostics.Process.GetProcessById(pid).Kill(); } catch { }
                         }
@@ -358,7 +358,7 @@ namespace MCPForUnity.Editor.Helpers
             try
             {
                 if (string.IsNullOrEmpty(path) || !File.Exists(path)) return null;
-                string v = File.ReadAllText(path).Trim();
+                var v = File.ReadAllText(path).Trim();
                 return string.IsNullOrEmpty(v) ? null : v;
             }
             catch { return null; }
@@ -371,10 +371,10 @@ namespace MCPForUnity.Editor.Helpers
                 if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b)) return 0;
                 var ap = a.Split('.');
                 var bp = b.Split('.');
-                for (int i = 0; i < Math.Max(ap.Length, bp.Length); i++)
+                for (var i = 0; i < Math.Max(ap.Length, bp.Length); i++)
                 {
-                    int ai = (i < ap.Length && int.TryParse(ap[i], out var t1)) ? t1 : 0;
-                    int bi = (i < bp.Length && int.TryParse(bp[i], out var t2)) ? t2 : 0;
+                    var ai = (i < ap.Length && int.TryParse(ap[i], out var t1)) ? t1 : 0;
+                    var bi = (i < bp.Length && int.TryParse(bp[i], out var t2)) ? t2 : 0;
                     if (ai != bi) return ai.CompareTo(bi);
                 }
                 return 0;
@@ -396,23 +396,23 @@ namespace MCPForUnity.Editor.Helpers
         {
             Directory.CreateDirectory(destinationDir);
 
-            foreach (string filePath in Directory.GetFiles(sourceDir))
+            foreach (var filePath in Directory.GetFiles(sourceDir))
             {
-                string fileName = Path.GetFileName(filePath);
-                string destFile = Path.Combine(destinationDir, fileName);
+                var fileName = Path.GetFileName(filePath);
+                var destFile = Path.Combine(destinationDir, fileName);
                 File.Copy(filePath, destFile, overwrite: true);
             }
 
-            foreach (string dirPath in Directory.GetDirectories(sourceDir))
+            foreach (var dirPath in Directory.GetDirectories(sourceDir))
             {
-                string dirName = Path.GetFileName(dirPath);
+                var dirName = Path.GetFileName(dirPath);
                 foreach (var skip in _skipDirs)
                 {
                     if (dirName.Equals(skip, StringComparison.OrdinalIgnoreCase))
                         goto NextDir;
                 }
                 try { if ((File.GetAttributes(dirPath) & FileAttributes.ReparsePoint) != 0) continue; } catch { }
-                string destSubDir = Path.Combine(destinationDir, dirName);
+                var destSubDir = Path.Combine(destinationDir, dirName);
                 CopyDirectoryRecursive(dirPath, destSubDir);
             NextDir: ;
             }
@@ -422,12 +422,12 @@ namespace MCPForUnity.Editor.Helpers
         {
             try
             {
-                string serverSrc = GetServerPath();
-                bool hasServer = File.Exists(Path.Combine(serverSrc, "server.py"));
+                var serverSrc = GetServerPath();
+                var hasServer = File.Exists(Path.Combine(serverSrc, "server.py"));
                 if (!hasServer)
                 {
                     // In dev mode or if not installed yet, try the embedded/dev source
-                    if (TryGetEmbeddedServerSource(out string embeddedSrc) && File.Exists(Path.Combine(embeddedSrc, "server.py")))
+                    if (TryGetEmbeddedServerSource(out var embeddedSrc) && File.Exists(Path.Combine(embeddedSrc, "server.py")))
                     {
                         serverSrc = embeddedSrc;
                         hasServer = true;
@@ -448,18 +448,18 @@ namespace MCPForUnity.Editor.Helpers
                 }
 
                 // Remove stale venv and pinned version file if present
-                string venvPath = Path.Combine(serverSrc, ".venv");
+                var venvPath = Path.Combine(serverSrc, ".venv");
                 if (Directory.Exists(venvPath))
                 {
                     try { Directory.Delete(venvPath, recursive: true); } catch (Exception ex) { Debug.LogWarning($"Failed to delete .venv: {ex.Message}"); }
                 }
-                string pyPin = Path.Combine(serverSrc, ".python-version");
+                var pyPin = Path.Combine(serverSrc, ".python-version");
                 if (File.Exists(pyPin))
                 {
                     try { File.Delete(pyPin); } catch (Exception ex) { Debug.LogWarning($"Failed to delete .python-version: {ex.Message}"); }
                 }
 
-                string uvPath = FindUvPath();
+                var uvPath = FindUvPath();
                 if (uvPath == null)
                 {
                     Debug.LogError("UV not found. Please install uv (https://docs.astral.sh/uv/)." );
@@ -474,7 +474,7 @@ namespace MCPForUnity.Editor.Helpers
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
-                    CreateNoWindow = true
+                    CreateNoWindow = true,
                 };
 
                 using var proc = new System.Diagnostics.Process { StartInfo = psi };
@@ -502,8 +502,8 @@ namespace MCPForUnity.Editor.Helpers
                 // Ensure async buffers flushed
                 proc.WaitForExit();
 
-                string stdout = sbOut.ToString();
-                string stderr = sbErr.ToString();
+                var stdout = sbOut.ToString();
+                var stderr = sbErr.ToString();
 
                 if (proc.ExitCode != 0)
                 {
@@ -526,7 +526,7 @@ namespace MCPForUnity.Editor.Helpers
             // Allow user override via EditorPrefs
             try
             {
-                string overridePath = EditorPrefs.GetString("MCPForUnity.UvPath", string.Empty);
+                var overridePath = EditorPrefs.GetString("MCPForUnity.UvPath", string.Empty);
                 if (!string.IsNullOrEmpty(overridePath) && File.Exists(overridePath))
                 {
                     if (ValidateUvBinary(overridePath)) return overridePath;
@@ -534,15 +534,15 @@ namespace MCPForUnity.Editor.Helpers
             }
             catch { }
 
-            string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) ?? string.Empty;
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) ?? string.Empty;
 
             // Platform-specific candidate lists
             string[] candidates;
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) ?? string.Empty;
-                string programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles) ?? string.Empty;
-                string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) ?? string.Empty;
+                var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) ?? string.Empty;
+                var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles) ?? string.Empty;
+                var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) ?? string.Empty;
 
                 // Fast path: resolve from PATH first
                 try
@@ -554,16 +554,16 @@ namespace MCPForUnity.Editor.Helpers
                         UseShellExecute = false,
                         RedirectStandardOutput = true,
                         RedirectStandardError = true,
-                        CreateNoWindow = true
+                        CreateNoWindow = true,
                     };
                     using var wp = System.Diagnostics.Process.Start(wherePsi);
-                    string output = wp.StandardOutput.ReadToEnd().Trim();
+                    var output = wp.StandardOutput.ReadToEnd().Trim();
                     wp.WaitForExit(1500);
                     if (wp.ExitCode == 0 && !string.IsNullOrEmpty(output))
                     {
                         foreach (var line in output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
                         {
-                            string path = line.Trim();
+                            var path = line.Trim();
                             if (File.Exists(path) && ValidateUvBinary(path)) return path;
                         }
                     }
@@ -574,20 +574,20 @@ namespace MCPForUnity.Editor.Helpers
                 // Example: %LOCALAPPDATA%\Packages\PythonSoftwareFoundation.Python.3.13_*\LocalCache\local-packages\Python313\Scripts\uv.exe
                 try
                 {
-                    string pkgsRoot = Path.Combine(localAppData, "Packages");
+                    var pkgsRoot = Path.Combine(localAppData, "Packages");
                     if (Directory.Exists(pkgsRoot))
                     {
                         var pythonPkgs = Directory.GetDirectories(pkgsRoot, "PythonSoftwareFoundation.Python.*", SearchOption.TopDirectoryOnly)
                                                  .OrderByDescending(p => p, StringComparer.OrdinalIgnoreCase);
                         foreach (var pkg in pythonPkgs)
                         {
-                            string localCache = Path.Combine(pkg, "LocalCache", "local-packages");
+                            var localCache = Path.Combine(pkg, "LocalCache", "local-packages");
                             if (!Directory.Exists(localCache)) continue;
                             var pyRoots = Directory.GetDirectories(localCache, "Python*", SearchOption.TopDirectoryOnly)
                                                    .OrderByDescending(d => d, StringComparer.OrdinalIgnoreCase);
                             foreach (var pyRoot in pyRoots)
                             {
-                                string uvExe = Path.Combine(pyRoot, "Scripts", "uv.exe");
+                                var uvExe = Path.Combine(pyRoot, "Scripts", "uv.exe");
                                 if (File.Exists(uvExe) && ValidateUvBinary(uvExe)) return uvExe;
                             }
                         }
@@ -617,7 +617,7 @@ namespace MCPForUnity.Editor.Helpers
 
                     // Try simple name resolution later via PATH
                     "uv.exe",
-                    "uv"
+                    "uv",
                 };
             }
             else
@@ -634,11 +634,11 @@ namespace MCPForUnity.Editor.Helpers
                     "/Library/Frameworks/Python.framework/Versions/3.13/bin/uv",
                     "/Library/Frameworks/Python.framework/Versions/3.12/bin/uv",
                     // Fallback to PATH resolution by name
-                    "uv"
+                    "uv",
                 };
             }
 
-            foreach (string c in candidates)
+            foreach (var c in candidates)
             {
                 try
                 {
@@ -659,26 +659,26 @@ namespace MCPForUnity.Editor.Helpers
                         UseShellExecute = false,
                         RedirectStandardOutput = true,
                         RedirectStandardError = true,
-                        CreateNoWindow = true
+                        CreateNoWindow = true,
                     };
                     try
                     {
                         // Prepend common user-local and package manager locations so 'which' can see them in Unity's GUI env
-                        string homeDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) ?? string.Empty;
-                        string prepend = string.Join(":", new[]
+                        var homeDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) ?? string.Empty;
+                        var prepend = string.Join(":", new[]
                         {
                             System.IO.Path.Combine(homeDir, ".local", "bin"),
                             "/opt/homebrew/bin",
                             "/usr/local/bin",
                             "/usr/bin",
-                            "/bin"
+                            "/bin",
                         });
-                        string currentPath = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
+                        var currentPath = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
                         whichPsi.EnvironmentVariables["PATH"] = string.IsNullOrEmpty(currentPath) ? prepend : (prepend + ":" + currentPath);
                     }
                     catch { }
                     using var wp = System.Diagnostics.Process.Start(whichPsi);
-                    string output = wp.StandardOutput.ReadToEnd().Trim();
+                    var output = wp.StandardOutput.ReadToEnd().Trim();
                     wp.WaitForExit(3000);
                     if (wp.ExitCode == 0 && !string.IsNullOrEmpty(output) && File.Exists(output))
                     {
@@ -691,15 +691,15 @@ namespace MCPForUnity.Editor.Helpers
             // Manual PATH scan
             try
             {
-                string pathEnv = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
-                string[] parts = pathEnv.Split(Path.PathSeparator);
-                foreach (string part in parts)
+                var pathEnv = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
+                var parts = pathEnv.Split(Path.PathSeparator);
+                foreach (var part in parts)
                 {
                     try
                     {
                         // Check both uv and uv.exe
-                        string candidateUv = Path.Combine(part, "uv");
-                        string candidateUvExe = Path.Combine(part, "uv.exe");
+                        var candidateUv = Path.Combine(part, "uv");
+                        var candidateUvExe = Path.Combine(part, "uv.exe");
                         if (File.Exists(candidateUv) && ValidateUvBinary(candidateUv)) return candidateUv;
                         if (File.Exists(candidateUvExe) && ValidateUvBinary(candidateUvExe)) return candidateUvExe;
                     }
@@ -722,13 +722,13 @@ namespace MCPForUnity.Editor.Helpers
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
-                    CreateNoWindow = true
+                    CreateNoWindow = true,
                 };
                 using var p = System.Diagnostics.Process.Start(psi);
                 if (!p.WaitForExit(5000)) { try { p.Kill(); } catch { } return false; }
                 if (p.ExitCode == 0)
                 {
-                    string output = p.StandardOutput.ReadToEnd().Trim();
+                    var output = p.StandardOutput.ReadToEnd().Trim();
                     return output.StartsWith("uv ");
                 }
             }

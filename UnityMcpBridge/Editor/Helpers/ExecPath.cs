@@ -1,7 +1,6 @@
 using System;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using System.Text;
 using System.Runtime.InteropServices;
 using UnityEditor;
@@ -17,26 +16,26 @@ namespace MCPForUnity.Editor.Helpers
         {
             try
             {
-                string pref = EditorPrefs.GetString(PrefClaude, string.Empty);
+                var pref = EditorPrefs.GetString(PrefClaude, string.Empty);
                 if (!string.IsNullOrEmpty(pref) && File.Exists(pref)) return pref;
             }
             catch { }
 
-            string env = Environment.GetEnvironmentVariable("CLAUDE_CLI");
+            var env = Environment.GetEnvironmentVariable("CLAUDE_CLI");
             if (!string.IsNullOrEmpty(env) && File.Exists(env)) return env;
 
             if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
-                string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) ?? string.Empty;
+                var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) ?? string.Empty;
                 string[] candidates =
                 {
                     "/opt/homebrew/bin/claude",
                     "/usr/local/bin/claude",
                     Path.Combine(home, ".local", "bin", "claude"),
                 };
-                foreach (string c in candidates) { if (File.Exists(c)) return c; }
+                foreach (var c in candidates) { if (File.Exists(c)) return c; }
                 // Try NVM-installed claude under ~/.nvm/versions/node/*/bin/claude
-                string nvmClaude = ResolveClaudeFromNvm(home);
+                var nvmClaude = ResolveClaudeFromNvm(home);
                 if (!string.IsNullOrEmpty(nvmClaude)) return nvmClaude;
 #if UNITY_EDITOR_OSX || UNITY_EDITOR_LINUX
                 return Which("claude", "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin");
@@ -69,16 +68,16 @@ namespace MCPForUnity.Editor.Helpers
 
             // Linux
             {
-                string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) ?? string.Empty;
+                var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) ?? string.Empty;
                 string[] candidates =
                 {
                     "/usr/local/bin/claude",
                     "/usr/bin/claude",
                     Path.Combine(home, ".local", "bin", "claude"),
                 };
-                foreach (string c in candidates) { if (File.Exists(c)) return c; }
+                foreach (var c in candidates) { if (File.Exists(c)) return c; }
                 // Try NVM-installed claude under ~/.nvm/versions/node/*/bin/claude
-                string nvmClaude = ResolveClaudeFromNvm(home);
+                var nvmClaude = ResolveClaudeFromNvm(home);
                 if (!string.IsNullOrEmpty(nvmClaude)) return nvmClaude;
 #if UNITY_EDITOR_OSX || UNITY_EDITOR_LINUX
                 return Which("claude", "/usr/local/bin:/usr/bin:/bin");
@@ -94,27 +93,27 @@ namespace MCPForUnity.Editor.Helpers
             try
             {
                 if (string.IsNullOrEmpty(home)) return null;
-                string nvmNodeDir = Path.Combine(home, ".nvm", "versions", "node");
+                var nvmNodeDir = Path.Combine(home, ".nvm", "versions", "node");
                 if (!Directory.Exists(nvmNodeDir)) return null;
 
                 string bestPath = null;
                 Version bestVersion = null;
-                foreach (string versionDir in Directory.EnumerateDirectories(nvmNodeDir))
+                foreach (var versionDir in Directory.EnumerateDirectories(nvmNodeDir))
                 {
-                    string name = Path.GetFileName(versionDir);
+                    var name = Path.GetFileName(versionDir);
                     if (string.IsNullOrEmpty(name)) continue;
                     if (name.StartsWith("v", StringComparison.OrdinalIgnoreCase))
                     {
                         // Extract numeric portion: e.g., v18.19.0-nightly -> 18.19.0
-                        string versionStr = name.Substring(1);
-                        int dashIndex = versionStr.IndexOf('-');
+                        var versionStr = name.Substring(1);
+                        var dashIndex = versionStr.IndexOf('-');
                         if (dashIndex > 0)
                         {
                             versionStr = versionStr.Substring(0, dashIndex);
                         }
-                        if (Version.TryParse(versionStr, out Version parsed))
+                        if (Version.TryParse(versionStr, out var parsed))
                         {
-                            string candidate = Path.Combine(versionDir, "bin", "claude");
+                            var candidate = Path.Combine(versionDir, "bin", "claude");
                             if (File.Exists(candidate))
                             {
                                 if (bestVersion == null || parsed > bestVersion)
@@ -177,7 +176,7 @@ namespace MCPForUnity.Editor.Helpers
             try
             {
                 // Handle PowerShell scripts on Windows by invoking through powershell.exe
-                bool isPs1 = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) &&
+                var isPs1 = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) &&
                              file.EndsWith(".ps1", StringComparison.OrdinalIgnoreCase);
 
                 var psi = new ProcessStartInfo
@@ -194,7 +193,7 @@ namespace MCPForUnity.Editor.Helpers
                 };
                 if (!string.IsNullOrEmpty(extraPathPrepend))
                 {
-                    string currentPath = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
+                    var currentPath = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
                     psi.EnvironmentVariables["PATH"] = string.IsNullOrEmpty(currentPath)
                         ? extraPathPrepend
                         : (extraPathPrepend + System.IO.Path.PathSeparator + currentPath);
@@ -242,10 +241,10 @@ namespace MCPForUnity.Editor.Helpers
                     RedirectStandardOutput = true,
                     CreateNoWindow = true,
                 };
-                string path = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
+                var path = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
                 psi.EnvironmentVariables["PATH"] = string.IsNullOrEmpty(path) ? prependPath : (prependPath + Path.PathSeparator + path);
                 using var p = Process.Start(psi);
-                string output = p?.StandardOutput.ReadToEnd().Trim();
+                var output = p?.StandardOutput.ReadToEnd().Trim();
                 p?.WaitForExit(1500);
                 return (!string.IsNullOrEmpty(output) && File.Exists(output)) ? output : null;
             }

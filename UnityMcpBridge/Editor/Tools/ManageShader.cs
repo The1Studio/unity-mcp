@@ -1,6 +1,5 @@
 using System;
 using System.IO;
-using System.Linq;
 using System.Text.RegularExpressions;
 using Newtonsoft.Json.Linq;
 using UnityEditor;
@@ -20,13 +19,13 @@ namespace MCPForUnity.Editor.Tools
         public static object HandleCommand(JObject @params)
         {
             // Extract parameters
-            string action = @params["action"]?.ToString().ToLower();
-            string name = @params["name"]?.ToString();
-            string path = @params["path"]?.ToString(); // Relative to Assets/
+            var action = @params["action"]?.ToString().ToLower();
+            var name = @params["name"]?.ToString();
+            var path = @params["path"]?.ToString(); // Relative to Assets/
             string contents = null;
 
             // Check if we have base64 encoded contents
-            bool contentsEncoded = @params["contentsEncoded"]?.ToObject<bool>() ?? false;
+            var contentsEncoded = @params["contentsEncoded"]?.ToObject<bool>() ?? false;
             if (contentsEncoded && @params["encodedContents"] != null)
             {
                 try
@@ -62,7 +61,7 @@ namespace MCPForUnity.Editor.Tools
 
             // Ensure path is relative to Assets/, removing any leading "Assets/"
             // Set default directory to "Shaders" if path is not provided
-            string relativeDir = path ?? "Shaders"; // Default to "Shaders" if path is null
+            var relativeDir = path ?? "Shaders"; // Default to "Shaders" if path is null
             if (!string.IsNullOrEmpty(relativeDir))
             {
                 relativeDir = relativeDir.Replace('\\', '/').Trim('/');
@@ -78,10 +77,10 @@ namespace MCPForUnity.Editor.Tools
             }
 
             // Construct paths
-            string shaderFileName = $"{name}.shader";
-            string fullPathDir = Path.Combine(Application.dataPath, relativeDir);
-            string fullPath = Path.Combine(fullPathDir, shaderFileName);
-            string relativePath = Path.Combine("Assets", relativeDir, shaderFileName)
+            var shaderFileName = $"{name}.shader";
+            var fullPathDir = Path.Combine(Application.dataPath, relativeDir);
+            var fullPath = Path.Combine(fullPathDir, shaderFileName);
+            var relativePath = Path.Combine("Assets", relativeDir, shaderFileName)
                 .Replace('\\', '/'); // Ensure "Assets/" prefix and forward slashes
 
             // Ensure the target directory exists for create/update
@@ -127,7 +126,7 @@ namespace MCPForUnity.Editor.Tools
         /// </summary>
         private static string DecodeBase64(string encoded)
         {
-            byte[] data = Convert.FromBase64String(encoded);
+            var data = Convert.FromBase64String(encoded);
             return System.Text.Encoding.UTF8.GetString(data);
         }
 
@@ -136,7 +135,7 @@ namespace MCPForUnity.Editor.Tools
         /// </summary>
         private static string EncodeBase64(string text)
         {
-            byte[] data = System.Text.Encoding.UTF8.GetBytes(text);
+            var data = System.Text.Encoding.UTF8.GetBytes(text);
             return Convert.ToBase64String(data);
         }
 
@@ -194,15 +193,15 @@ namespace MCPForUnity.Editor.Tools
 
             try
             {
-                string contents = File.ReadAllText(fullPath);
+                var contents = File.ReadAllText(fullPath);
 
                 // Return both normal and encoded contents for larger files
                 //TODO: Consider a threshold for large files
-                bool isLarge = contents.Length > 10000; // If content is large, include encoded version
+                var isLarge = contents.Length > 10000; // If content is large, include encoded version
                 var responseData = new
                 {
                     path = relativePath,
-                    contents = contents,
+                    contents,
                     // For large files, also include base64-encoded version
                     encodedContents = isLarge ? EncodeBase64(contents) : null,
                     contentsEncoded = isLarge,
@@ -263,7 +262,7 @@ namespace MCPForUnity.Editor.Tools
             try
             {
                 // Delete the asset through Unity's AssetDatabase first
-                bool success = AssetDatabase.DeleteAsset(relativePath);
+                var success = AssetDatabase.DeleteAsset(relativePath);
                 if (!success)
                 {
                     return Response.Error($"Failed to delete shader through Unity's AssetDatabase: '{relativePath}'");

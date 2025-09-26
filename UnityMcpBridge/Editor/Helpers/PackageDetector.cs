@@ -16,12 +16,12 @@ namespace MCPForUnity.Editor.Helpers
         {
             try
             {
-                string pkgVer = ReadPackageVersionOrFallback();
-                string key = DetectOnceFlagKeyPrefix + pkgVer;
+                var pkgVer = ReadPackageVersionOrFallback();
+                var key = DetectOnceFlagKeyPrefix + pkgVer;
 
                 // Always force-run if legacy roots exist or canonical install is missing
-                bool legacyPresent = LegacyRootsExist();
-                bool canonicalMissing = !System.IO.File.Exists(System.IO.Path.Combine(ServerInstaller.GetServerPath(), "server.py"));
+                var legacyPresent = LegacyRootsExist();
+                var canonicalMissing = !System.IO.File.Exists(System.IO.Path.Combine(ServerInstaller.GetServerPath(), "server.py"));
 
                 if (!EditorPrefs.GetBool(key, false) || legacyPresent || canonicalMissing)
                 {
@@ -89,11 +89,11 @@ namespace MCPForUnity.Editor.Helpers
         {
             try
             {
-                string home = System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile) ?? string.Empty;
+                var home = System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile) ?? string.Empty;
                 string[] roots =
                 {
                     System.IO.Path.Combine(home, ".config", "UnityMCP", "UnityMcpServer", "src"),
-                    System.IO.Path.Combine(home, ".local", "share", "UnityMCP", "UnityMcpServer", "src")
+                    System.IO.Path.Combine(home, ".local", "share", "UnityMCP", "UnityMcpServer", "src"),
                 };
                 foreach (var r in roots)
                 {

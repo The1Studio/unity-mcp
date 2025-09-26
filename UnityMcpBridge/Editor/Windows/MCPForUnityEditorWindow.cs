@@ -31,17 +31,20 @@ namespace MCPForUnity.Editor.Windows
         private bool lastBridgeVerifiedOk;
         private string pythonDirOverride = null;
         private bool debugLogsEnabled;
-        
+        private double lastRepaintTime = 0;
+        private int manualPortInput = 0;
+        private bool isEditingPort = false;
+
         // Script validation settings
         private int validationLevelIndex = 1; // Default to Standard
         private readonly string[] validationLevelOptions = new string[]
         {
             "Basic - Only syntax checks",
-            "Standard - Syntax + Unity practices", 
+            "Standard - Syntax + Unity practices",
             "Comprehensive - All checks + semantic analysis",
             "Strict - Full semantic validation (requires Roslyn)"
         };
-        
+
         // UI state
         private int selectedClientIndex = 0;
 
@@ -63,11 +66,11 @@ namespace MCPForUnity.Editor.Windows
             {
                 LogDebugPrefsState();
             }
-            foreach (McpClient mcpClient in mcpClients.clients)
+            foreach (var mcpClient in mcpClients.clients)
             {
                 CheckMcpConfiguration(mcpClient);
             }
-            
+
             // Load validation level setting
             LoadValidationLevelSetting();
 
@@ -77,14 +80,14 @@ namespace MCPForUnity.Editor.Windows
                 AutoFirstRunSetup();
             }
         }
-        
+
         private void OnFocus()
         {
             // Refresh bridge running state on focus in case initialization completed after domain reload
             isUnityBridgeRunning = MCPForUnityBridge.IsRunning;
             if (mcpClients.clients.Count > 0 && selectedClientIndex < mcpClients.clients.Count)
             {
-                McpClient selectedClient = mcpClients.clients[selectedClientIndex];
+                var selectedClient = mcpClients.clients[selectedClientIndex];
                 CheckMcpConfiguration(selectedClient);
             }
             Repaint();
@@ -109,8 +112,8 @@ namespace MCPForUnity.Editor.Windows
         {
             try
             {
-                string installedPath = ServerInstaller.GetServerPath();
-                bool installedOk = !string.IsNullOrEmpty(installedPath) && File.Exists(Path.Combine(installedPath, "server.py"));
+                var installedPath = ServerInstaller.GetServerPath();
+                var installedOk = !string.IsNullOrEmpty(installedPath) && File.Exists(Path.Combine(installedPath, "server.py"));
                 if (installedOk)
                 {
                     pythonServerInstallationStatus = "Installed";
@@ -119,8 +122,8 @@ namespace MCPForUnity.Editor.Windows
                 }
 
                 // Fall back to embedded/dev source via our existing resolution logic
-                string embeddedPath = FindPackagePythonDirectory();
-                bool embeddedOk = !string.IsNullOrEmpty(embeddedPath) && File.Exists(Path.Combine(embeddedPath, "server.py"));
+                var embeddedPath = FindPackagePythonDirectory();
+                var embeddedOk = !string.IsNullOrEmpty(embeddedPath) && File.Exists(Path.Combine(embeddedPath, "server.py"));
                 if (embeddedOk)
                 {
                     pythonServerInstallationStatus = "Installed (Embedded)";
@@ -142,15 +145,15 @@ namespace MCPForUnity.Editor.Windows
 
         private void DrawStatusDot(Rect statusRect, Color statusColor, float size = 12)
         {
-            float offsetX = (statusRect.width - size) / 2;
-            float offsetY = (statusRect.height - size) / 2;
+            var offsetX = (statusRect.width - size) / 2;
+            var offsetY = (statusRect.height - size) / 2;
             Rect dotRect = new(statusRect.x + offsetX, statusRect.y + offsetY, size, size);
             Vector3 center = new(
                 dotRect.x + (dotRect.width / 2),
                 dotRect.y + (dotRect.height / 2),
                 0
             );
-            float radius = size / 2;
+            var radius = size / 2;
 
             // Draw the main dot
             Handles.color = statusColor;
@@ -172,16 +175,28 @@ namespace MCPForUnity.Editor.Windows
 
             // Header
             DrawHeader();
-            
+
+            // Periodically refresh to catch port changes
+            if (Event.current.type == EventType.Layout)
+            {
+                // Schedule a repaint every second to catch port updates
+                var currentTime = EditorApplication.timeSinceStartup;
+                if (currentTime - lastRepaintTime > 1.0)
+                {
+                    lastRepaintTime = currentTime;
+                    Repaint();
+                }
+            }
+
             // Compute equal column widths for uniform layout
-            float horizontalSpacing = 2f;
-            float outerPadding = 20f; // approximate padding
+            var horizontalSpacing = 2f;
+            var outerPadding = 20f; // approximate padding
             // Make columns a bit less wide for a tighter layout
-            float computed = (position.width - outerPadding - horizontalSpacing) / 2f;
-            float colWidth = Mathf.Clamp(computed, 220f, 340f);
+            var computed = (position.width - outerPadding - horizontalSpacing) / 2f;
+            var colWidth = Mathf.Clamp(computed, 220f, 340f);
             // Use fixed heights per row so paired panels match exactly
-            float topPanelHeight = 190f;
-            float bottomPanelHeight = 230f;
+            var topPanelHeight = 190f;
+            var bottomPanelHeight = 230f;
 
             // Top row: Server Status (left) and Unity Bridge (right)
             EditorGUILayout.BeginHorizontal();
@@ -224,15 +239,15 @@ namespace MCPForUnity.Editor.Windows
         private void DrawHeader()
         {
             EditorGUILayout.Space(15);
-            Rect titleRect = EditorGUILayout.GetControlRect(false, 40);
+            var titleRect = EditorGUILayout.GetControlRect(false, 40);
             EditorGUI.DrawRect(titleRect, new Color(0.2f, 0.2f, 0.2f, 0.1f));
-            
-            GUIStyle titleStyle = new GUIStyle(EditorStyles.boldLabel)
+
+            var titleStyle = new GUIStyle(EditorStyles.boldLabel)
             {
                 fontSize = 16,
                 alignment = TextAnchor.MiddleLeft
             };
-            
+
             GUI.Label(
                 new Rect(titleRect.x + 15, titleRect.y + 8, titleRect.width - 30, titleRect.height),
                 "MCP for Unity Editor",
@@ -240,9 +255,9 @@ namespace MCPForUnity.Editor.Windows
             );
 
             // Place the Show Debug Logs toggle on the same header row, right-aligned
-            float toggleWidth = 160f;
-            Rect toggleRect = new Rect(titleRect.xMax - toggleWidth - 12f, titleRect.y + 10f, toggleWidth, 20f);
-            bool newDebug = GUI.Toggle(toggleRect, debugLogsEnabled, "Show Debug Logs");
+            var toggleWidth = 160f;
+            var toggleRect = new Rect(titleRect.xMax - toggleWidth - 12f, titleRect.y + 10f, toggleWidth, 20f);
+            var newDebug = GUI.Toggle(toggleRect, debugLogsEnabled, "Show Debug Logs");
             if (newDebug != debugLogsEnabled)
             {
                 debugLogsEnabled = newDebug;
@@ -259,20 +274,20 @@ namespace MCPForUnity.Editor.Windows
         {
             try
             {
-                string pythonDirOverridePref = SafeGetPrefString("MCPForUnity.PythonDirOverride");
-                string uvPathPref = SafeGetPrefString("MCPForUnity.UvPath");
-                string serverSrcPref = SafeGetPrefString("MCPForUnity.ServerSrc");
-                bool useEmbedded = SafeGetPrefBool("MCPForUnity.UseEmbeddedServer");
+                var pythonDirOverridePref = SafeGetPrefString("MCPForUnity.PythonDirOverride");
+                var uvPathPref = SafeGetPrefString("MCPForUnity.UvPath");
+                var serverSrcPref = SafeGetPrefString("MCPForUnity.ServerSrc");
+                var useEmbedded = SafeGetPrefBool("MCPForUnity.UseEmbeddedServer");
 
                 // Version-scoped detection key
-                string embeddedVer = ReadEmbeddedVersionOrFallback();
-                string detectKey = $"MCPForUnity.LegacyDetectLogged:{embeddedVer}";
-                bool detectLogged = SafeGetPrefBool(detectKey);
+                var embeddedVer = ReadEmbeddedVersionOrFallback();
+                var detectKey = $"MCPForUnity.LegacyDetectLogged:{embeddedVer}";
+                var detectLogged = SafeGetPrefBool(detectKey);
 
                 // Project-scoped auto-register key
-                string projectPath = Application.dataPath ?? string.Empty;
-                string autoKey = $"MCPForUnity.AutoRegistered.{ComputeSha1(projectPath)}";
-                bool autoRegistered = SafeGetPrefBool(autoKey);
+                var projectPath = Application.dataPath ?? string.Empty;
+                var autoKey = $"MCPForUnity.AutoRegistered.{ComputeSha1(projectPath)}";
+                var autoRegistered = SafeGetPrefBool(autoKey);
 
                 MCPForUnity.Editor.Helpers.McpLog.Info(
                     "MCP Debug Prefs:\n" +
@@ -323,8 +338,8 @@ namespace MCPForUnity.Editor.Windows
         private void DrawServerStatusSection()
         {
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
-            
-            GUIStyle sectionTitleStyle = new GUIStyle(EditorStyles.boldLabel)
+
+            var sectionTitleStyle = new GUIStyle(EditorStyles.boldLabel)
             {
                 fontSize = 14
             };
@@ -332,10 +347,10 @@ namespace MCPForUnity.Editor.Windows
             EditorGUILayout.Space(8);
 
             EditorGUILayout.BeginHorizontal();
-            Rect statusRect = GUILayoutUtility.GetRect(0, 28, GUILayout.Width(24));
+            var statusRect = GUILayoutUtility.GetRect(0, 28, GUILayout.Width(24));
             DrawStatusDot(statusRect, pythonServerInstallationStatusColor, 16);
-            
-            GUIStyle statusStyle = new GUIStyle(EditorStyles.label)
+
+            var statusStyle = new GUIStyle(EditorStyles.label)
             {
                 fontSize = 12,
                 fontStyle = FontStyle.Bold
@@ -344,24 +359,53 @@ namespace MCPForUnity.Editor.Windows
             EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.Space(5);
-            
+
             EditorGUILayout.BeginHorizontal();
-            bool isAutoMode = MCPForUnityBridge.IsAutoConnectMode();
-            GUIStyle modeStyle = new GUIStyle(EditorStyles.miniLabel) { fontSize = 11 };
+            var isAutoMode = MCPForUnityBridge.IsAutoConnectMode();
+            var modeStyle = new GUIStyle(EditorStyles.miniLabel) { fontSize = 11 };
             EditorGUILayout.LabelField($"Mode: {(isAutoMode ? "Auto" : "Standard")}", modeStyle);
             GUILayout.FlexibleSpace();
             EditorGUILayout.EndHorizontal();
-            
-            int currentUnityPort = MCPForUnityBridge.GetCurrentPort();
-            GUIStyle portStyle = new GUIStyle(EditorStyles.miniLabel)
+
+            var currentUnityPort = MCPForUnityBridge.GetCurrentPort();
+
+            // Port display with edit capability
+            EditorGUILayout.BeginHorizontal();
+            var portStyle = new GUIStyle(EditorStyles.miniLabel)
             {
                 fontSize = 11
             };
-            EditorGUILayout.LabelField($"Ports: Unity {currentUnityPort}, MCP {mcpPort}", portStyle);
+
+            if (!isEditingPort)
+            {
+                EditorGUILayout.LabelField($"Unity Port: {currentUnityPort}", portStyle, GUILayout.Width(100));
+                if (GUILayout.Button("Change", GUILayout.Width(60), GUILayout.Height(18)))
+                {
+                    isEditingPort = true;
+                    manualPortInput = currentUnityPort;
+                }
+            }
+            else
+            {
+                EditorGUILayout.LabelField("Unity Port:", portStyle, GUILayout.Width(70));
+                manualPortInput = EditorGUILayout.IntField(manualPortInput, GUILayout.Width(60));
+
+                if (GUILayout.Button("Set", GUILayout.Width(40), GUILayout.Height(18)))
+                {
+                    SetManualPort(manualPortInput);
+                    isEditingPort = false;
+                }
+                if (GUILayout.Button("Cancel", GUILayout.Width(50), GUILayout.Height(18)))
+                {
+                    isEditingPort = false;
+                }
+            }
+            EditorGUILayout.LabelField($"MCP: {mcpPort}", portStyle);
+            EditorGUILayout.EndHorizontal();
             EditorGUILayout.Space(5);
 
             /// Auto-Setup button below ports
-            string setupButtonText = (lastClientRegisteredOk && lastBridgeVerifiedOk) ? "Connected ✓" : "Auto-Setup";
+            var setupButtonText = (lastClientRegisteredOk && lastBridgeVerifiedOk) ? "Connected ✓" : "Auto-Setup";
             if (GUILayout.Button(setupButtonText, GUILayout.Height(24)))
             {
                 RunSetupNow();
@@ -372,13 +416,13 @@ namespace MCPForUnity.Editor.Windows
             using (new EditorGUILayout.HorizontalScope())
             {
                 GUILayout.FlexibleSpace();
-                GUIContent repairLabel = new GUIContent(
+                var repairLabel = new GUIContent(
                     "Repair Python Env",
                     "Deletes the server's .venv and runs 'uv sync' to rebuild a clean environment. Use this if modules are missing or Python upgraded."
                 );
                 if (GUILayout.Button(repairLabel, GUILayout.Width(160), GUILayout.Height(22)))
                 {
-                    bool ok = global::MCPForUnity.Editor.Helpers.ServerInstaller.RepairPythonEnvironment();
+                    var ok = global::MCPForUnity.Editor.Helpers.ServerInstaller.RepairPythonEnvironment();
                     if (ok)
                     {
                         EditorUtility.DisplayDialog("MCP for Unity", "Python environment repaired.", "OK");
@@ -398,7 +442,7 @@ namespace MCPForUnity.Editor.Windows
             // Python detection warning with link
             if (!IsPythonDetected())
             {
-                GUIStyle warnStyle = new GUIStyle(EditorStyles.label) { richText = true, wordWrap = true };
+                var warnStyle = new GUIStyle(EditorStyles.label) { richText = true, wordWrap = true };
                 EditorGUILayout.LabelField("<color=#cc3333><b>Warning:</b></color> No Python installation found.", warnStyle);
                 using (new EditorGUILayout.HorizontalScope())
                 {
@@ -417,7 +461,7 @@ namespace MCPForUnity.Editor.Windows
                 {
                     if (GUILayout.Button("Select server folder…", GUILayout.Width(160)))
                     {
-                        string picked = EditorUtility.OpenFolderPanel("Select UnityMcpServer/src", Application.dataPath, "");
+                        var picked = EditorUtility.OpenFolderPanel("Select UnityMcpServer/src", Application.dataPath, "");
                         if (!string.IsNullOrEmpty(picked) && File.Exists(Path.Combine(picked, "server.py")))
                         {
                             pythonDirOverride = picked;
@@ -441,23 +485,29 @@ namespace MCPForUnity.Editor.Windows
         private void DrawBridgeSection()
         {
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
-            
+
             // Always reflect the live state each repaint to avoid stale UI after recompiles
             isUnityBridgeRunning = MCPForUnityBridge.IsRunning;
 
-            GUIStyle sectionTitleStyle = new GUIStyle(EditorStyles.boldLabel)
+            // Force repaint if bridge status changed to update port display
+            if (isUnityBridgeRunning != MCPForUnityBridge.IsRunning)
+            {
+                Repaint();
+            }
+
+            var sectionTitleStyle = new GUIStyle(EditorStyles.boldLabel)
             {
                 fontSize = 14
             };
             EditorGUILayout.LabelField("Unity Bridge", sectionTitleStyle);
             EditorGUILayout.Space(8);
-            
+
             EditorGUILayout.BeginHorizontal();
-            Color bridgeColor = isUnityBridgeRunning ? Color.green : Color.red;
-            Rect bridgeStatusRect = GUILayoutUtility.GetRect(0, 28, GUILayout.Width(24));
+            var bridgeColor = isUnityBridgeRunning ? Color.green : Color.red;
+            var bridgeStatusRect = GUILayoutUtility.GetRect(0, 28, GUILayout.Width(24));
             DrawStatusDot(bridgeStatusRect, bridgeColor, 16);
-            
-            GUIStyle bridgeStatusStyle = new GUIStyle(EditorStyles.label)
+
+            var bridgeStatusStyle = new GUIStyle(EditorStyles.label)
             {
                 fontSize = 12,
                 fontStyle = FontStyle.Bold
@@ -477,23 +527,23 @@ namespace MCPForUnity.Editor.Windows
         private void DrawValidationSection()
         {
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
-            
-            GUIStyle sectionTitleStyle = new GUIStyle(EditorStyles.boldLabel)
+
+            var sectionTitleStyle = new GUIStyle(EditorStyles.boldLabel)
             {
                 fontSize = 14
             };
             EditorGUILayout.LabelField("Script Validation", sectionTitleStyle);
             EditorGUILayout.Space(8);
-            
+
             EditorGUI.BeginChangeCheck();
             validationLevelIndex = EditorGUILayout.Popup("Validation Level", validationLevelIndex, validationLevelOptions, GUILayout.Height(20));
             if (EditorGUI.EndChangeCheck())
             {
                 SaveValidationLevelSetting();
             }
-            
+
             EditorGUILayout.Space(8);
-            string description = GetValidationLevelDescription(validationLevelIndex);
+            var description = GetValidationLevelDescription(validationLevelIndex);
             EditorGUILayout.HelpBox(description, MessageType.Info);
             EditorGUILayout.Space(4);
             // (Show Debug Logs toggle moved to header)
@@ -504,33 +554,33 @@ namespace MCPForUnity.Editor.Windows
         private void DrawUnifiedClientConfiguration()
         {
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
-            
-            GUIStyle sectionTitleStyle = new GUIStyle(EditorStyles.boldLabel)
+
+            var sectionTitleStyle = new GUIStyle(EditorStyles.boldLabel)
             {
                 fontSize = 14
             };
             EditorGUILayout.LabelField("MCP Client Configuration", sectionTitleStyle);
             EditorGUILayout.Space(10);
-            
+
 			// (Auto-connect toggle removed per design)
 
             // Client selector
-            string[] clientNames = mcpClients.clients.Select(c => c.name).ToArray();
+            var clientNames = mcpClients.clients.Select(c => c.name).ToArray();
             EditorGUI.BeginChangeCheck();
             selectedClientIndex = EditorGUILayout.Popup("Select Client", selectedClientIndex, clientNames, GUILayout.Height(20));
             if (EditorGUI.EndChangeCheck())
             {
                 selectedClientIndex = Mathf.Clamp(selectedClientIndex, 0, mcpClients.clients.Count - 1);
             }
-            
+
             EditorGUILayout.Space(10);
-            
+
             if (mcpClients.clients.Count > 0 && selectedClientIndex < mcpClients.clients.Count)
             {
-                McpClient selectedClient = mcpClients.clients[selectedClientIndex];
+                var selectedClient = mcpClients.clients[selectedClientIndex];
                 DrawClientConfigurationCompact(selectedClient);
             }
-            
+
             EditorGUILayout.Space(5);
             EditorGUILayout.EndVertical();
         }
@@ -540,8 +590,8 @@ namespace MCPForUnity.Editor.Windows
             try
             {
                 // Project-scoped one-time flag
-                string projectPath = Application.dataPath ?? string.Empty;
-                string key = $"MCPForUnity.AutoRegistered.{ComputeSha1(projectPath)}";
+                var projectPath = Application.dataPath ?? string.Empty;
+                var key = $"MCPForUnity.AutoRegistered.{ComputeSha1(projectPath)}";
                 if (EditorPrefs.GetBool(key, false))
                 {
                     return;
@@ -549,11 +599,11 @@ namespace MCPForUnity.Editor.Windows
 
                 // Attempt client registration using discovered Python server dir
                 pythonDirOverride ??= EditorPrefs.GetString("MCPForUnity.PythonDirOverride", null);
-                string pythonDir = !string.IsNullOrEmpty(pythonDirOverride) ? pythonDirOverride : FindPackagePythonDirectory();
+                var pythonDir = !string.IsNullOrEmpty(pythonDirOverride) ? pythonDirOverride : FindPackagePythonDirectory();
                 if (!string.IsNullOrEmpty(pythonDir) && File.Exists(Path.Combine(pythonDir, "server.py")))
                 {
-                    bool anyRegistered = false;
-                    foreach (McpClient client in mcpClients.clients)
+                    var anyRegistered = false;
+                    foreach (var client in mcpClients.clients)
                     {
                         try
                         {
@@ -614,11 +664,11 @@ namespace MCPForUnity.Editor.Windows
         {
             try
             {
-                using SHA1 sha1 = SHA1.Create();
-                byte[] bytes = Encoding.UTF8.GetBytes(input ?? string.Empty);
-                byte[] hash = sha1.ComputeHash(bytes);
-                StringBuilder sb = new StringBuilder(hash.Length * 2);
-                foreach (byte b in hash)
+                using var sha1 = SHA1.Create();
+                var bytes = Encoding.UTF8.GetBytes(input ?? string.Empty);
+                var hash = sha1.ComputeHash(bytes);
+                var sb = new StringBuilder(hash.Length * 2);
+                foreach (var b in hash)
                 {
                     sb.Append(b.ToString("x2"));
                 }
@@ -630,21 +680,73 @@ namespace MCPForUnity.Editor.Windows
             }
         }
 
+        private void SetManualPort(int newPort)
+        {
+            if (newPort < 1024 || newPort > 65535)
+            {
+                EditorUtility.DisplayDialog("Invalid Port", "Port must be between 1024 and 65535", "OK");
+                return;
+            }
+
+            // Save the new port for this project
+            var projectHash = ComputeSha1(Application.dataPath).Substring(0, 8);
+            var portFile = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                ".unity-mcp",
+                $"unity-mcp-port-{projectHash}.json"
+            );
+
+            try
+            {
+                // Create directory if needed
+                var dir = Path.GetDirectoryName(portFile);
+                if (!Directory.Exists(dir))
+                    Directory.CreateDirectory(dir);
+
+                // Write new port config
+                var config = new
+                {
+                    unity_port = newPort,
+                    created_date = DateTime.UtcNow.ToString("o"),
+                    project_path = Application.dataPath
+                };
+                var json = JsonConvert.SerializeObject(config, Formatting.Indented);
+                File.WriteAllText(portFile, json);
+
+                // If bridge is running, restart it with new port
+                if (MCPForUnityBridge.IsRunning)
+                {
+                    MCPForUnityBridge.Stop();
+                    EditorApplication.delayCall += () =>
+                    {
+                        MCPForUnityBridge.Start();
+                        Repaint();
+                    };
+                }
+
+                EditorUtility.DisplayDialog("Port Changed", $"Unity Bridge port set to {newPort}. Bridge will restart if running.", "OK");
+            }
+            catch (Exception ex)
+            {
+                EditorUtility.DisplayDialog("Error", $"Failed to set port: {ex.Message}", "OK");
+            }
+        }
+
         private void RunSetupNow()
         {
             // Force a one-shot setup regardless of first-run flag
             try
             {
                 pythonDirOverride ??= EditorPrefs.GetString("MCPForUnity.PythonDirOverride", null);
-                string pythonDir = !string.IsNullOrEmpty(pythonDirOverride) ? pythonDirOverride : FindPackagePythonDirectory();
+                var pythonDir = !string.IsNullOrEmpty(pythonDirOverride) ? pythonDirOverride : FindPackagePythonDirectory();
                 if (string.IsNullOrEmpty(pythonDir) || !File.Exists(Path.Combine(pythonDir, "server.py")))
                 {
                     EditorUtility.DisplayDialog("Setup", "Python server not found. Please select UnityMcpServer/src.", "OK");
                     return;
                 }
 
-                bool anyRegistered = false;
-                foreach (McpClient client in mcpClients.clients)
+                var anyRegistered = false;
+                foreach (var client in mcpClients.clients)
                 {
                     try
                     {
@@ -690,13 +792,13 @@ namespace MCPForUnity.Editor.Windows
         {
             try
             {
-                string configPath = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-                    ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), 
+                var configPath = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                    ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
                         ".cursor", "mcp.json")
-                    : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), 
+                    : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
                         ".cursor", "mcp.json");
                 if (!File.Exists(configPath)) return false;
-                string json = File.ReadAllText(configPath);
+                var json = File.ReadAllText(configPath);
                 dynamic cfg = JsonConvert.DeserializeObject(json);
                 var servers = cfg?.mcpServers;
                 if (servers == null) return false;
@@ -705,10 +807,10 @@ namespace MCPForUnity.Editor.Windows
                 var args = unity.args;
                 if (args == null) return false;
                 // Prefer exact extraction of the --directory value and compare normalized paths
-                string[] strArgs = ((System.Collections.Generic.IEnumerable<object>)args)
+                var strArgs = ((System.Collections.Generic.IEnumerable<object>)args)
                     .Select(x => x?.ToString() ?? string.Empty)
                     .ToArray();
-                string dir = ExtractDirectoryArg(strArgs);
+                var dir = ExtractDirectoryArg(strArgs);
                 if (string.IsNullOrEmpty(dir)) return false;
                 return PathsEqual(dir, pythonDir);
             }
@@ -720,8 +822,8 @@ namespace MCPForUnity.Editor.Windows
             if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b)) return false;
             try
             {
-                string na = System.IO.Path.GetFullPath(a.Trim());
-                string nb = System.IO.Path.GetFullPath(b.Trim());
+                var na = System.IO.Path.GetFullPath(a.Trim());
+                var nb = System.IO.Path.GetFullPath(b.Trim());
                 if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows))
                     return string.Equals(na, nb, StringComparison.OrdinalIgnoreCase);
                 // Default to ordinal on Unix; optionally detect FS case-sensitivity at runtime if needed
@@ -734,7 +836,7 @@ namespace MCPForUnity.Editor.Windows
         {
             try
             {
-                string claudePath = ExecPath.ResolveClaude();
+                var claudePath = ExecPath.ResolveClaude();
                 if (string.IsNullOrEmpty(claudePath)) return false;
 
                 // Only prepend PATH on Unix
@@ -763,15 +865,15 @@ namespace MCPForUnity.Editor.Windows
 
             try
             {
-                using TcpClient client = new TcpClient();
+                using var client = new TcpClient();
                 var connectTask = client.ConnectAsync(IPAddress.Loopback, port);
                 if (!connectTask.Wait(ConnectTimeoutMs)) return false;
 
-                using NetworkStream stream = client.GetStream();
+                using var stream = client.GetStream();
                 try { client.NoDelay = true; } catch { }
 
                 // 1) Read handshake line (ASCII, newline-terminated)
-                string handshake = ReadLineAscii(stream, 2000);
+                var handshake = ReadLineAscii(stream, 2000);
                 if (string.IsNullOrEmpty(handshake) || handshake.IndexOf("FRAMING=1", StringComparison.OrdinalIgnoreCase) < 0)
                 {
                     UnityEngine.Debug.LogWarning("MCP for Unity: Bridge handshake missing FRAMING=1");
@@ -779,12 +881,12 @@ namespace MCPForUnity.Editor.Windows
                 }
 
                 // 2) Send framed "ping"
-                byte[] payload = Encoding.UTF8.GetBytes("ping");
+                var payload = Encoding.UTF8.GetBytes("ping");
                 WriteFrame(stream, payload, FrameTimeoutMs);
 
                 // 3) Read framed response and check for pong
-                string response = ReadFrameUtf8(stream, FrameTimeoutMs);
-                bool ok = !string.IsNullOrEmpty(response) && response.IndexOf("pong", StringComparison.OrdinalIgnoreCase) >= 0;
+                var response = ReadFrameUtf8(stream, FrameTimeoutMs);
+                var ok = !string.IsNullOrEmpty(response) && response.IndexOf("pong", StringComparison.OrdinalIgnoreCase) >= 0;
                 if (!ok)
                 {
                     UnityEngine.Debug.LogWarning($"MCP for Unity: Framed ping failed; response='{response}'");
@@ -803,8 +905,8 @@ namespace MCPForUnity.Editor.Windows
         {
             if (payload == null) throw new ArgumentNullException(nameof(payload));
             if (payload.LongLength < 1) throw new IOException("Zero-length frames are not allowed");
-            byte[] header = new byte[8];
-            ulong len = (ulong)payload.LongLength;
+            var header = new byte[8];
+            var len = (ulong)payload.LongLength;
             header[0] = (byte)(len >> 56);
             header[1] = (byte)(len >> 48);
             header[2] = (byte)(len >> 40);
@@ -821,8 +923,8 @@ namespace MCPForUnity.Editor.Windows
 
         private static string ReadFrameUtf8(NetworkStream stream, int timeoutMs)
         {
-            byte[] header = ReadExact(stream, 8, timeoutMs);
-            ulong len = ((ulong)header[0] << 56)
+            var header = ReadExact(stream, 8, timeoutMs);
+            var len = ((ulong)header[0] << 56)
                       | ((ulong)header[1] << 48)
                       | ((ulong)header[2] << 40)
                       | ((ulong)header[3] << 32)
@@ -832,18 +934,18 @@ namespace MCPForUnity.Editor.Windows
                       | header[7];
             if (len == 0UL) throw new IOException("Zero-length frames are not allowed");
             if (len > int.MaxValue) throw new IOException("Frame too large");
-            byte[] payload = ReadExact(stream, (int)len, timeoutMs);
+            var payload = ReadExact(stream, (int)len, timeoutMs);
             return Encoding.UTF8.GetString(payload);
         }
 
         private static byte[] ReadExact(NetworkStream stream, int count, int timeoutMs)
         {
-            byte[] buffer = new byte[count];
-            int offset = 0;
+            var buffer = new byte[count];
+            var offset = 0;
             stream.ReadTimeout = timeoutMs;
             while (offset < count)
             {
-                int read = stream.Read(buffer, offset, count - offset);
+                var read = stream.Read(buffer, offset, count - offset);
                 if (read <= 0) throw new IOException("Connection closed before reading expected bytes");
                 offset += read;
             }
@@ -854,10 +956,10 @@ namespace MCPForUnity.Editor.Windows
         {
             stream.ReadTimeout = timeoutMs;
             using var ms = new MemoryStream();
-            byte[] one = new byte[1];
+            var one = new byte[1];
             while (ms.Length < maxLen)
             {
-                int n = stream.Read(one, 0, 1);
+                var n = stream.Read(one, 0, 1);
                 if (n <= 0) break;
                 if (one[0] == (byte)'\n') break;
                 ms.WriteByte(one[0]);
@@ -870,7 +972,7 @@ namespace MCPForUnity.Editor.Windows
 			// Special pre-check for Claude Code: if CLI missing, reflect in status UI
 			if (mcpClient.mcpType == McpTypes.ClaudeCode)
 			{
-				string claudeCheck = ExecPath.ResolveClaude();
+				var claudeCheck = ExecPath.ResolveClaude();
 				if (string.IsNullOrEmpty(claudeCheck))
 				{
 					mcpClient.configStatus = "Claude Not Found";
@@ -879,11 +981,11 @@ namespace MCPForUnity.Editor.Windows
 			}
 
 			// Pre-check for clients that require uv (all except Claude Code)
-			bool uvRequired = mcpClient.mcpType != McpTypes.ClaudeCode;
-			bool uvMissingEarly = false;
+			var uvRequired = mcpClient.mcpType != McpTypes.ClaudeCode;
+			var uvMissingEarly = false;
 			if (uvRequired)
 			{
-				string uvPathEarly = FindUvPath();
+				var uvPathEarly = FindUvPath();
 				if (string.IsNullOrEmpty(uvPathEarly))
 				{
 					uvMissingEarly = true;
@@ -894,11 +996,11 @@ namespace MCPForUnity.Editor.Windows
 
             // Status display
             EditorGUILayout.BeginHorizontal();
-            Rect statusRect = GUILayoutUtility.GetRect(0, 28, GUILayout.Width(24));
-            Color statusColor = GetStatusColor(mcpClient.status);
+            var statusRect = GUILayoutUtility.GetRect(0, 28, GUILayout.Width(24));
+            var statusColor = GetStatusColor(mcpClient.status);
             DrawStatusDot(statusRect, statusColor, 16);
-            
-            GUIStyle clientStatusStyle = new GUIStyle(EditorStyles.label)
+
+            var clientStatusStyle = new GUIStyle(EditorStyles.label)
             {
                 fontSize = 12,
                 fontStyle = FontStyle.Bold
@@ -908,13 +1010,13 @@ namespace MCPForUnity.Editor.Windows
 			// When Claude CLI is missing, show a clear install hint directly below status
 			if (mcpClient.mcpType == McpTypes.ClaudeCode && string.IsNullOrEmpty(ExecPath.ResolveClaude()))
 			{
-				GUIStyle installHintStyle = new GUIStyle(clientStatusStyle);
+				var installHintStyle = new GUIStyle(clientStatusStyle);
 				installHintStyle.normal.textColor = new Color(1f, 0.5f, 0f); // orange
 				EditorGUILayout.BeginHorizontal();
-				GUIContent installText = new GUIContent("Make sure Claude Code is installed!");
-				Vector2 textSize = installHintStyle.CalcSize(installText);
+				var installText = new GUIContent("Make sure Claude Code is installed!");
+				var textSize = installHintStyle.CalcSize(installText);
 				EditorGUILayout.LabelField(installText, installHintStyle, GUILayout.Height(22), GUILayout.Width(textSize.x + 2), GUILayout.ExpandWidth(false));
-				GUIStyle helpLinkStyle = new GUIStyle(EditorStyles.linkLabel) { fontStyle = FontStyle.Bold };
+				var helpLinkStyle = new GUIStyle(EditorStyles.linkLabel) { fontStyle = FontStyle.Bold };
 				GUILayout.Space(6);
 				if (GUILayout.Button("[HELP]", helpLinkStyle, GUILayout.Height(22), GUILayout.ExpandWidth(false)))
 				{
@@ -922,13 +1024,13 @@ namespace MCPForUnity.Editor.Windows
 				}
 				EditorGUILayout.EndHorizontal();
 			}
-			
+
 			EditorGUILayout.Space(10);
 
 			// If uv is missing for required clients, show hint and picker then exit early to avoid showing other controls
 			if (uvRequired && uvMissingEarly)
 			{
-				GUIStyle installHintStyle2 = new GUIStyle(EditorStyles.label)
+				var installHintStyle2 = new GUIStyle(EditorStyles.label)
 				{
 					fontSize = 12,
 					fontStyle = FontStyle.Bold,
@@ -936,10 +1038,10 @@ namespace MCPForUnity.Editor.Windows
 				};
 				installHintStyle2.normal.textColor = new Color(1f, 0.5f, 0f);
 				EditorGUILayout.BeginHorizontal();
-				GUIContent installText2 = new GUIContent("Make sure uv is installed!");
-				Vector2 sz = installHintStyle2.CalcSize(installText2);
+				var installText2 = new GUIContent("Make sure uv is installed!");
+				var sz = installHintStyle2.CalcSize(installText2);
 				EditorGUILayout.LabelField(installText2, installHintStyle2, GUILayout.Height(22), GUILayout.Width(sz.x + 2), GUILayout.ExpandWidth(false));
-				GUIStyle helpLinkStyle2 = new GUIStyle(EditorStyles.linkLabel) { fontStyle = FontStyle.Bold };
+				var helpLinkStyle2 = new GUIStyle(EditorStyles.linkLabel) { fontStyle = FontStyle.Bold };
 				GUILayout.Space(6);
 				if (GUILayout.Button("[HELP]", helpLinkStyle2, GUILayout.Height(22), GUILayout.ExpandWidth(false)))
 				{
@@ -951,8 +1053,8 @@ namespace MCPForUnity.Editor.Windows
 				EditorGUILayout.BeginHorizontal();
 				if (GUILayout.Button("Choose uv Install Location", GUILayout.Width(260), GUILayout.Height(22)))
 				{
-					string suggested = RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? "/opt/homebrew/bin" : Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
-					string picked = EditorUtility.OpenFilePanel("Select 'uv' binary", suggested, "");
+					var suggested = RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? "/opt/homebrew/bin" : Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+					var picked = EditorUtility.OpenFilePanel("Select 'uv' binary", suggested, "");
 					if (!string.IsNullOrEmpty(picked))
 					{
 						EditorPrefs.SetString("MCPForUnity.UvPath", picked);
@@ -963,10 +1065,10 @@ namespace MCPForUnity.Editor.Windows
 				EditorGUILayout.EndHorizontal();
 				return;
 			}
-            
+
             // Action buttons in horizontal layout
             EditorGUILayout.BeginHorizontal();
-            
+
             if (mcpClient.mcpType == McpTypes.VSCode)
             {
                 if (GUILayout.Button("Auto Configure", GUILayout.Height(32)))
@@ -976,11 +1078,11 @@ namespace MCPForUnity.Editor.Windows
             }
 			else if (mcpClient.mcpType == McpTypes.ClaudeCode)
 			{
-				bool claudeAvailable = !string.IsNullOrEmpty(ExecPath.ResolveClaude());
+				var claudeAvailable = !string.IsNullOrEmpty(ExecPath.ResolveClaude());
 				if (claudeAvailable)
 				{
-					bool isConfigured = mcpClient.status == McpStatus.Configured;
-					string buttonText = isConfigured ? "Unregister MCP for Unity with Claude Code" : "Register with Claude Code";
+					var isConfigured = mcpClient.status == McpStatus.Configured;
+					var buttonText = isConfigured ? "Unregister MCP for Unity with Claude Code" : "Register with Claude Code";
 					if (GUILayout.Button(buttonText, GUILayout.Height(32)))
 					{
 						if (isConfigured)
@@ -989,15 +1091,15 @@ namespace MCPForUnity.Editor.Windows
 						}
 						else
 						{
-							string pythonDir = FindPackagePythonDirectory();
+							var pythonDir = FindPackagePythonDirectory();
 							RegisterWithClaudeCode(pythonDir);
 						}
 					}
 					// Hide the picker once a valid binary is available
 					EditorGUILayout.EndHorizontal();
 					EditorGUILayout.BeginHorizontal();
-					GUIStyle pathLabelStyle = new GUIStyle(EditorStyles.miniLabel) { wordWrap = true };
-					string resolvedClaude = ExecPath.ResolveClaude();
+					var pathLabelStyle = new GUIStyle(EditorStyles.miniLabel) { wordWrap = true };
+					var resolvedClaude = ExecPath.ResolveClaude();
 					EditorGUILayout.LabelField($"Claude CLI: {resolvedClaude}", pathLabelStyle);
 					EditorGUILayout.EndHorizontal();
 					EditorGUILayout.BeginHorizontal();
@@ -1010,13 +1112,13 @@ namespace MCPForUnity.Editor.Windows
 					// Only show the picker button in not-found state (no redundant "not found" label)
 					if (GUILayout.Button("Choose Claude Install Location", GUILayout.Width(260), GUILayout.Height(22)))
 					{
-						string suggested = RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? "/opt/homebrew/bin" : Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
-						string picked = EditorUtility.OpenFilePanel("Select 'claude' CLI", suggested, "");
+						var suggested = RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? "/opt/homebrew/bin" : Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+						var picked = EditorUtility.OpenFilePanel("Select 'claude' CLI", suggested, "");
 						if (!string.IsNullOrEmpty(picked))
 						{
 							ExecPath.SetClaudeCliPath(picked);
 							// Auto-register after setting a valid path
-							string pythonDir = FindPackagePythonDirectory();
+							var pythonDir = FindPackagePythonDirectory();
 							RegisterWithClaudeCode(pythonDir);
 							Repaint();
 						}
@@ -1032,19 +1134,19 @@ namespace MCPForUnity.Editor.Windows
                     ConfigureMcpClient(mcpClient);
                 }
             }
-            
+
             if (mcpClient.mcpType != McpTypes.ClaudeCode)
             {
                 if (GUILayout.Button("Manual Setup", GUILayout.Height(32)))
                 {
-                    string configPath = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                    var configPath = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
                         ? mcpClient.windowsConfigPath
                         : mcpClient.linuxConfigPath;
-                        
+
                     if (mcpClient.mcpType == McpTypes.VSCode)
                     {
-                        string pythonDir = FindPackagePythonDirectory();
-                        string uvPath = FindUvPath();
+                        var pythonDir = FindPackagePythonDirectory();
+                        var uvPath = FindUvPath();
                         if (uvPath == null)
                         {
                             UnityEngine.Debug.LogError("UV package manager not found. Cannot configure VSCode.");
@@ -1063,7 +1165,7 @@ namespace MCPForUnity.Editor.Windows
                             }
                         };
                         JsonSerializerSettings jsonSettings = new() { Formatting = Formatting.Indented };
-                        string manualConfigJson = JsonConvert.SerializeObject(vscodeConfig, jsonSettings);
+                        var manualConfigJson = JsonConvert.SerializeObject(vscodeConfig, jsonSettings);
                         VSCodeManualSetupWindow.ShowWindow(configPath, manualConfigJson);
                     }
                     else
@@ -1072,17 +1174,17 @@ namespace MCPForUnity.Editor.Windows
                     }
                 }
             }
-            
+
             EditorGUILayout.EndHorizontal();
-            
+
 			EditorGUILayout.Space(8);
 			// Quick info (hide when Claude is not found to avoid confusion)
-			bool hideConfigInfo =
+			var hideConfigInfo =
 				(mcpClient.mcpType == McpTypes.ClaudeCode && string.IsNullOrEmpty(ExecPath.ResolveClaude()))
 				|| ((mcpClient.mcpType != McpTypes.ClaudeCode) && string.IsNullOrEmpty(FindUvPath()));
 			if (!hideConfigInfo)
 			{
-				GUIStyle configInfoStyle = new GUIStyle(EditorStyles.miniLabel)
+				var configInfoStyle = new GUIStyle(EditorStyles.miniLabel)
 				{
 					fontSize = 10
 				};
@@ -1130,7 +1232,7 @@ namespace MCPForUnity.Editor.Windows
 				if (p == null) return false;
 				if (!p.WaitForExit(3000)) { try { p.Kill(); } catch { } return false; }
 				if (p.ExitCode != 0) return false;
-				string output = p.StandardOutput.ReadToEnd().Trim();
+				var output = p.StandardOutput.ReadToEnd().Trim();
 				return output.StartsWith("uv ");
 			}
 			catch { return false; }
@@ -1139,7 +1241,7 @@ namespace MCPForUnity.Editor.Windows
 		private static string ExtractDirectoryArg(string[] args)
 		{
 			if (args == null) return null;
-			for (int i = 0; i < args.Length - 1; i++)
+			for (var i = 0; i < args.Length - 1; i++)
 			{
 				if (string.Equals(args[i], "--directory", StringComparison.OrdinalIgnoreCase))
 				{
@@ -1153,7 +1255,7 @@ namespace MCPForUnity.Editor.Windows
 		{
 			if (a == null || b == null) return a == b;
 			if (a.Length != b.Length) return false;
-			for (int i = 0; i < a.Length; i++)
+			for (var i = 0; i < a.Length; i++)
 			{
 				if (!string.Equals(a[i], b[i], StringComparison.Ordinal)) return false;
 			}
@@ -1168,7 +1270,7 @@ namespace MCPForUnity.Editor.Windows
             JsonSerializerSettings jsonSettings = new() { Formatting = Formatting.Indented };
 
             // Read existing config if it exists
-            string existingJson = "{}";
+            var existingJson = "{}";
             if (File.Exists(configPath))
             {
                 try
@@ -1207,7 +1309,7 @@ namespace MCPForUnity.Editor.Windows
 			// Determine existing entry references (command/args)
 			string existingCommand = null;
 			string[] existingArgs = null;
-			bool isVSCode = (mcpClient?.mcpType == McpTypes.VSCode);
+			var isVSCode = (mcpClient?.mcpType == McpTypes.VSCode);
 			try
 			{
 				if (isVSCode)
@@ -1224,7 +1326,7 @@ namespace MCPForUnity.Editor.Windows
 			catch { }
 
 			// 1) Start from existing, only fill gaps (prefer trusted resolver)
-			string uvPath = ServerInstaller.FindUvPath();
+			var uvPath = ServerInstaller.FindUvPath();
 			// Optionally trust existingCommand if it looks like uv/uv.exe
 			try
 			{
@@ -1236,8 +1338,8 @@ namespace MCPForUnity.Editor.Windows
 			}
 			catch { }
 			if (uvPath == null) return "UV package manager not found. Please install UV first.";
-			string serverSrc = ExtractDirectoryArg(existingArgs);
-			bool serverValid = !string.IsNullOrEmpty(serverSrc)
+			var serverSrc = ExtractDirectoryArg(existingArgs);
+			var serverValid = !string.IsNullOrEmpty(serverSrc)
 				&& System.IO.File.Exists(System.IO.Path.Combine(serverSrc, "server.py"));
 			if (!serverValid)
 			{
@@ -1258,12 +1360,12 @@ namespace MCPForUnity.Editor.Windows
 				if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.OSX)
 					&& !string.IsNullOrEmpty(serverSrc))
 				{
-					string norm = serverSrc.Replace('\\', '/');
-					int idx = norm.IndexOf("/.local/share/UnityMCP/", StringComparison.Ordinal);
+					var norm = serverSrc.Replace('\\', '/');
+					var idx = norm.IndexOf("/.local/share/UnityMCP/", StringComparison.Ordinal);
 					if (idx >= 0)
 					{
-						string home = Environment.GetFolderPath(Environment.SpecialFolder.Personal) ?? string.Empty;
-						string suffix = norm.Substring(idx + "/.local/share/".Length); // UnityMCP/...
+						var home = Environment.GetFolderPath(Environment.SpecialFolder.Personal) ?? string.Empty;
+						var suffix = norm.Substring(idx + "/.local/share/".Length); // UnityMCP/...
 						serverSrc = System.IO.Path.Combine(home, "Library", "Application Support", suffix);
 					}
 				}
@@ -1283,7 +1385,7 @@ namespace MCPForUnity.Editor.Windows
 			var newArgs = new[] { "run", "--directory", serverSrc, "server.py" };
 
 			// 3) Only write if changed
-			bool changed = !string.Equals(existingCommand, uvPath, StringComparison.Ordinal)
+			var changed = !string.Equals(existingCommand, uvPath, StringComparison.Ordinal)
 				|| !ArgsEqual(existingArgs, newArgs);
 			if (!changed)
 			{
@@ -1299,12 +1401,12 @@ namespace MCPForUnity.Editor.Windows
 
             existingRoot = ConfigJsonBuilder.ApplyUnityServerToExistingConfig(existingRoot, uvPath, serverSrc, mcpClient);
 
-			string mergedJson = JsonConvert.SerializeObject(existingRoot, jsonSettings);
-			
+			var mergedJson = JsonConvert.SerializeObject(existingRoot, jsonSettings);
+
 			// Robust atomic write without redundant backup or race on existence
-			string tmp = configPath + ".tmp";
-			string backup = configPath + ".backup";
-			bool writeDone = false;
+			var tmp = configPath + ".tmp";
+			var backup = configPath + ".backup";
+			var writeDone = false;
 			try
 			{
 				// Write to temp file first (in same directory for atomicity)
@@ -1380,16 +1482,16 @@ namespace MCPForUnity.Editor.Windows
         private void ShowManualInstructionsWindow(string configPath, McpClient mcpClient)
         {
             // Get the Python directory path using Package Manager API
-            string pythonDir = FindPackagePythonDirectory();
+            var pythonDir = FindPackagePythonDirectory();
             // Build manual JSON centrally using the shared builder
-            string uvPathForManual = FindUvPath();
+            var uvPathForManual = FindUvPath();
             if (uvPathForManual == null)
             {
                 UnityEngine.Debug.LogError("UV package manager not found. Cannot generate manual configuration.");
                 return;
             }
 
-            string manualConfigJson = ConfigJsonBuilder.BuildManualConfigJson(uvPathForManual, pythonDir, mcpClient);
+            var manualConfigJson = ConfigJsonBuilder.BuildManualConfigJson(uvPathForManual, pythonDir, mcpClient);
             ManualConfigEditorWindow.ShowWindow(configPath, manualConfigJson, mcpClient);
         }
 
@@ -1397,21 +1499,21 @@ namespace MCPForUnity.Editor.Windows
 		{
 			try
 			{
-				string remembered = UnityEditor.EditorPrefs.GetString("MCPForUnity.ServerSrc", string.Empty);
+				var remembered = UnityEditor.EditorPrefs.GetString("MCPForUnity.ServerSrc", string.Empty);
 				if (!string.IsNullOrEmpty(remembered) && File.Exists(Path.Combine(remembered, "server.py")))
 				{
 					return remembered;
 				}
 
 				ServerInstaller.EnsureServerInstalled();
-				string installed = ServerInstaller.GetServerPath();
+				var installed = ServerInstaller.GetServerPath();
 				if (File.Exists(Path.Combine(installed, "server.py")))
 				{
 					return installed;
 				}
 
-				bool useEmbedded = UnityEditor.EditorPrefs.GetBool("MCPForUnity.UseEmbeddedServer", false);
-				if (useEmbedded && ServerPathResolver.TryFindEmbeddedServerSource(out string embedded)
+				var useEmbedded = UnityEditor.EditorPrefs.GetBool("MCPForUnity.UseEmbeddedServer", false);
+				if (useEmbedded && ServerPathResolver.TryFindEmbeddedServerSource(out var embedded)
 					&& File.Exists(Path.Combine(embedded, "server.py")))
 				{
 					return embedded;
@@ -1424,21 +1526,21 @@ namespace MCPForUnity.Editor.Windows
 
 		private string FindPackagePythonDirectory()
         {
-			string pythonDir = ResolveServerSrc();
+			var pythonDir = ResolveServerSrc();
 
             try
             {
                 // Only check dev paths if we're using a file-based package (development mode)
-                bool isDevelopmentMode = IsDevelopmentMode();
+                var isDevelopmentMode = IsDevelopmentMode();
                 if (isDevelopmentMode)
                 {
-                    string currentPackagePath = Path.GetDirectoryName(Application.dataPath);
+                    var currentPackagePath = Path.GetDirectoryName(Application.dataPath);
                     string[] devPaths = {
                         Path.Combine(currentPackagePath, "unity-mcp", "UnityMcpServer", "src"),
                         Path.Combine(Path.GetDirectoryName(currentPackagePath), "unity-mcp", "UnityMcpServer", "src"),
                     };
-                    
-                    foreach (string devPath in devPaths)
+
+                    foreach (var devPath in devPaths)
                     {
                         if (Directory.Exists(devPath) && File.Exists(Path.Combine(devPath, "server.py")))
                         {
@@ -1454,7 +1556,7 @@ namespace MCPForUnity.Editor.Windows
 				// Resolve via shared helper (handles local registry and older fallback) only if dev override on
 				if (UnityEditor.EditorPrefs.GetBool("MCPForUnity.UseEmbeddedServer", false))
 				{
-					if (ServerPathResolver.TryFindEmbeddedServerSource(out string embedded))
+					if (ServerPathResolver.TryFindEmbeddedServerSource(out var embedded))
 					{
 						return embedded;
 					}
@@ -1463,7 +1565,7 @@ namespace MCPForUnity.Editor.Windows
 				// Log only if the resolved path does not actually contain server.py
 				if (debugLogsEnabled)
 				{
-					bool hasServer = false;
+					var hasServer = false;
 					try { hasServer = File.Exists(Path.Combine(pythonDir, "server.py")); } catch { }
 					if (!hasServer)
 					{
@@ -1484,15 +1586,15 @@ namespace MCPForUnity.Editor.Windows
             try
             {
                 // Only treat as development if manifest explicitly references a local file path for the package
-                string manifestPath = Path.Combine(Application.dataPath, "..", "Packages", "manifest.json");
+                var manifestPath = Path.Combine(Application.dataPath, "..", "Packages", "manifest.json");
                 if (!File.Exists(manifestPath)) return false;
 
-                string manifestContent = File.ReadAllText(manifestPath);
+                var manifestContent = File.ReadAllText(manifestPath);
                 // Look specifically for our package dependency set to a file: URL
                 // This avoids auto-enabling dev mode just because a repo exists elsewhere on disk
                 if (manifestContent.IndexOf("\"com.justinpbarnett.unity-mcp\"", StringComparison.OrdinalIgnoreCase) >= 0)
                 {
-                    int idx = manifestContent.IndexOf("com.justinpbarnett.unity-mcp", StringComparison.OrdinalIgnoreCase);
+                    var idx = manifestContent.IndexOf("com.justinpbarnett.unity-mcp", StringComparison.OrdinalIgnoreCase);
                     // Crude but effective: check for "file:" in the same line/value
                     if (manifestContent.IndexOf("file:", idx, StringComparison.OrdinalIgnoreCase) >= 0
                         && manifestContent.IndexOf("\n", idx, StringComparison.OrdinalIgnoreCase) > manifestContent.IndexOf("file:", idx, StringComparison.OrdinalIgnoreCase))
@@ -1542,7 +1644,7 @@ namespace MCPForUnity.Editor.Windows
                 Directory.CreateDirectory(Path.GetDirectoryName(configPath));
 
                 // Find the server.py file location using the same logic as FindPackagePythonDirectory
-                string pythonDir = FindPackagePythonDirectory();
+                var pythonDir = FindPackagePythonDirectory();
 
                 if (pythonDir == null || !File.Exists(Path.Combine(pythonDir, "server.py")))
                 {
@@ -1550,7 +1652,7 @@ namespace MCPForUnity.Editor.Windows
                     return "Manual Configuration Required";
                 }
 
-                string result = WriteToConfig(pythonDir, configPath, mcpClient);
+                var result = WriteToConfig(pythonDir, configPath, mcpClient);
 
                 // Update the client status after successful configuration
                 if (result == "Configured successfully")
@@ -1563,7 +1665,7 @@ namespace MCPForUnity.Editor.Windows
             catch (Exception e)
             {
                 // Determine the config file path based on OS for error message
-                string configPath = "";
+                var configPath = "";
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
                 {
                     configPath = mcpClient.windowsConfigPath;
@@ -1599,16 +1701,16 @@ namespace MCPForUnity.Editor.Windows
             mcpClient.SetStatus(McpStatus.Error, "Manual configuration required");
 
             // Get the Python directory path using Package Manager API
-            string pythonDir = FindPackagePythonDirectory();
+            var pythonDir = FindPackagePythonDirectory();
 
             // Create the manual configuration message
-            string uvPath = FindUvPath();
+            var uvPath = FindUvPath();
             if (uvPath == null)
             {
                 UnityEngine.Debug.LogError("UV package manager not found. Cannot configure manual setup.");
                 return;
             }
-            
+
             McpConfig jsonConfig = new()
             {
                 mcpServers = new McpConfigServers
@@ -1622,14 +1724,14 @@ namespace MCPForUnity.Editor.Windows
             };
 
             JsonSerializerSettings jsonSettings = new() { Formatting = Formatting.Indented };
-            string manualConfigJson = JsonConvert.SerializeObject(jsonConfig, jsonSettings);
+            var manualConfigJson = JsonConvert.SerializeObject(jsonConfig, jsonSettings);
 
             ManualConfigEditorWindow.ShowWindow(configPath, manualConfigJson, mcpClient);
         }
 
         private void LoadValidationLevelSetting()
         {
-            string savedLevel = EditorPrefs.GetString("MCPForUnity_ScriptValidationLevel", "standard");
+            var savedLevel = EditorPrefs.GetString("MCPForUnity_ScriptValidationLevel", "standard");
             validationLevelIndex = savedLevel.ToLower() switch
             {
                 "basic" => 0,
@@ -1642,7 +1744,7 @@ namespace MCPForUnity.Editor.Windows
 
         private void SaveValidationLevelSetting()
         {
-            string levelString = validationLevelIndex switch
+            var levelString = validationLevelIndex switch
             {
                 0 => "basic",
                 1 => "standard",
@@ -1667,7 +1769,7 @@ namespace MCPForUnity.Editor.Windows
 
         public static string GetCurrentValidationLevel()
         {
-            string savedLevel = EditorPrefs.GetString("MCPForUnity_ScriptValidationLevel", "standard");
+            var savedLevel = EditorPrefs.GetString("MCPForUnity_ScriptValidationLevel", "standard");
             return savedLevel;
         }
 
@@ -1681,7 +1783,7 @@ namespace MCPForUnity.Editor.Windows
                     CheckClaudeCodeConfiguration(mcpClient);
                     return;
                 }
-                
+
                 string configPath;
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
                 {
@@ -1713,19 +1815,19 @@ namespace MCPForUnity.Editor.Windows
                     return;
                 }
 
-                string configJson = File.ReadAllText(configPath);
+                var configJson = File.ReadAllText(configPath);
                 // Use the same path resolution as configuration to avoid false "Incorrect Path" in dev mode
-                string pythonDir = FindPackagePythonDirectory();
-                
+                var pythonDir = FindPackagePythonDirectory();
+
                 // Use switch statement to handle different client types, extracting common logic
                 string[] args = null;
-                bool configExists = false;
-                
+                var configExists = false;
+
                 switch (mcpClient.mcpType)
                 {
                     case McpTypes.VSCode:
                         dynamic config = JsonConvert.DeserializeObject(configJson);
-                        
+
                         // New schema: top-level servers
                         if (config?.servers?.unityMCP != null)
                         {
@@ -1739,11 +1841,11 @@ namespace MCPForUnity.Editor.Windows
                             configExists = true;
                         }
                         break;
-                        
+
                     default:
                         // Standard MCP configuration check for Claude Desktop, Cursor, etc.
-                        McpConfig standardConfig = JsonConvert.DeserializeObject<McpConfig>(configJson);
-                        
+                        var standardConfig = JsonConvert.DeserializeObject<McpConfig>(configJson);
+
                         if (standardConfig?.mcpServers?.unityMCP != null)
                         {
                             args = standardConfig.mcpServers.unityMCP.args;
@@ -1751,12 +1853,12 @@ namespace MCPForUnity.Editor.Windows
                         }
                         break;
                 }
-                
+
                 // Common logic for checking configuration status
                 if (configExists)
                 {
-                    string configuredDir = ExtractDirectoryArg(args);
-                    bool matches = !string.IsNullOrEmpty(configuredDir) && PathsEqual(configuredDir, pythonDir);
+                    var configuredDir = ExtractDirectoryArg(args);
+                    var matches = !string.IsNullOrEmpty(configuredDir) && PathsEqual(configuredDir, pythonDir);
                     if (matches)
                     {
                         mcpClient.SetStatus(McpStatus.Configured);
@@ -1766,7 +1868,7 @@ namespace MCPForUnity.Editor.Windows
                         // Attempt auto-rewrite once if the package path changed
                         try
                         {
-                            string rewriteResult = WriteToConfig(pythonDir, configPath, mcpClient);
+                            var rewriteResult = WriteToConfig(pythonDir, configPath, mcpClient);
                             if (rewriteResult == "Configured successfully")
                             {
                                 if (debugLogsEnabled)
@@ -1804,21 +1906,21 @@ namespace MCPForUnity.Editor.Windows
         private void RegisterWithClaudeCode(string pythonDir)
         {
             // Resolve claude and uv; then run register command
-            string claudePath = ExecPath.ResolveClaude();
+            var claudePath = ExecPath.ResolveClaude();
             if (string.IsNullOrEmpty(claudePath))
             {
                 UnityEngine.Debug.LogError("MCP for Unity: Claude CLI not found. Set a path in this window or install the CLI, then try again.");
                 return;
             }
-            string uvPath = ExecPath.ResolveUv() ?? "uv";
+            var uvPath = ExecPath.ResolveUv() ?? "uv";
 
             // Prefer embedded/dev path when available
-            string srcDir = !string.IsNullOrEmpty(pythonDirOverride) ? pythonDirOverride : FindPackagePythonDirectory();
+            var srcDir = !string.IsNullOrEmpty(pythonDirOverride) ? pythonDirOverride : FindPackagePythonDirectory();
             if (string.IsNullOrEmpty(srcDir)) srcDir = pythonDir;
 
-            string args = $"mcp add UnityMCP -- \"{uvPath}\" run --directory \"{srcDir}\" server.py";
+            var args = $"mcp add UnityMCP -- \"{uvPath}\" run --directory \"{srcDir}\" server.py";
 
-            string projectDir = Path.GetDirectoryName(Application.dataPath);
+            var projectDir = Path.GetDirectoryName(Application.dataPath);
             // Ensure PATH includes common locations on Unix; on Windows leave PATH as-is
             string pathPrepend = null;
             if (Application.platform == RuntimePlatform.OSXEditor || Application.platform == RuntimePlatform.LinuxEditor)
@@ -1829,7 +1931,7 @@ namespace MCPForUnity.Editor.Windows
             }
             if (!ExecPath.TryRun(claudePath, args, projectDir, out var stdout, out var stderr, 15000, pathPrepend))
             {
-                string combined = ($"{stdout}\n{stderr}") ?? string.Empty;
+                var combined = ($"{stdout}\n{stderr}") ?? string.Empty;
                 if (combined.IndexOf("already exists", StringComparison.OrdinalIgnoreCase) >= 0)
                 {
                     // Treat as success if Claude reports existing registration
@@ -1854,21 +1956,21 @@ namespace MCPForUnity.Editor.Windows
 
         private void UnregisterWithClaudeCode()
         {
-            string claudePath = ExecPath.ResolveClaude();
+            var claudePath = ExecPath.ResolveClaude();
             if (string.IsNullOrEmpty(claudePath))
             {
                 UnityEngine.Debug.LogError("MCP for Unity: Claude CLI not found. Set a path in this window or install the CLI, then try again.");
                 return;
             }
 
-            string projectDir = Path.GetDirectoryName(Application.dataPath);
-            string pathPrepend = Application.platform == RuntimePlatform.OSXEditor
+            var projectDir = Path.GetDirectoryName(Application.dataPath);
+            var pathPrepend = Application.platform == RuntimePlatform.OSXEditor
                 ? "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
                 : null; // On Windows, don't modify PATH - use system PATH as-is
 
 			// Determine if Claude has a "UnityMCP" server registered by using exit codes from `claude mcp get <name>`
 			string[] candidateNamesForGet = { "UnityMCP", "unityMCP", "unity-mcp", "UnityMcpServer" };
-			List<string> existingNames = new List<string>();
+			var existingNames = new List<string>();
 			foreach (var candidate in candidateNamesForGet)
 			{
 				if (ExecPath.TryRun(claudePath, $"mcp get {candidate}", projectDir, out var getStdout, out var getStderr, 7000, pathPrepend))
@@ -1877,7 +1979,7 @@ namespace MCPForUnity.Editor.Windows
 					existingNames.Add(candidate);
 				}
 			}
-			
+
 			if (existingNames.Count == 0)
 			{
 				// Nothing to unregister – set status and bail early
@@ -1890,12 +1992,12 @@ namespace MCPForUnity.Editor.Windows
 				}
 				return;
 			}
-            
+
             // Try different possible server names
             string[] possibleNames = { "UnityMCP", "unityMCP", "unity-mcp", "UnityMcpServer" };
-            bool success = false;
-            
-            foreach (string serverName in possibleNames)
+            var success = false;
+
+            foreach (var serverName in possibleNames)
             {
                 if (ExecPath.TryRun(claudePath, $"mcp remove {serverName}", projectDir, out var stdout, out var stderr, 10000, pathPrepend))
                 {
@@ -1957,9 +2059,9 @@ namespace MCPForUnity.Editor.Windows
             try
             {
                 // Get the Unity project directory to check project-specific config
-                string unityProjectDir = Application.dataPath;
-                string projectDir = Path.GetDirectoryName(unityProjectDir);
-                
+                var unityProjectDir = Application.dataPath;
+                var projectDir = Path.GetDirectoryName(unityProjectDir);
+
                 // Read the global Claude config file (honor macConfigPath on macOS)
                 string configPath;
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
@@ -1968,22 +2070,22 @@ namespace MCPForUnity.Editor.Windows
                     configPath = string.IsNullOrEmpty(mcpClient.macConfigPath) ? mcpClient.linuxConfigPath : mcpClient.macConfigPath;
                 else
                     configPath = mcpClient.linuxConfigPath;
-                
+
                 if (debugLogsEnabled)
                 {
                     MCPForUnity.Editor.Helpers.McpLog.Info($"Checking Claude config at: {configPath}", always: false);
                 }
-                
+
                 if (!File.Exists(configPath))
                 {
                     UnityEngine.Debug.LogWarning($"Claude config file not found at: {configPath}");
                     mcpClient.SetStatus(McpStatus.NotConfigured);
                     return;
                 }
-                
-                string configJson = File.ReadAllText(configPath);
+
+                var configJson = File.ReadAllText(configPath);
                 dynamic claudeConfig = JsonConvert.DeserializeObject(configJson);
-                
+
                 // Check for "UnityMCP" server in the mcpServers section (current format)
                 if (claudeConfig?.mcpServers != null)
                 {
@@ -1995,7 +2097,7 @@ namespace MCPForUnity.Editor.Windows
                         return;
                     }
                 }
-                
+
                 // Also check if there's a project-specific configuration for this Unity project (legacy format)
                 if (claudeConfig?.projects != null)
                 {
@@ -2003,11 +2105,11 @@ namespace MCPForUnity.Editor.Windows
                     foreach (var project in claudeConfig.projects)
                     {
                         string projectPath = project.Name;
-                        
+
                         // Normalize paths for comparison (handle forward/back slash differences)
-                        string normalizedProjectPath = Path.GetFullPath(projectPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-                        string normalizedProjectDir = Path.GetFullPath(projectDir).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-                        
+                        var normalizedProjectPath = Path.GetFullPath(projectPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                        var normalizedProjectDir = Path.GetFullPath(projectDir).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
                         if (string.Equals(normalizedProjectPath, normalizedProjectDir, StringComparison.OrdinalIgnoreCase) && project.Value?.mcpServers != null)
                         {
                             // Check for "UnityMCP" (case variations)
@@ -2021,7 +2123,7 @@ namespace MCPForUnity.Editor.Windows
                         }
                     }
                 }
-                
+
                 // No configuration found for this project
                 mcpClient.SetStatus(McpStatus.NotConfigured);
             }
@@ -2058,8 +2160,8 @@ namespace MCPForUnity.Editor.Windows
                         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), @"Python310\python.exe"),
                         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), @"Python39\python.exe"),
                     };
-                    
-                    foreach (string c in windowsCandidates)
+
+                    foreach (var c in windowsCandidates)
                     {
                         if (File.Exists(c)) return true;
                     }
@@ -2075,14 +2177,14 @@ namespace MCPForUnity.Editor.Windows
                         CreateNoWindow = true
                     };
                     using var p = Process.Start(psi);
-                    string outp = p.StandardOutput.ReadToEnd().Trim();
+                    var outp = p.StandardOutput.ReadToEnd().Trim();
                     p.WaitForExit(2000);
                     if (p.ExitCode == 0 && !string.IsNullOrEmpty(outp))
                     {
-                        string[] lines = outp.Split('\n');
-                        foreach (string line in lines)
+                        var lines = outp.Split('\n');
+                        foreach (var line in lines)
                         {
-                            string trimmed = line.Trim();
+                            var trimmed = line.Trim();
                             if (File.Exists(trimmed)) return true;
                         }
                     }
@@ -2090,7 +2192,7 @@ namespace MCPForUnity.Editor.Windows
                 else
                 {
                     // macOS/Linux detection (existing code)
-                    string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) ?? string.Empty;
+                    var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) ?? string.Empty;
                     string[] candidates =
                     {
                         "/opt/homebrew/bin/python3",
@@ -2101,7 +2203,7 @@ namespace MCPForUnity.Editor.Windows
                         "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3",
                         "/Library/Frameworks/Python.framework/Versions/3.12/bin/python3",
                     };
-                    foreach (string c in candidates)
+                    foreach (var c in candidates)
                     {
                         if (File.Exists(c)) return true;
                     }
@@ -2117,7 +2219,7 @@ namespace MCPForUnity.Editor.Windows
                         CreateNoWindow = true
                     };
                     using var p = Process.Start(psi);
-                    string outp = p.StandardOutput.ReadToEnd().Trim();
+                    var outp = p.StandardOutput.ReadToEnd().Trim();
                     p.WaitForExit(2000);
                     if (p.ExitCode == 0 && !string.IsNullOrEmpty(outp) && File.Exists(outp)) return true;
                 }

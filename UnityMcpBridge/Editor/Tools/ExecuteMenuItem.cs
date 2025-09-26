@@ -27,7 +27,7 @@ namespace MCPForUnity.Editor.Tools
         /// </summary>
         public static object HandleCommand(JObject @params)
         {
-            string action = (@params["action"]?.ToString())?.ToLowerInvariant() ?? "execute"; // Default action
+            var action = (@params["action"]?.ToString())?.ToLowerInvariant() ?? "execute"; // Default action
 
             try
             {
@@ -67,7 +67,7 @@ namespace MCPForUnity.Editor.Tools
         private static object ExecuteItem(JObject @params)
         {
             // Try both naming conventions: snake_case and camelCase
-            string menuPath = @params["menu_path"]?.ToString() ?? @params["menuPath"]?.ToString();
+            var menuPath = @params["menu_path"]?.ToString() ?? @params["menuPath"]?.ToString();
             // Optional future param retained for API compatibility; not used in synchronous mode
             // int timeoutMs = Math.Max(0, (@params["timeout_ms"]?.ToObject<int>() ?? 2000));
 
@@ -100,7 +100,7 @@ namespace MCPForUnity.Editor.Tools
                 McpLog.Info($"[ExecuteMenuItem] Request to execute menu: '{menuPath}'", always: false);
 
                 // Execute synchronously. This code runs on the Editor main thread in our bridge path.
-                bool executed = EditorApplication.ExecuteMenuItem(menuPath);
+                var executed = EditorApplication.ExecuteMenuItem(menuPath);
                 if (executed)
                 {
                     // Success trace (debug-gated)

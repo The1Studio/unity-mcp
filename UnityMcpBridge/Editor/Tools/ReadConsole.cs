@@ -4,7 +4,6 @@ using System.Linq;
 using System.Reflection;
 using Newtonsoft.Json.Linq;
 using UnityEditor;
-using UnityEditorInternal;
 using UnityEngine;
 using MCPForUnity.Editor.Helpers; // For Response class
 
@@ -38,18 +37,18 @@ namespace MCPForUnity.Editor.Tools
         {
             try
             {
-                Type logEntriesType = typeof(EditorApplication).Assembly.GetType(
+                var logEntriesType = typeof(EditorApplication).Assembly.GetType(
                     "UnityEditor.LogEntries"
                 );
                 if (logEntriesType == null)
                     throw new Exception("Could not find internal type UnityEditor.LogEntries");
-                
-                
+
+
 
                 // Include NonPublic binding flags as internal APIs might change accessibility
-                BindingFlags staticFlags =
+                var staticFlags =
                     BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
-                BindingFlags instanceFlags =
+                var instanceFlags =
                     BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
 
                 _startGettingEntriesMethod = logEntriesType.GetMethod(
@@ -79,7 +78,7 @@ namespace MCPForUnity.Editor.Tools
                 if (_getEntryMethod == null)
                     throw new Exception("Failed to reflect LogEntries.GetEntryInternal");
 
-                Type logEntryType = typeof(EditorApplication).Assembly.GetType(
+                var logEntryType = typeof(EditorApplication).Assembly.GetType(
                     "UnityEditor.LogEntry"
                 );
                 if (logEntryType == null)
@@ -104,9 +103,9 @@ namespace MCPForUnity.Editor.Tools
                 _instanceIdField = logEntryType.GetField("instanceID", instanceFlags);
                 if (_instanceIdField == null)
                     throw new Exception("Failed to reflect LogEntry.instanceID");
-                
+
                 // (Calibration removed)
-                
+
             }
             catch (Exception e)
             {
@@ -151,7 +150,7 @@ namespace MCPForUnity.Editor.Tools
                 );
             }
 
-            string action = @params["action"]?.ToString().ToLower() ?? "get";
+            var action = @params["action"]?.ToString().ToLower() ?? "get";
 
             try
             {
@@ -165,11 +164,11 @@ namespace MCPForUnity.Editor.Tools
                     var types =
                         (@params["types"] as JArray)?.Select(t => t.ToString().ToLower()).ToList()
                         ?? new List<string> { "error", "warning", "log" };
-                    int? count = @params["count"]?.ToObject<int?>();
-                    string filterText = @params["filterText"]?.ToString();
-                    string sinceTimestampStr = @params["sinceTimestamp"]?.ToString(); // TODO: Implement timestamp filtering
-                    string format = (@params["format"]?.ToString() ?? "detailed").ToLower();
-                    bool includeStacktrace =
+                    var count = @params["count"]?.ToObject<int?>();
+                    var filterText = @params["filterText"]?.ToString();
+                    var sinceTimestampStr = @params["sinceTimestamp"]?.ToString(); // TODO: Implement timestamp filtering
+                    var format = (@params["format"]?.ToString() ?? "detailed").ToLower();
+                    var includeStacktrace =
                         @params["includeStacktrace"]?.ToObject<bool?>() ?? true;
 
                     if (types.Contains("all"))
@@ -225,36 +224,36 @@ namespace MCPForUnity.Editor.Tools
             bool includeStacktrace
         )
         {
-            List<object> formattedEntries = new List<object>();
-            int retrievedCount = 0;
+            var formattedEntries = new List<object>();
+            var retrievedCount = 0;
 
             try
             {
                 // LogEntries requires calling Start/Stop around GetEntries/GetEntryInternal
                 _startGettingEntriesMethod.Invoke(null, null);
 
-                int totalEntries = (int)_getCountMethod.Invoke(null, null);
+                var totalEntries = (int)_getCountMethod.Invoke(null, null);
                 // Create instance to pass to GetEntryInternal - Ensure the type is correct
-                Type logEntryType = typeof(EditorApplication).Assembly.GetType(
+                var logEntryType = typeof(EditorApplication).Assembly.GetType(
                     "UnityEditor.LogEntry"
                 );
                 if (logEntryType == null)
                     throw new Exception(
                         "Could not find internal type UnityEditor.LogEntry during GetConsoleEntries."
                     );
-                object logEntryInstance = Activator.CreateInstance(logEntryType);
+                var logEntryInstance = Activator.CreateInstance(logEntryType);
 
-                for (int i = 0; i < totalEntries; i++)
+                for (var i = 0; i < totalEntries; i++)
                 {
                     // Get the entry data into our instance using reflection
                     _getEntryMethod.Invoke(null, new object[] { i, logEntryInstance });
 
                     // Extract data using reflection
-                    int mode = (int)_modeField.GetValue(logEntryInstance);
-                    string message = (string)_messageField.GetValue(logEntryInstance);
-                    string file = (string)_fileField.GetValue(logEntryInstance);
+                    var mode = (int)_modeField.GetValue(logEntryInstance);
+                    var message = (string)_messageField.GetValue(logEntryInstance);
+                    var file = (string)_fileField.GetValue(logEntryInstance);
 
-                    int line = (int)_lineField.GetValue(logEntryInstance);
+                    var line = (int)_lineField.GetValue(logEntryInstance);
                     // int instanceId = (int)_instanceIdField.GetValue(logEntryInstance);
 
                     if (string.IsNullOrEmpty(message))
@@ -266,8 +265,8 @@ namespace MCPForUnity.Editor.Tools
 
                     // --- Filtering ---
                     // Prefer classifying severity from message/stacktrace; fallback to mode bits if needed
-                    LogType unityType = InferTypeFromMessage(message);
-                    bool isExplicitDebug = IsExplicitDebugLog(message);
+                    var unityType = InferTypeFromMessage(message);
+                    var isExplicitDebug = IsExplicitDebugLog(message);
                     if (!isExplicitDebug && unityType == LogType.Log)
                     {
                         unityType = GetLogTypeFromMode(mode);
@@ -302,9 +301,9 @@ namespace MCPForUnity.Editor.Tools
                     // TODO: Filter by timestamp (requires timestamp data)
 
                     // --- Formatting ---
-                    string stackTrace = includeStacktrace ? ExtractStackTrace(message) : null;
+                    var stackTrace = includeStacktrace ? ExtractStackTrace(message) : null;
                     // Get first line if stack is present and requested, otherwise use full message
-                    string messageOnly =
+                    var messageOnly =
                         (includeStacktrace && !string.IsNullOrEmpty(stackTrace))
                             ? message.Split(
                                 new[] { '\n', '\r' },
@@ -325,10 +324,10 @@ namespace MCPForUnity.Editor.Tools
                             {
                                 type = unityType.ToString(),
                                 message = messageOnly,
-                                file = file,
-                                line = line,
+                                file,
+                                line,
                                 // timestamp = "", // TODO
-                                stackTrace = stackTrace, // Will be null if includeStacktrace is false or no stack found
+                                stackTrace, // Will be null if includeStacktrace is false or no stack found
                             };
                             break;
                     }
@@ -481,7 +480,7 @@ namespace MCPForUnity.Editor.Tools
 
             // Split into lines, removing empty ones to handle different line endings gracefully.
             // Using StringSplitOptions.None might be better if empty lines matter within stack trace, but RemoveEmptyEntries is usually safer here.
-            string[] lines = fullMessage.Split(
+            var lines = fullMessage.Split(
                 new[] { '\r', '\n' },
                 StringSplitOptions.RemoveEmptyEntries
             );
@@ -490,13 +489,13 @@ namespace MCPForUnity.Editor.Tools
             if (lines.Length <= 1)
                 return null;
 
-            int stackStartIndex = -1;
+            var stackStartIndex = -1;
 
             // Start checking from the second line onwards.
-            for (int i = 1; i < lines.Length; ++i)
+            for (var i = 1; i < lines.Length; ++i)
             {
                 // Performance: TrimStart creates a new string. Consider using IsWhiteSpace check if performance critical.
-                string trimmedLine = lines[i].TrimStart();
+                var trimmedLine = lines[i].TrimStart();
 
                 // Check for common stack trace patterns.
                 if (
@@ -568,4 +567,3 @@ namespace MCPForUnity.Editor.Tools
         */
     }
 }
-

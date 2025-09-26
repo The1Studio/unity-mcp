@@ -11,7 +11,7 @@ namespace MCPForUnityTests.Editor.Windows
         public void VSCode_ManualJson_HasServers_NoEnv_NoDisabled()
         {
             var client = new McpClient { name = "VSCode", mcpType = McpTypes.VSCode };
-            string json = ConfigJsonBuilder.BuildManualConfigJson("/usr/bin/uv", "/path/to/server", client);
+            var json = ConfigJsonBuilder.BuildManualConfigJson("/usr/bin/uv", "/path/to/server", client);
 
             var root = JObject.Parse(json);
             var unity = (JObject)root.SelectToken("servers.unityMCP");
@@ -27,7 +27,7 @@ namespace MCPForUnityTests.Editor.Windows
         public void Windsurf_ManualJson_HasMcpServersEnv_DisabledFalse()
         {
             var client = new McpClient { name = "Windsurf", mcpType = McpTypes.Windsurf };
-            string json = ConfigJsonBuilder.BuildManualConfigJson("/usr/bin/uv", "/path/to/server", client);
+            var json = ConfigJsonBuilder.BuildManualConfigJson("/usr/bin/uv", "/path/to/server", client);
 
             var root = JObject.Parse(json);
             var unity = (JObject)root.SelectToken("mcpServers.unityMCP");
@@ -41,7 +41,7 @@ namespace MCPForUnityTests.Editor.Windows
         public void Cursor_ManualJson_HasMcpServers_NoEnv_NoDisabled()
         {
             var client = new McpClient { name = "Cursor", mcpType = McpTypes.Cursor };
-            string json = ConfigJsonBuilder.BuildManualConfigJson("/usr/bin/uv", "/path/to/server", client);
+            var json = ConfigJsonBuilder.BuildManualConfigJson("/usr/bin/uv", "/path/to/server", client);
 
             var root = JObject.Parse(json);
             var unity = (JObject)root.SelectToken("mcpServers.unityMCP");
