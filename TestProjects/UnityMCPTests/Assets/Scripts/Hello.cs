@@ -1,5 +1,4 @@
 using UnityEngine;
-using System.Collections;
 
 public class Hello : MonoBehaviour
 {
@@ -9,7 +8,5 @@ public class Hello : MonoBehaviour
     {
         Debug.Log("Hello World");
     }
-
-
 
 }

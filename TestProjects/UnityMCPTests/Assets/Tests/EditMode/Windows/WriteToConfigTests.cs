@@ -7,7 +7,6 @@ using Newtonsoft.Json.Linq;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
-using MCPForUnity.Editor.Data;
 using MCPForUnity.Editor.Models;
 using MCPForUnity.Editor.Windows;
 
@@ -15,9 +14,9 @@ namespace MCPForUnityTests.Editor.Windows
 {
     public class WriteToConfigTests
     {
-        private string _tempRoot;
-        private string _fakeUvPath;
-        private string _serverSrcDir;
+        private string tempRoot;
+        private string fakeUvPath;
+        private string serverSrcDir;
 
         [SetUp]
         public void SetUp()
@@ -29,21 +28,21 @@ namespace MCPForUnityTests.Editor.Windows
                 Assert.Ignore("WriteToConfig tests are skipped on Windows (CI runs linux).\n" +
                               "ValidateUvBinarySafe requires launching an actual exe on Windows.");
             }
-            _tempRoot = Path.Combine(Path.GetTempPath(), "UnityMCPTests", Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(_tempRoot);
+            this.tempRoot = Path.Combine(Path.GetTempPath(), "UnityMCPTests", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(this.tempRoot);
 
             // Create a fake uv executable that prints a valid version string
-            _fakeUvPath = Path.Combine(_tempRoot, RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "uv.cmd" : "uv");
-            File.WriteAllText(_fakeUvPath, "#!/bin/sh\n\necho 'uv 9.9.9'\n");
-            TryChmodX(_fakeUvPath);
+            this.fakeUvPath = Path.Combine(this.tempRoot, RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "uv.cmd" : "uv");
+            File.WriteAllText(this.fakeUvPath, "#!/bin/sh\n\necho 'uv 9.9.9'\n");
+            TryChmodX(this.fakeUvPath);
 
             // Create a fake server directory with server.py
-            _serverSrcDir = Path.Combine(_tempRoot, "server-src");
-            Directory.CreateDirectory(_serverSrcDir);
-            File.WriteAllText(Path.Combine(_serverSrcDir, "server.py"), "# dummy server\n");
+            this.serverSrcDir = Path.Combine(this.tempRoot, "server-src");
+            Directory.CreateDirectory(this.serverSrcDir);
+            File.WriteAllText(Path.Combine(this.serverSrcDir, "server.py"), "# dummy server\n");
 
             // Point the editor to our server dir (so ResolveServerSrc() uses this)
-            EditorPrefs.SetString("MCPForUnity.ServerSrc", _serverSrcDir);
+            EditorPrefs.SetString("MCPForUnity.ServerSrc", this.serverSrcDir);
             // Ensure no lock is enabled
             EditorPrefs.SetBool("MCPForUnity.LockCursorConfig", false);
         }
@@ -56,7 +55,7 @@ namespace MCPForUnityTests.Editor.Windows
             EditorPrefs.DeleteKey("MCPForUnity.LockCursorConfig");
 
             // Remove temp files
-            try { if (Directory.Exists(_tempRoot)) Directory.Delete(_tempRoot, true); } catch { }
+            try { if (Directory.Exists(this.tempRoot)) Directory.Delete(this.tempRoot, true); } catch { }
         }
 
         // --- Tests ---
@@ -64,8 +63,8 @@ namespace MCPForUnityTests.Editor.Windows
         [Test]
         public void AddsEnvAndDisabledFalse_ForWindsurf()
         {
-            var configPath = Path.Combine(_tempRoot, "windsurf.json");
-            WriteInitialConfig(configPath, isVSCode:false, command:_fakeUvPath, directory:"/old/path");
+            var configPath = Path.Combine(this.tempRoot, "windsurf.json");
+            WriteInitialConfig(configPath, isVSCode:false, command:this.fakeUvPath, directory:"/old/path");
 
             var client = new McpClient { name = "Windsurf", mcpType = McpTypes.Windsurf };
             InvokeWriteToConfig(configPath, client);
@@ -81,8 +80,8 @@ namespace MCPForUnityTests.Editor.Windows
         [Test]
         public void AddsEnvAndDisabledFalse_ForKiro()
         {
-            var configPath = Path.Combine(_tempRoot, "kiro.json");
-            WriteInitialConfig(configPath, isVSCode:false, command:_fakeUvPath, directory:"/old/path");
+            var configPath = Path.Combine(this.tempRoot, "kiro.json");
+            WriteInitialConfig(configPath, isVSCode:false, command:this.fakeUvPath, directory:"/old/path");
 
             var client = new McpClient { name = "Kiro", mcpType = McpTypes.Kiro };
             InvokeWriteToConfig(configPath, client);
@@ -98,8 +97,8 @@ namespace MCPForUnityTests.Editor.Windows
         [Test]
         public void DoesNotAddEnvOrDisabled_ForCursor()
         {
-            var configPath = Path.Combine(_tempRoot, "cursor.json");
-            WriteInitialConfig(configPath, isVSCode:false, command:_fakeUvPath, directory:"/old/path");
+            var configPath = Path.Combine(this.tempRoot, "cursor.json");
+            WriteInitialConfig(configPath, isVSCode:false, command:this.fakeUvPath, directory:"/old/path");
 
             var client = new McpClient { name = "Cursor", mcpType = McpTypes.Cursor };
             InvokeWriteToConfig(configPath, client);
@@ -114,8 +113,8 @@ namespace MCPForUnityTests.Editor.Windows
         [Test]
         public void DoesNotAddEnvOrDisabled_ForVSCode()
         {
-            var configPath = Path.Combine(_tempRoot, "vscode.json");
-            WriteInitialConfig(configPath, isVSCode:true, command:_fakeUvPath, directory:"/old/path");
+            var configPath = Path.Combine(this.tempRoot, "vscode.json");
+            WriteInitialConfig(configPath, isVSCode:true, command:this.fakeUvPath, directory:"/old/path");
 
             var client = new McpClient { name = "VSCode", mcpType = McpTypes.VSCode };
             InvokeWriteToConfig(configPath, client);
@@ -131,7 +130,7 @@ namespace MCPForUnityTests.Editor.Windows
         [Test]
         public void PreservesExistingEnvAndDisabled()
         {
-            var configPath = Path.Combine(_tempRoot, "preserve.json");
+            var configPath = Path.Combine(this.tempRoot, "preserve.json");
 
             // Existing config with env and disabled=true should be preserved
             var json = new JObject
@@ -140,12 +139,12 @@ namespace MCPForUnityTests.Editor.Windows
                 {
                     ["unityMCP"] = new JObject
                     {
-                        ["command"] = _fakeUvPath,
-                        ["args"] = new JArray("run", "--directory", "/old/path", "server.py"),
-                        ["env"] = new JObject { ["FOO"] = "bar" },
-                        ["disabled"] = true
-                    }
-                }
+                        ["command"]  = this.fakeUvPath,
+                        ["args"]     = new JArray("run", "--directory", "/old/path", "server.py"),
+                        ["env"]      = new JObject { ["FOO"] = "bar" },
+                        ["disabled"] = true,
+                    },
+                },
             };
             File.WriteAllText(configPath, json.ToString());
 
@@ -172,7 +171,7 @@ namespace MCPForUnityTests.Editor.Windows
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
-                    CreateNoWindow = true
+                    CreateNoWindow = true,
                 };
                 using var p = Process.Start(psi);
                 p?.WaitForExit(2000);
@@ -194,9 +193,9 @@ namespace MCPForUnityTests.Editor.Windows
                         {
                             ["command"] = command,
                             ["args"] = new JArray("run", "--directory", directory, "server.py"),
-                            ["type"] = "stdio"
-                        }
-                    }
+                            ["type"] = "stdio",
+                        },
+                    },
                 };
             }
             else
@@ -208,9 +207,9 @@ namespace MCPForUnityTests.Editor.Windows
                         ["unityMCP"] = new JObject
                         {
                             ["command"] = command,
-                            ["args"] = new JArray("run", "--directory", directory, "server.py")
-                        }
-                    }
+                            ["args"] = new JArray("run", "--directory", directory, "server.py"),
+                        },
+                    },
                 };
             }
             File.WriteAllText(configPath, root.ToString());
@@ -228,10 +227,10 @@ namespace MCPForUnityTests.Editor.Windows
             Assert.NotNull(mi, "Could not find WriteToConfig via reflection");
 
             // pythonDir is unused by WriteToConfig, but pass server src to keep it consistent
-            var result = (string)mi!.Invoke(window, new object[] { 
-                /* pythonDir */ string.Empty, 
-                /* configPath */ configPath, 
-                /* mcpClient */ client 
+            var result = (string)mi!.Invoke(window, new object[] {
+                /* pythonDir */ string.Empty,
+                /* configPath */ configPath,
+                /* mcpClient */ client,
             });
 
             Assert.AreEqual("Configured successfully", result, "WriteToConfig should return success");

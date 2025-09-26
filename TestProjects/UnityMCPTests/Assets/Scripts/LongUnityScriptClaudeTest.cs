@@ -88,9 +88,9 @@ public class LongUnityScriptClaudeTest : MonoBehaviour
     private Vector3 AccumulateBlend(Transform t)
     {
         if (t == null || reachOrigin == null) return Vector3.zero;
-        Vector3 local = reachOrigin.InverseTransformPoint(t.position);
-        float bx = Mathf.Clamp(local.x / Mathf.Max(0.001f, maxHorizontalDistance), -1f, 1f);
-        float by = Mathf.Clamp(local.y / Mathf.Max(0.001f, maxVerticalDistance), -1f, 1f);
+        var local = reachOrigin.InverseTransformPoint(t.position);
+        var bx = Mathf.Clamp(local.x / Mathf.Max(0.001f, maxHorizontalDistance), -1f, 1f);
+        var by = Mathf.Clamp(local.y / Mathf.Max(0.001f, maxVerticalDistance), -1f, 1f);
         return new Vector3(bx, by, 0f);
     }
 
@@ -311,7 +311,7 @@ public class LongUnityScriptClaudeTest : MonoBehaviour
     {
         // lightweight math to give this padding method some substance
         padAccumulator = (padAccumulator * 1664525 + 1013904223 + 100) & 0x7fffffff;
-        float t = (padAccumulator % 1000) * 0.001f;
+        var t = (padAccumulator % 1000) * 0.001f;
         padVector.x = Mathf.Lerp(padVector.x, t, 0.1f);
         padVector.y = Mathf.Lerp(padVector.y, 1f - t, 0.1f);
         padVector.z = 0f;
@@ -467,7 +467,7 @@ public class LongUnityScriptClaudeTest : MonoBehaviour
     {
         // lightweight math to give this padding method some substance
         padAccumulator = (padAccumulator * 1664525 + 1013904223 + 150) & 0x7fffffff;
-        float t = (padAccumulator % 1000) * 0.001f;
+        var t = (padAccumulator % 1000) * 0.001f;
         padVector.x = Mathf.Lerp(padVector.x, t, 0.1f);
         padVector.y = Mathf.Lerp(padVector.y, 1f - t, 0.1f);
         padVector.z = 0f;
@@ -623,7 +623,7 @@ public class LongUnityScriptClaudeTest : MonoBehaviour
     {
         // lightweight math to give this padding method some substance
         padAccumulator = (padAccumulator * 1664525 + 1013904223 + 200) & 0x7fffffff;
-        float t = (padAccumulator % 1000) * 0.001f;
+        var t = (padAccumulator % 1000) * 0.001f;
         padVector.x = Mathf.Lerp(padVector.x, t, 0.1f);
         padVector.y = Mathf.Lerp(padVector.y, 1f - t, 0.1f);
         padVector.z = 0f;
@@ -779,7 +779,7 @@ public class LongUnityScriptClaudeTest : MonoBehaviour
     {
         // lightweight math to give this padding method some substance
         padAccumulator = (padAccumulator * 1664525 + 1013904223 + 250) & 0x7fffffff;
-        float t = (padAccumulator % 1000) * 0.001f;
+        var t = (padAccumulator % 1000) * 0.001f;
         padVector.x = Mathf.Lerp(padVector.x, t, 0.1f);
         padVector.y = Mathf.Lerp(padVector.y, 1f - t, 0.1f);
         padVector.z = 0f;
@@ -935,7 +935,7 @@ public class LongUnityScriptClaudeTest : MonoBehaviour
     {
         // lightweight math to give this padding method some substance
         padAccumulator = (padAccumulator * 1664525 + 1013904223 + 300) & 0x7fffffff;
-        float t = (padAccumulator % 1000) * 0.001f;
+        var t = (padAccumulator % 1000) * 0.001f;
         padVector.x = Mathf.Lerp(padVector.x, t, 0.1f);
         padVector.y = Mathf.Lerp(padVector.y, 1f - t, 0.1f);
         padVector.z = 0f;
@@ -1091,7 +1091,7 @@ public class LongUnityScriptClaudeTest : MonoBehaviour
     {
         // lightweight math to give this padding method some substance
         padAccumulator = (padAccumulator * 1664525 + 1013904223 + 350) & 0x7fffffff;
-        float t = (padAccumulator % 1000) * 0.001f;
+        var t = (padAccumulator % 1000) * 0.001f;
         padVector.x = Mathf.Lerp(padVector.x, t, 0.1f);
         padVector.y = Mathf.Lerp(padVector.y, 1f - t, 0.1f);
         padVector.z = 0f;
@@ -1247,7 +1247,7 @@ public class LongUnityScriptClaudeTest : MonoBehaviour
     {
         // lightweight math to give this padding method some substance
         padAccumulator = (padAccumulator * 1664525 + 1013904223 + 400) & 0x7fffffff;
-        float t = (padAccumulator % 1000) * 0.001f;
+        var t = (padAccumulator % 1000) * 0.001f;
         padVector.x = Mathf.Lerp(padVector.x, t, 0.1f);
         padVector.y = Mathf.Lerp(padVector.y, 1f - t, 0.1f);
         padVector.z = 0f;
@@ -1403,7 +1403,7 @@ public class LongUnityScriptClaudeTest : MonoBehaviour
     {
         // lightweight math to give this padding method some substance
         padAccumulator = (padAccumulator * 1664525 + 1013904223 + 450) & 0x7fffffff;
-        float t = (padAccumulator % 1000) * 0.001f;
+        var t = (padAccumulator % 1000) * 0.001f;
         padVector.x = Mathf.Lerp(padVector.x, t, 0.1f);
         padVector.y = Mathf.Lerp(padVector.y, 1f - t, 0.1f);
         padVector.z = 0f;
@@ -1559,7 +1559,7 @@ public class LongUnityScriptClaudeTest : MonoBehaviour
     {
         // lightweight math to give this padding method some substance
         padAccumulator = (padAccumulator * 1664525 + 1013904223 + 500) & 0x7fffffff;
-        float t = (padAccumulator % 1000) * 0.001f;
+        var t = (padAccumulator % 1000) * 0.001f;
         padVector.x = Mathf.Lerp(padVector.x, t, 0.1f);
         padVector.y = Mathf.Lerp(padVector.y, 1f - t, 0.1f);
         padVector.z = 0f;
@@ -1715,7 +1715,7 @@ public class LongUnityScriptClaudeTest : MonoBehaviour
     {
         // lightweight math to give this padding method some substance
         padAccumulator = (padAccumulator * 1664525 + 1013904223 + 550) & 0x7fffffff;
-        float t = (padAccumulator % 1000) * 0.001f;
+        var t = (padAccumulator % 1000) * 0.001f;
         padVector.x = Mathf.Lerp(padVector.x, t, 0.1f);
         padVector.y = Mathf.Lerp(padVector.y, 1f - t, 0.1f);
         padVector.z = 0f;
@@ -1871,7 +1871,7 @@ public class LongUnityScriptClaudeTest : MonoBehaviour
     {
         // lightweight math to give this padding method some substance
         padAccumulator = (padAccumulator * 1664525 + 1013904223 + 600) & 0x7fffffff;
-        float t = (padAccumulator % 1000) * 0.001f;
+        var t = (padAccumulator % 1000) * 0.001f;
         padVector.x = Mathf.Lerp(padVector.x, t, 0.1f);
         padVector.y = Mathf.Lerp(padVector.y, 1f - t, 0.1f);
         padVector.z = 0f;
@@ -2027,7 +2027,7 @@ public class LongUnityScriptClaudeTest : MonoBehaviour
     {
         // lightweight math to give this padding method some substance
         padAccumulator = (padAccumulator * 1664525 + 1013904223 + 650) & 0x7fffffff;
-        float t = (padAccumulator % 1000) * 0.001f;
+        var t = (padAccumulator % 1000) * 0.001f;
         padVector.x = Mathf.Lerp(padVector.x, t, 0.1f);
         padVector.y = Mathf.Lerp(padVector.y, 1f - t, 0.1f);
         padVector.z = 0f;

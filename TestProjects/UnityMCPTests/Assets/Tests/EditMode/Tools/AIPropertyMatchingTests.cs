@@ -1,9 +1,7 @@
-using System;
 using System.Collections.Generic;
 using NUnit.Framework;
 using UnityEngine;
 using MCPForUnity.Editor.Tools;
-using static MCPForUnity.Editor.Tools.ManageGameObject;
 
 namespace MCPForUnityTests.Editor.Tools
 {
@@ -17,7 +15,7 @@ namespace MCPForUnityTests.Editor.Tools
             sampleProperties = new List<string>
             {
                 "maxReachDistance",
-                "maxHorizontalDistance", 
+                "maxHorizontalDistance",
                 "maxVerticalDistance",
                 "moveSpeed",
                 "healthPoints",
@@ -25,7 +23,7 @@ namespace MCPForUnityTests.Editor.Tools
                 "isEnabled",
                 "mass",
                 "velocity",
-                "transform"
+                "transform",
             };
         }
 
@@ -44,7 +42,7 @@ namespace MCPForUnityTests.Editor.Tools
         public void GetAllComponentProperties_ReturnsEmpty_ForNullType()
         {
             var properties = ComponentResolver.GetAllComponentProperties(null);
-            
+
             Assert.IsEmpty(properties, "Null type should return empty list");
         }
 
@@ -60,7 +58,7 @@ namespace MCPForUnityTests.Editor.Tools
         public void GetAIPropertySuggestions_ReturnsEmpty_ForEmptyInput()
         {
             var suggestions = ComponentResolver.GetAIPropertySuggestions("", sampleProperties);
-            
+
             Assert.IsEmpty(suggestions, "Empty input should return no suggestions");
         }
 
@@ -85,9 +83,9 @@ namespace MCPForUnityTests.Editor.Tools
         public void GetAIPropertySuggestions_FindsMultipleWordMatches()
         {
             var suggestions = ComponentResolver.GetAIPropertySuggestions("max distance", sampleProperties);
-            
+
             Assert.Contains("maxReachDistance", suggestions, "Should match maxReachDistance");
-            Assert.Contains("maxHorizontalDistance", suggestions, "Should match maxHorizontalDistance");  
+            Assert.Contains("maxHorizontalDistance", suggestions, "Should match maxHorizontalDistance");
             Assert.Contains("maxVerticalDistance", suggestions, "Should match maxVerticalDistance");
         }
 
@@ -151,7 +149,7 @@ namespace MCPForUnityTests.Editor.Tools
         {
             var properties = new List<string> { "speed", "moveSpeed", "maxSpeed", "speedMultiplier" };
             var suggestions = ComponentResolver.GetAIPropertySuggestions("speed", properties);
-            
+
             Assert.IsNotEmpty(suggestions, "Should find suggestions");
             Assert.Contains("speed", suggestions, "Exact match should be included in results");
             // Note: Implementation may or may not prioritize exact matches first
@@ -162,7 +160,7 @@ namespace MCPForUnityTests.Editor.Tools
         {
             var suggestions1 = ComponentResolver.GetAIPropertySuggestions("MAXREACHDISTANCE", sampleProperties);
             var suggestions2 = ComponentResolver.GetAIPropertySuggestions("maxreachdistance", sampleProperties);
-            
+
             Assert.Contains("maxReachDistance", suggestions1, "Should handle uppercase input");
             Assert.Contains("maxReachDistance", suggestions2, "Should handle lowercase input");
         }
