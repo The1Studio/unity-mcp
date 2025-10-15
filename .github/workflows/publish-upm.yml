@@ -1,0 +1,558 @@
+name: Publish to UPM Registry
+
+on:
+  push:
+    branches:
+      - master
+      - main
+    paths:
+      - '**/package.json'
+
+# FIX ME-6: Explicit permissions for security and clarity
+permissions:
+  contents: read      # Read repository contents
+  actions: write      # Write workflow artifacts (audit logs)
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20  # FIX: Add job-level timeout
+    name: Auto-publish UPM packages
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # Need previous commit for diff
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          registry-url: 'https://upm.the1studio.org/'
+
+      # FIX L-10: Verify Node.js version after setup
+      - name: Verify Node.js version
+        run: |
+          node_version=$(node --version | sed 's/^v//')
+          echo "📦 Node.js version: $node_version"
+
+          # Extract major version
+          major_version=$(echo "$node_version" | cut -d'.' -f1)
+
+          # Warn if not the expected version
+          if [ "$major_version" -ne 18 ]; then
+            echo "⚠️  Warning: Expected Node.js 18, got $major_version"
+            echo "   This may cause compatibility issues"
+          else
+            echo "✅ Node.js version matches expected (18.x)"
+          fi
+
+          # Verify npm is available
+          if ! command -v npm &>/dev/null; then
+            echo "❌ npm not found in PATH"
+            exit 1
+          fi
+
+          npm_version=$(npm --version)
+          echo "📦 npm version: $npm_version"
+          echo "✅ npm is available"
+
+      # FIX: Add registry health check before attempting publish
+      - name: Health check registry
+        env:
+          UPM_REGISTRY: ${{ vars.UPM_REGISTRY || 'https://upm.the1studio.org/' }}
+        run: |
+          echo "🏥 Checking registry health..."
+          echo "Registry: $UPM_REGISTRY"
+
+          # Extract registry host for ping test
+          registry_host=$(echo "$UPM_REGISTRY" | sed -E 's|https?://([^/]+).*|\1|')
+          echo "Host: $registry_host"
+
+          # Try to access registry root
+          if curl -f -s -m 10 "$UPM_REGISTRY" >/dev/null 2>&1; then
+            echo "✅ Registry is accessible"
+          elif curl -f -s -m 10 "${UPM_REGISTRY}-/ping" >/dev/null 2>&1; then
+            echo "✅ Registry ping endpoint is accessible"
+          else
+            echo "❌ Registry is not accessible"
+            echo "   URL: $UPM_REGISTRY"
+            echo "   This may cause publish failures"
+            echo ""
+            echo "Troubleshooting:"
+            echo "  1. Check if registry is running"
+            echo "  2. Verify URL is correct"
+            echo "  3. Check network connectivity"
+            echo "  4. Verify firewall rules"
+            exit 1
+          fi
+
+      - name: Detect and publish changed packages
+        timeout-minutes: 15  # FIX: Add step-level timeout
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # FIX: Make registry URL configurable via organization variable
+          UPM_REGISTRY: ${{ vars.UPM_REGISTRY || 'https://upm.the1studio.org/' }}
+        run: |
+          # FIX: Use proper error handling instead of set +e
+          set -euo pipefail
+
+          # FIX MAJOR-5: Validate GITHUB_WORKSPACE at the START, not the end
+          if [ -z "${GITHUB_WORKSPACE:-}" ] || [ ! -d "${GITHUB_WORKSPACE:-/nonexistent}" ]; then
+            echo "❌ GITHUB_WORKSPACE not set or invalid"
+            exit 1
+          fi
+
+          # Store original directory for reference
+          readonly WORKSPACE_DIR="$GITHUB_WORKSPACE"
+
+          # Define emoji constants
+          CROSS="❌"
+          CHECK="✅"
+
+          # FIX MAJOR-2: Add rate limit detection and backoff for npm commands
+          npm_view_with_retry() {
+            local package_spec="$1"
+            local max_attempts=5
+            local attempt=1
+
+            while [ $attempt -le $max_attempts ]; do
+              if output=$(npm view "$package_spec" --registry "$UPM_REGISTRY" 2>&1); then
+                echo "$output"
+                return 0
+              fi
+
+              # Check for rate limit error
+              if echo "$output" | grep -qi "rate limit\|429\|too many requests"; then
+                local wait_time=$((2 ** attempt))  # Exponential backoff: 2, 4, 8, 16, 32 seconds
+                echo "⚠️  Rate limited, waiting ${wait_time}s (attempt $attempt/$max_attempts)..." >&2
+                sleep "$wait_time"
+                ((attempt++))
+              else
+                # Other error, don't retry
+                return 1
+              fi
+            done
+
+            echo "❌ Failed after $max_attempts attempts due to rate limiting" >&2
+            return 1
+          }
+
+          # FIX M-5: Validate registry URL format
+          if [[ ! "$UPM_REGISTRY" =~ ^https://[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/?$ ]]; then
+            echo "❌ Invalid registry URL: $UPM_REGISTRY"
+            echo "   Registry must be HTTPS with valid domain"
+            exit 1
+          fi
+
+          # Ensure it's not a well-known public registry
+          if [[ "$UPM_REGISTRY" =~ (npmjs\.org|registry\.npmjs\.com) ]]; then
+            echo "❌ Cannot publish to public npm registry"
+            echo "   This appears to be the public npm registry"
+            exit 1
+          fi
+
+          echo "========================================="
+          echo "🎯 Target Registry: $UPM_REGISTRY"
+          echo "========================================="
+
+          echo "========================================="
+          echo "🔍 Detecting changed package.json files"
+          echo "========================================="
+
+          # Get list of changed package.json files
+          changed_files=$(git diff --name-only HEAD~1 HEAD | grep 'package\.json$' || true)
+
+          if [ -z "$changed_files" ]; then
+            echo "ℹ️  No package.json files changed in this commit"
+            exit 0
+          fi
+
+          echo "📦 Found changed package.json files:"
+          echo "$changed_files"
+          echo ""
+
+          # FIX H-3: Set up consistent trap cleanup for all temp files
+          # Maintain array of files to clean up
+          cleanup_files=()
+          trap 'rm -f "${cleanup_files[@]}"' EXIT ERR INT TERM
+
+          # Track results
+          published=0
+          skipped=0
+          failed=0
+          failed_packages=""
+
+          # Process each changed package.json
+          while IFS= read -r package_json; do
+            echo "========================================="
+            echo "📋 Processing: ${package_json}"
+            echo "========================================="
+
+            # Check if file still exists (not deleted)
+            if [ ! -f "$package_json" ]; then
+              echo "⚠️  File was deleted, skipping"
+              ((skipped++))
+              continue
+            fi
+
+            # Extract package directory
+            package_dir=$(dirname "$package_json")
+
+            # Extract package info using jq
+            if ! command -v jq &> /dev/null; then
+              echo "❌ jq is not installed, installing..."
+              sudo apt-get update && sudo apt-get install -y jq
+            fi
+
+            # FIX: Use explicit error handling for jq
+            if ! package_name=$(jq -r '.name // empty' "$package_json" 2>/dev/null); then
+              echo "❌ Failed to parse package.json, skipping"
+              ((skipped++))
+              continue
+            fi
+
+            if ! new_version=$(jq -r '.version // empty' "$package_json" 2>/dev/null); then
+              echo "❌ Failed to parse package.json version, skipping"
+              ((skipped++))
+              continue
+            fi
+
+            # Validate package info
+            if [ -z "$package_name" ] || [ -z "$new_version" ]; then
+              echo "⚠️  Missing name or version in package.json, skipping"
+              ((skipped++))
+              continue
+            fi
+
+            # FIX: Validate semver format (MAJOR.MINOR.PATCH with optional prerelease/build)
+            if [[ ! "$new_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?(\+[a-zA-Z0-9.]+)?$ ]]; then
+              echo "❌ Invalid version format: $new_version"
+              echo "   Version must follow semantic versioning (e.g., 1.0.0, 1.0.0-beta.1)"
+              ((skipped++))
+              continue
+            fi
+
+            # FIX: Check for dangerous characters in package name or version
+            if [[ "$package_name" =~ [^a-zA-Z0-9._-] ]]; then
+              echo "❌ Package name contains invalid characters: $package_name"
+              ((skipped++))
+              continue
+            fi
+
+            if [[ "$new_version" =~ [^a-zA-Z0-9.+-] ]]; then
+              echo "❌ Version contains invalid characters: $new_version"
+              ((skipped++))
+              continue
+            fi
+
+            echo "📦 Package: ${package_name}"
+            echo "🏷️  Version: ${new_version}"
+            echo "📍 Directory: ${package_dir}"
+            echo "🎯 Registry: ${UPM_REGISTRY}"
+
+            # Check if version already exists on registry (with rate limit handling)
+            echo "🔍 Checking if version exists on registry..."
+            if npm_view_with_retry "${package_name}@${new_version}" >/dev/null 2>&1; then
+              echo "⏭️  Version ${new_version} already exists for ${package_name}, skipping"
+              ((skipped++))
+              continue
+            fi
+
+            # FIX M-2: Use npm/npx semver for accurate version comparison (with rate limit handling)
+            echo "🔍 Checking version ordering..."
+            latest_version=$(npm_view_with_retry "$package_name" 2>/dev/null | grep '^version:' | awk '{print $2}' || echo "0.0.0")
+            if [ "$latest_version" = "" ]; then
+              latest_version="0.0.0"
+            fi
+
+            if [ "$latest_version" != "0.0.0" ]; then
+              echo "   Latest published: $latest_version"
+              echo "   New version: $new_version"
+
+              # Try using npx semver for accurate comparison (handles pre-releases correctly)
+              if command -v npx &>/dev/null && npx -q semver --version &>/dev/null; then
+                echo "   Using semver for accurate version comparison"
+                if npx -q semver "$new_version" -r ">$latest_version" &>/dev/null; then
+                  echo "✅ Version check passed: $new_version > $latest_version (semver)"
+                else
+                  echo "⚠️  Warning: New version ($new_version) is not newer than latest ($latest_version)"
+                  echo "   This appears to be a version rollback or mistake."
+                  echo "   Skipping for safety - if intentional, publish manually with:"
+                  echo "   npm publish --registry $UPM_REGISTRY"
+                  ((skipped++))
+                  continue
+                fi
+              else
+                # Fallback to sort -V with warning
+                echo "   ⚠️  Using basic version sort (semver not available for pre-release accuracy)"
+                newer=$(printf '%s\n' "$new_version" "$latest_version" | sort -V | tail -n1)
+
+                if [ "$newer" != "$new_version" ]; then
+                  echo "⚠️  Warning: New version ($new_version) is not newer than latest ($latest_version)"
+                  echo "   This appears to be a version rollback or mistake."
+                  echo "   Skipping for safety - if intentional, publish manually with:"
+                  echo "   npm publish --registry $UPM_REGISTRY"
+                  ((skipped++))
+                  continue
+                else
+                  echo "✅ Version check passed: $new_version > $latest_version (basic sort)"
+                fi
+              fi
+            else
+              echo "ℹ️  First publication of this package"
+            fi
+
+            # Publish package
+            echo "🚀 Publishing ${package_name}@${new_version}..."
+
+            # FIX ME-2: Check npm registry connectivity before publishing
+            if ! npm ping --registry "$UPM_REGISTRY" &>/dev/null; then
+              echo "⚠️  Registry not responding, may be rate limited or down"
+              echo "   Waiting 5 seconds before retry..."
+              sleep 5
+              if ! npm ping --registry "$UPM_REGISTRY" &>/dev/null; then
+                echo "❌ Registry still not responding after retry"
+                ((failed++))
+                failed_packages="${failed_packages}${package_name}@${new_version} "
+                continue
+              fi
+            fi
+
+            # FIX: Validate directory exists before cd
+            if [ ! -d "$package_dir" ]; then
+              echo "❌ Directory does not exist: $package_dir"
+              ((skipped++))
+              continue
+            fi
+
+            # FIX L-8: Check package size and warn if unusually large
+            echo "📏 Checking package size..."
+            package_size=$(du -sb "$package_dir" 2>/dev/null | cut -f1 || echo "0")
+            package_size_mb=$((package_size / 1024 / 1024))
+
+            # Make size threshold configurable (default: 50MB)
+            size_threshold_mb="${{ vars.PACKAGE_SIZE_THRESHOLD_MB || 50 }}"
+            size_threshold_bytes=$((size_threshold_mb * 1024 * 1024))
+
+            if [ "$package_size" -gt 0 ]; then
+              echo "   Package size: ${package_size_mb}MB (threshold: ${size_threshold_mb}MB)"
+
+              # Warn if package is larger than threshold
+              if [ "$package_size" -gt "$size_threshold_bytes" ]; then
+                echo "⚠️  Warning: Package size is unusually large (${package_size_mb}MB)"
+                echo "   This might indicate accidentally included files."
+                echo ""
+                echo "   Largest files in package:"
+                find "$package_dir" -type f -exec ls -lh {} \; 2>/dev/null | sort -k5 -hr | head -10 | awk '{print "     " $9 " (" $5 ")"}'
+                echo ""
+                echo "   Common causes:"
+                echo "   - node_modules/ not excluded"
+                echo "   - Build artifacts included"
+                echo "   - Large binary files"
+                echo "   - Test files not excluded"
+                echo ""
+                echo "   Continuing with publish, but please review..."
+              fi
+            fi
+
+            # FIX: Safe directory change with error handling
+            if ! cd "$package_dir"; then
+              echo "❌ Failed to change directory to $package_dir"
+              ((skipped++))
+              continue
+            fi
+
+            # FIX: Explicit error handling for npm publish with trap-based cleanup
+            publish_output=$(mktemp)
+            cleanup_files+=("$publish_output")
+
+            # FIX ME-5: Retry npm publish up to 3 times for transient failures
+            max_attempts=3
+            attempt=1
+            publish_success=false
+
+            while [ $attempt -le $max_attempts ]; do
+              if npm publish --registry "$UPM_REGISTRY" >"$publish_output" 2>&1; then
+                publish_success=true
+                break
+              fi
+
+              if [ $attempt -lt $max_attempts ]; then
+                echo "⚠️  Publish attempt $attempt failed, retrying in $((attempt * 5)) seconds..."
+                sleep $((attempt * 5))
+                ((attempt++))
+              else
+                echo "❌ Failed after $max_attempts attempts"
+                break
+              fi
+            done
+
+            if [ "$publish_success" = true ]; then
+              echo "✅ Successfully published ${package_name}@${new_version}"
+              cat "$publish_output"
+
+              # FIX: Verify package was published correctly (with rate limit handling)
+              echo "🔍 Verifying publication..."
+              sleep 3  # Wait for registry to index
+
+              published_version=$(npm_view_with_retry "${package_name}@${new_version}" 2>/dev/null | grep '^version:' | awk '{print $2}' || echo "")
+
+              if [ "$published_version" = "$new_version" ]; then
+                echo "✅ Verified: ${package_name}@${new_version} is available on registry"
+                ((published++))
+              else
+                echo "❌ Verification failed: Package not found on registry"
+                echo "   Expected: $new_version"
+                echo "   Got: ${published_version:-'not found'}"
+                echo "⚠️  Package may have been published but not yet indexed"
+                ((failed++))
+                failed_packages="${failed_packages}${package_name}@${new_version} "
+              fi
+            else
+              echo "❌ Failed to publish ${package_name}@${new_version}"
+              echo ""
+              echo "Error output:"
+              cat "$publish_output"
+              echo ""
+
+              # FIX: Add comprehensive debug information
+              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+              echo "Debug Information:"
+              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+              echo "  Package: $package_name"
+              echo "  Version: $new_version"
+              echo "  Directory: $package_dir"
+              echo "  Target Registry: $UPM_REGISTRY"
+              echo ""
+
+              # Check common issues
+              echo "Common Issue Checks:"
+
+              if [ ! -f "$package_dir/package.json" ]; then
+                echo "  ${CROSS} package.json not found in package directory"
+              else
+                echo "  ✓ package.json exists"
+              fi
+
+              if [ ! -r "$package_dir/package.json" ]; then
+                echo "  ${CROSS} package.json is not readable"
+              else
+                echo "  ✓ package.json is readable"
+              fi
+
+              # Check NPM_TOKEN
+              if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+                echo "  ${CROSS} NODE_AUTH_TOKEN not set (NPM_TOKEN secret missing?)"
+              else
+                echo "  ✓ NPM_TOKEN is configured"
+              fi
+
+              echo ""
+              echo "Files in package directory (top 20):"
+              ls -la "$package_dir" 2>/dev/null | head -20 || echo "  (failed to list files)"
+
+              echo ""
+              echo "Package.json contents:"
+              jq '.' "$package_json" 2>/dev/null || cat "$package_json" || echo "  (failed to read package.json)"
+              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+              echo ""
+
+              ((failed++))
+              failed_packages="${failed_packages}${package_name}@${new_version} "
+            fi
+
+            # Cleanup handled by global trap at script exit
+            # Return to workspace directory (validated at script start)
+            cd "$WORKSPACE_DIR"
+            echo ""
+
+          done <<< "$changed_files"
+
+          # Summary
+          echo "========================================="
+          echo "📊 Publishing Summary"
+          echo "========================================="
+          echo "✅ Published: ${published}"
+          echo "⏭️  Skipped: ${skipped}"
+          echo "❌ Failed: ${failed}"
+          echo "========================================="
+
+          # Exit with error if any publishes failed
+          if [ "$failed" -gt 0 ]; then
+            echo "⚠️  Some packages failed to publish:"
+            echo "   ${failed_packages}"
+            exit 1
+          fi
+
+          if [ "$published" -eq 0 ]; then
+            echo "ℹ️  No new versions to publish"
+          fi
+
+          # Export variables for audit log
+          echo "published=$published" >> $GITHUB_ENV
+          echo "failed=$failed" >> $GITHUB_ENV
+          echo "skipped=$skipped" >> $GITHUB_ENV
+          echo "failed_packages=$failed_packages" >> $GITHUB_ENV
+
+      # FIX HIGH-1: Add audit logging with complete jq construction (prevents injection)
+      - name: Record audit log
+        if: always()
+        run: |
+          # Use jq to construct entire JSON safely - no string interpolation
+          jq -n \
+            --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg workflow_run_id "${{ github.run_id }}" \
+            --argjson workflow_run_number "${{ github.run_number }}" \
+            --arg repository "${{ github.repository }}" \
+            --arg commit_sha "${{ github.sha }}" \
+            --arg commit_message "$(git log -1 --pretty=%s | head -c 100)" \
+            --arg actor "${{ github.actor }}" \
+            --arg event "${{ github.event_name }}" \
+            --arg ref "${{ github.ref }}" \
+            --argjson published "${{ env.published || 0 }}" \
+            --argjson failed "${{ env.failed || 0 }}" \
+            --argjson skipped "${{ env.skipped || 0 }}" \
+            --arg registry "${{ vars.UPM_REGISTRY || 'https://upm.the1studio.org/' }}" \
+            --arg failed_packages "${{ env.failed_packages || 'none' }}" \
+            --arg job_status "${{ job.status }}" \
+            '{
+              timestamp: $timestamp,
+              workflow_run_id: $workflow_run_id,
+              workflow_run_number: $workflow_run_number,
+              repository: $repository,
+              commit_sha: $commit_sha,
+              commit_message: $commit_message,
+              actor: $actor,
+              event: $event,
+              ref: $ref,
+              published: $published,
+              failed: $failed,
+              skipped: $skipped,
+              registry: $registry,
+              failed_packages: $failed_packages,
+              job_status: $job_status
+            }' > audit-log.json
+
+          echo "📝 Audit log created:"
+          cat audit-log.json
+
+      # FIX L-4: Make audit log retention configurable
+      - name: Upload audit log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-log-${{ github.run_id }}
+          path: audit-log.json
+          retention-days: ${{ vars.AUDIT_LOG_RETENTION_DAYS || 90 }}
+
+      # FIX: Correct job.status comparison syntax
+      - name: Summary
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == 'success' ]; then
+            echo "✅ Workflow completed successfully"
+          else
+            echo "⚠️  Workflow completed with errors - check logs above"
+          fi
