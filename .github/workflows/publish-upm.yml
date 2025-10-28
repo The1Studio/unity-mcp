@@ -1,6 +1,8 @@
 name: Publish to UPM Registry
 
 on:
+  workflow_dispatch:  # Manual trigger
+  
   push:
     branches:
       - master
