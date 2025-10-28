@@ -1,14 +1,20 @@
 name: Publish to UPM Registry
 
 on:
-  workflow_dispatch:  # Manual trigger
-  
   push:
     branches:
       - master
       - main
     paths:
       - '**/package.json'
+
+  # Allow manual trigger for publishing stale packages
+  workflow_dispatch:
+    inputs:
+      package_path:
+        description: 'Path to package.json (optional, e.g., Assets/MyPackage/package.json). Leave empty to publish all packages.'
+        required: false
+        type: string
 
 # FIX ME-6: Explicit permissions for security and clarity
 permissions:
@@ -23,12 +29,12 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 2  # Need previous commit for diff
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '18'
           registry-url: 'https://upm.the1studio.org/'
@@ -160,18 +166,46 @@ jobs:
           echo "========================================="
 
           echo "========================================="
-          echo "🔍 Detecting changed package.json files"
+          echo "🔍 Detecting package.json files to publish"
           echo "========================================="
 
-          # Get list of changed package.json files
-          changed_files=$(git diff --name-only HEAD~1 HEAD | grep 'package\.json$' || true)
+          # Detect trigger type and get appropriate file list
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "📋 Manual trigger detected (workflow_dispatch)"
 
-          if [ -z "$changed_files" ]; then
-            echo "ℹ️  No package.json files changed in this commit"
-            exit 0
+            # Check if specific package_path was provided
+            if [ -n "${{ inputs.package_path }}" ]; then
+              echo "📌 Using specified package path: ${{ inputs.package_path }}"
+              changed_files="${{ inputs.package_path }}"
+            else
+              echo "🔍 Scanning ALL package.json files in repository..."
+              # Find all package.json files, excluding node_modules and hidden directories
+              changed_files=$(find . -name "package.json" \
+                -not -path "*/node_modules/*" \
+                -not -path "*/.*/*" \
+                -type f \
+                | sed 's|^\./||' || true)
+
+              if [ -z "$changed_files" ]; then
+                echo "❌ No package.json files found in repository"
+                exit 1
+              fi
+
+              echo "📦 Found $(echo "$changed_files" | wc -l) package.json files"
+            fi
+          else
+            echo "🔄 Automatic trigger detected (push)"
+            # Get list of changed package.json files from git diff
+            changed_files=$(git diff --name-only HEAD~1 HEAD | grep 'package\.json$' || true)
+
+            if [ -z "$changed_files" ]; then
+              echo "ℹ️  No package.json files changed in this commit"
+              exit 0
+            fi
           fi
 
-          echo "📦 Found changed package.json files:"
+          echo ""
+          echo "📦 Package.json files to process:"
           echo "$changed_files"
           echo ""
 
@@ -543,7 +577,7 @@ jobs:
       # FIX L-4: Make audit log retention configurable
       - name: Upload audit log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: audit-log-${{ github.run_id }}
           path: audit-log.json
