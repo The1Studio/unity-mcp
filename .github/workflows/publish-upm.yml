@@ -23,7 +23,8 @@ permissions:
 
 jobs:
   publish:
-    runs-on: ubuntu-latest
+    # Use self-hosted runners with GitHub-hosted fallback
+    runs-on: ${{ vars.USE_SELF_HOSTED_RUNNERS != 'false' && fromJSON('["self-hosted", "arc", "the1studio", "org"]') || 'ubuntu-latest' }}
     timeout-minutes: 20  # FIX: Add job-level timeout
     name: Auto-publish UPM packages
 
@@ -32,6 +33,19 @@ jobs:
         uses: actions/checkout@v5
         with:
           fetch-depth: 2  # Need previous commit for diff
+
+      - name: Install dependencies
+        run: |
+          # Fix APT sources to use HTTPS instead of HTTP (port 80 blocked)
+          sudo sed -i 's|http://archive.ubuntu.com|https://archive.ubuntu.com|g' /etc/apt/sources.list
+          sudo sed -i 's|http://security.ubuntu.com|https://security.ubuntu.com|g' /etc/apt/sources.list
+
+          # Disable PPA repositories
+          sudo mv /etc/apt/sources.list.d /etc/apt/sources.list.d.bak 2>/dev/null || true
+          sudo mkdir -p /etc/apt/sources.list.d
+
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq jq
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -121,12 +135,12 @@ jobs:
 
           # FIX MAJOR-2: Add rate limit detection and backoff for npm commands
           npm_view_with_retry() {
-            local package_spec="$1"
+            # Accept all arguments to support: npm_view_with_retry <package> [field...]
             local max_attempts=5
             local attempt=1
 
             while [ $attempt -le $max_attempts ]; do
-              if output=$(npm view "$package_spec" --registry "$UPM_REGISTRY" 2>&1); then
+              if output=$(npm view "$@" --registry "$UPM_REGISTRY" 2>&1); then
                 echo "$output"
                 return 0
               fi
@@ -298,7 +312,7 @@ jobs:
 
             # FIX M-2: Use npm/npx semver for accurate version comparison (with rate limit handling)
             echo "🔍 Checking version ordering..."
-            latest_version=$(npm_view_with_retry "$package_name" 2>/dev/null | grep '^version:' | awk '{print $2}' || echo "0.0.0")
+            latest_version=$(npm_view_with_retry "$package_name" version 2>/dev/null || echo "0.0.0")
             if [ "$latest_version" = "" ]; then
               latest_version="0.0.0"
             fi
@@ -433,7 +447,7 @@ jobs:
               echo "🔍 Verifying publication..."
               sleep 3  # Wait for registry to index
 
-              published_version=$(npm_view_with_retry "${package_name}@${new_version}" 2>/dev/null | grep '^version:' | awk '{print $2}' || echo "")
+              published_version=$(npm_view_with_retry "${package_name}@${new_version}" version 2>/dev/null || echo "")
 
               if [ "$published_version" = "$new_version" ]; then
                 echo "✅ Verified: ${package_name}@${new_version} is available on registry"
