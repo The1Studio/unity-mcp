@@ -23,7 +23,7 @@ permissions:
 
 jobs:
   publish:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, arc, the1studio, org]
     timeout-minutes: 20  # FIX: Add job-level timeout
     name: Auto-publish UPM packages
 
