@@ -11,7 +11,7 @@ on:
 jobs:
   testAllModes:
     name: Test in ${{ matrix.testMode }}
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, arc, the1studio, org]
     strategy:
       fail-fast: false
       matrix:
