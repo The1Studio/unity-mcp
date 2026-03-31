@@ -47,6 +47,7 @@ namespace MCPForUnity.Runtime.Helpers
         private static bool s_loggedLegacyScreenCaptureFallback;
         private static bool? s_screenCaptureModuleAvailable;
         private static System.Reflection.MethodInfo s_captureScreenshotMethod;
+        private static System.Reflection.MethodInfo s_captureScreenshotAsTextureMethod;
 
         /// <summary>
         /// Checks if the Screen Capture module (com.unity.modules.screencapture) is enabled.
@@ -66,6 +67,8 @@ namespace MCPForUnity.Runtime.Helpers
                     {
                         s_captureScreenshotMethod = screenCaptureType.GetMethod("CaptureScreenshot",
                             new Type[] { typeof(string), typeof(int) });
+                        s_captureScreenshotAsTextureMethod = screenCaptureType.GetMethod("CaptureScreenshotAsTexture",
+                            new Type[] { typeof(int) });
                     }
                 }
                 return s_screenCaptureModuleAvailable.Value;
@@ -216,6 +219,76 @@ namespace MCPForUnity.Runtime.Helpers
                 RenderTexture.active = prevActive;
                 RenderTexture.ReleaseTemporary(rt);
                 DestroyTexture(tex);
+                DestroyTexture(downscaled);
+            }
+
+            if (includeImage && imageBase64 != null)
+            {
+                return new ScreenshotCaptureResult(
+                    result.FullPath, result.AssetsRelativePath, result.SuperSize, false,
+                    imageBase64, imgW, imgH);
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// Captures the full Game View using ScreenCapture.CaptureScreenshotAsTexture, including OnGUI/IMGUI overlays.
+        /// Requires the Screen Capture module and only works when the Game View is actively rendering.
+        /// Falls back to camera-based capture if CaptureScreenshotAsTexture is unavailable.
+        /// </summary>
+        public static ScreenshotCaptureResult CaptureScreenToAssetsFolder(
+            string fileName = null,
+            int superSize = 1,
+            bool ensureUniqueFileName = true,
+            bool includeImage = false,
+            int maxResolution = 0)
+        {
+            if (!IsScreenCaptureModuleAvailable || s_captureScreenshotAsTextureMethod == null)
+            {
+                throw new InvalidOperationException(
+                    "capture_source='screen' requires the Screen Capture module (com.unity.modules.screencapture). " +
+                    "Enable it via Window > Package Manager > Built-in > Screen Capture > Enable.");
+            }
+
+            ScreenshotCaptureResult result = PrepareCaptureResult(fileName, superSize, ensureUniqueFileName, isAsync: false);
+
+            Texture2D screenTex = null;
+            Texture2D downscaled = null;
+            string imageBase64 = null;
+            int imgW = 0, imgH = 0;
+            try
+            {
+                screenTex = (Texture2D)s_captureScreenshotAsTextureMethod.Invoke(null, new object[] { result.SuperSize });
+                if (screenTex == null)
+                {
+                    throw new InvalidOperationException(
+                        "CaptureScreenshotAsTexture returned null. This can happen outside Play mode or when no Game View is visible.");
+                }
+
+                byte[] png = screenTex.EncodeToPNG();
+                File.WriteAllBytes(result.FullPath, png);
+
+                if (includeImage)
+                {
+                    int targetMax = maxResolution > 0 ? maxResolution : 640;
+                    if (screenTex.width > targetMax || screenTex.height > targetMax)
+                    {
+                        downscaled = DownscaleTexture(screenTex, targetMax);
+                        imageBase64 = System.Convert.ToBase64String(downscaled.EncodeToPNG());
+                        imgW = downscaled.width;
+                        imgH = downscaled.height;
+                    }
+                    else
+                    {
+                        imageBase64 = System.Convert.ToBase64String(png);
+                        imgW = screenTex.width;
+                        imgH = screenTex.height;
+                    }
+                }
+            }
+            finally
+            {
+                DestroyTexture(screenTex);
                 DestroyTexture(downscaled);
             }
 

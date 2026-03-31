@@ -63,8 +63,9 @@ ALL_ACTIONS = SETUP_ACTIONS + CREATION_ACTIONS + CONFIGURATION_ACTIONS + EXTENSI
         "CAPTURE:\n"
         "- screenshot: Capture from a camera. Supports include_image=true for inline base64 PNG, "
         "batch='surround' for 6-angle contact sheet, batch='orbit' for configurable grid, "
-        "view_target/view_position for positioned capture, and capture_source='scene_view' to capture "
-        "the active Unity Scene View viewport.\n"
+        "view_target/view_position for positioned capture, capture_source='scene_view' to capture "
+        "the active Unity Scene View viewport, and capture_source='screen' to capture the full Game View "
+        "including OnGUI/IMGUI overlays.\n"
         "- screenshot_multiview: Shorthand for screenshot with batch='surround' and include_image=true."
     ),
     annotations=ToolAnnotations(
@@ -95,9 +96,10 @@ async def manage_camera(
         "If true, return screenshot as inline base64 PNG. Default false."] = None,
     max_resolution: Annotated[int | str | None,
         "Max resolution (longest edge px) for inline image. Default 640."] = None,
-    capture_source: Annotated[Literal["game_view", "scene_view"] | None,
+    capture_source: Annotated[Literal["game_view", "scene_view", "screen"] | None,
         "Screenshot source. 'game_view' (default) captures the game/camera path; "
-        "'scene_view' captures the active Unity Scene View viewport."] = None,
+        "'scene_view' captures the active Unity Scene View viewport; "
+        "'screen' captures the full Game View including OnGUI/IMGUI overlays (requires Screen Capture module)."] = None,
     batch: Annotated[str | None,
         "Batch capture mode: 'surround' (6 angles) or 'orbit' (configurable grid)."] = None,
     view_target: Annotated[str | int | list[float] | None,

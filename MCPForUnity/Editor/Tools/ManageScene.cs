@@ -29,7 +29,7 @@ namespace MCPForUnity.Editor.Tools
 
             // screenshot: camera selection, inline image, batch, view positioning
             public string camera { get; set; }
-            public string captureSource { get; set; }   // "game_view" (default) or "scene_view"
+            public string captureSource { get; set; }   // "game_view" (default), "scene_view", or "screen"
             public bool? includeImage { get; set; }
             public int? maxResolution { get; set; }
             public string batch { get; set; }           // "surround" or "orbit" for multi-angle batch capture
@@ -517,10 +517,55 @@ namespace MCPForUnity.Editor.Tools
                     ? "game_view"
                     : cmd.captureSource.Trim().ToLowerInvariant();
 
-                if (captureSource != "game_view" && captureSource != "scene_view")
+                if (captureSource != "game_view" && captureSource != "scene_view" && captureSource != "screen")
                 {
                     return new ErrorResponse(
-                        $"Invalid capture_source '{cmd.captureSource}'. Valid values: 'game_view', 'scene_view'.");
+                        $"Invalid capture_source '{cmd.captureSource}'. Valid values: 'game_view', 'scene_view', 'screen'.");
+                }
+
+                // Screen capture: uses ScreenCapture.CaptureScreenshotAsTexture — includes OnGUI/IMGUI overlays
+                if (captureSource == "screen")
+                {
+                    if (!string.IsNullOrEmpty(cameraRef))
+                    {
+                        return new ErrorResponse(
+                            "capture_source='screen' captures the full Game View and does not support camera selection. Remove 'camera'.");
+                    }
+                    if (!string.IsNullOrEmpty(cmd.batch))
+                    {
+                        return new ErrorResponse(
+                            "capture_source='screen' does not support batch modes.");
+                    }
+                    if ((cmd.viewTarget != null && cmd.viewTarget.Type != JTokenType.Null) || cmd.viewPosition.HasValue)
+                    {
+                        return new ErrorResponse(
+                            "capture_source='screen' does not support view_position/view_rotation/view_target.");
+                    }
+
+                    if (!Application.isBatchMode) EnsureGameView();
+
+                    ScreenshotCaptureResult screenResult = ScreenshotUtility.CaptureScreenToAssetsFolder(
+                        fileName, resolvedSuperSize, ensureUniqueFileName: true,
+                        includeImage: includeImage, maxResolution: maxResolution);
+
+                    AssetDatabase.ImportAsset(screenResult.AssetsRelativePath, ImportAssetOptions.ForceSynchronousImport);
+                    string screenMsg = $"Screenshot captured to '{screenResult.AssetsRelativePath}' (full screen including GUI).";
+
+                    var screenData = new Dictionary<string, object>
+                    {
+                        { "path", screenResult.AssetsRelativePath },
+                        { "fullPath", screenResult.FullPath },
+                        { "superSize", screenResult.SuperSize },
+                        { "isAsync", false },
+                        { "captureSource", "screen" },
+                    };
+                    if (includeImage && screenResult.ImageBase64 != null)
+                    {
+                        screenData["imageBase64"] = screenResult.ImageBase64;
+                        screenData["imageWidth"] = screenResult.ImageWidth;
+                        screenData["imageHeight"] = screenResult.ImageHeight;
+                    }
+                    return new SuccessResponse(screenMsg, screenData);
                 }
 
                 if (captureSource == "scene_view")

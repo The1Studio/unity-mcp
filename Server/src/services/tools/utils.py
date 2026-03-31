@@ -496,10 +496,10 @@ def build_screenshot_params(
         params["maxResolution"] = coerced_max_resolution
     if capture_source is not None:
         normalized_capture_source = str(capture_source).strip().lower()
-        if normalized_capture_source not in {"game_view", "scene_view"}:
+        if normalized_capture_source not in {"game_view", "scene_view", "screen"}:
             return {
                 "success": False,
-                "message": "capture_source must be either 'game_view' or 'scene_view'.",
+                "message": "capture_source must be 'game_view', 'scene_view', or 'screen'.",
             }
         params["captureSource"] = normalized_capture_source
     if batch:
