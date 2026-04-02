@@ -5,6 +5,7 @@ using Unity.Profiling;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Profiling;
+using UnityProfiler = UnityEngine.Profiling.Profiler;
 
 namespace MCPForUnity.Editor.Tools
 {
@@ -167,13 +168,13 @@ namespace MCPForUnity.Editor.Tools
 
             var data = new
             {
-                totalAllocatedMemoryMB = Profiler.GetTotalAllocatedMemoryLong() / (double)BytesPerMB,
-                totalReservedMemoryMB = Profiler.GetTotalReservedMemoryLong() / (double)BytesPerMB,
-                totalUnusedReservedMemoryMB = Profiler.GetTotalUnusedReservedMemoryLong() / (double)BytesPerMB,
-                monoUsedSizeMB = Profiler.GetMonoUsedSizeLong() / (double)BytesPerMB,
-                monoHeapSizeMB = Profiler.GetMonoHeapSizeLong() / (double)BytesPerMB,
-                tempAllocatorSizeMB = Profiler.GetTempAllocatorSize() / (double)BytesPerMB,
-                graphicsDriverAllocatedMemoryMB = Profiler.GetAllocatedMemoryForGraphicsDriver() / (double)BytesPerMB,
+                totalAllocatedMemoryMB = UnityProfiler.GetTotalAllocatedMemoryLong() / (double)BytesPerMB,
+                totalReservedMemoryMB = UnityProfiler.GetTotalReservedMemoryLong() / (double)BytesPerMB,
+                totalUnusedReservedMemoryMB = UnityProfiler.GetTotalUnusedReservedMemoryLong() / (double)BytesPerMB,
+                monoUsedSizeMB = UnityProfiler.GetMonoUsedSizeLong() / (double)BytesPerMB,
+                monoHeapSizeMB = UnityProfiler.GetMonoHeapSizeLong() / (double)BytesPerMB,
+                tempAllocatorSizeMB = UnityProfiler.GetTempAllocatorSize() / (double)BytesPerMB,
+                graphicsDriverAllocatedMemoryMB = UnityProfiler.GetAllocatedMemoryForGraphicsDriver() / (double)BytesPerMB,
                 isPlaying = EditorApplication.isPlaying
             };
 
@@ -196,7 +197,7 @@ namespace MCPForUnity.Editor.Tools
                 maximumDeltaTime = Time.maximumDeltaTime,
                 smoothDeltaTime = Time.smoothDeltaTime,
                 captureFramerate = Time.captureFramerate,
-                profilerEnabled = Profiler.enabled,
+                profilerEnabled = UnityProfiler.enabled,
                 // System info for context
                 systemInfo = new
                 {
