@@ -278,6 +278,8 @@ def register_commands():
         ("cli.commands.reflect", "reflect"),
         ("cli.commands.docs", "docs"),
         ("cli.commands.input_simulation", "input_simulation"),
+        ("cli.commands.physics", "physics"),
+        ("cli.commands.profiler", "profiler"),
     ]
 
     for module_name, command_name in optional_commands:

@@ -2,11 +2,9 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project Context
+## What This Project Is
 
-**MCP for Unity** — a bridge that lets AI assistants (Claude, Cursor, Windsurf, etc.) control the Unity Editor through the Model Context Protocol (MCP). Forked from [CoplayDev/unity-mcp](https://github.com/CoplayDev/unity-mcp).
-
-**Fork strategy:** We avoid modifying upstream code. Studio-specific tools go in separate files. When syncing with upstream, our additions should not conflict.
+**MCP for Unity** is a bridge that lets AI assistants (Claude, Cursor, Windsurf, etc.) control the Unity Editor through the Model Context Protocol (MCP). It enables AI-driven game development workflows - creating GameObjects, editing scripts, managing assets, running tests, and more.
 
 ## Architecture
 
@@ -21,8 +19,8 @@ Scene, Assets, Scripts
 ```
 
 **Two codebases, one system:**
-- `Server/` — Python MCP server (FastMCP 2.x, Python 3.10+, managed by `uv`)
-- `MCPForUnity/` — Unity C# Editor package (Unity 2021.3+, Newtonsoft.Json)
+- `Server/` - Python MCP server using FastMCP
+- `MCPForUnity/` - Unity C# Editor package
 
 ### Three Layers on the Python Side
 
@@ -41,10 +39,27 @@ MCP tools call Unity via WebSocket (`send_with_unity_instance`). CLI commands ca
 - **Stdio**: Single-agent only. Separate Python process per client. Legacy TCP bridge to Unity. New connections stomp old ones.
 - **HTTP**: Multi-agent ready. Single shared Python server. WebSocket hub at `/hub/plugin`. Session isolation via `client_id`.
 
-### Domain Symmetry
+## Code Philosophy
+
+### 1. Domain Symmetry
 Python MCP tools mirror C# Editor tools. Each domain exists in both:
 - `Server/src/services/tools/manage_material.py` ↔ `MCPForUnity/Editor/Tools/ManageMaterial.cs`
 - CLI commands (`Server/src/cli/commands/`) also mirror these but are a separate implementation.
+
+### 2. Minimal Abstraction
+Avoid premature abstraction. Three similar lines of code is better than a helper that's used once. Only abstract when you have 3+ genuine use cases.
+
+### 3. Delete Rather Than Deprecate
+When removing functionality, delete it completely. No `_unused` renames, no `// removed` comments, no backwards-compatibility shims for internal code.
+
+### 4. Test Coverage Required
+Every new feature needs tests. Run them before PRs.
+
+### 5. Keep Tools Focused
+Each MCP tool does one thing well. Resist the urge to add "convenient" parameters that bloat the API surface.
+
+### 6. Use Resources for Reading
+Keep them smart and focused rather than "read everything" type resources. Resources should be quick and LLM-friendly.
 
 ## Key Patterns
 
@@ -55,7 +70,7 @@ from services.registry import mcp_for_unity_tool
 
 @mcp_for_unity_tool(
     description="Does something in Unity.",
-    group="core",  # core (default), vfx, animation, ui, scripting_ext, testing, probuilder, docs
+    group="core",  # core (default), vfx, animation, ui, scripting_ext, testing, probuilder, profiling, docs
 )
 async def manage_something(
     ctx: Context,
@@ -107,15 +122,17 @@ Async handlers use `EditorApplication.update` polling with `TaskCompletionSource
 Use `ToolParams` for consistent parameter validation:
 ```csharp
 var p = new ToolParams(parameters);
-var name = p.GetRequired("name");     // returns Result<string> with error handling
-var size = p.GetInt("page_size") ?? 50;
+var pageSize = p.GetInt("page_size", "pageSize") ?? 50;
+var name = p.RequireString("name");
 ```
 
 ### C# Resources
 Resources use `[McpForUnityResource]` and follow the same `HandleCommand` pattern as tools. They provide read-only state to AI assistants.
 
-### Paging
-Always page results that could be large. Use `page_size` + `cursor` parameters, return `next_cursor` when more results exist.
+### Paging Large Results
+Always page results that could be large (hierarchies, components, search results):
+- Use `page_size` and `cursor` parameters
+- Return `next_cursor` when more results exist
 
 ### Composing Tools Internally (C#)
 Use `CommandRegistry.InvokeCommandAsync` to call other tools from within a handler:
@@ -125,7 +142,7 @@ var result = await CommandRegistry.InvokeCommandAsync("read_console", consolePar
 
 ## Commands
 
-### Python Tests
+### Running Tests
 ```bash
 # Python (all tests)
 cd Server && uv run pytest tests/ -v
@@ -136,19 +153,7 @@ cd Server && uv run pytest tests/test_manage_material.py -v
 # Python (single test by name)
 cd Server && uv run pytest tests/ -k "test_create_material" -v
 
-# Python (with coverage)
-cd Server && uv run pytest tests/ --cov --cov-report=html
-
 # Unity - open TestProjects/UnityMCPTests in Unity, use Test Runner window
-```
-
-### Unity C# Tests (via CLI, requires Unity + MCP bridge running)
-```bash
-cd Server
-uv run python -m cli.main editor tests                    # EditMode (default)
-uv run python -m cli.main editor tests --mode PlayMode    # PlayMode
-uv run python -m cli.main editor tests --async            # async launch
-uv run python -m cli.main editor poll-test <job_id> --wait 60  # poll async job
 ```
 
 ### Local Development
@@ -164,18 +169,10 @@ uv run python -m cli.main editor poll-test <job_id> --wait 60  # poll async job
 4. Add Python tests in `Server/tests/test_manage_<domain>.py`
 5. Add Unity tests in `TestProjects/UnityMCPTests/Assets/Tests/`
 
-**For studio-specific tools:** Create new files rather than modifying existing upstream files to minimize merge conflicts.
+## What Not To Do
 
-## Git Workflow
-
-- **Branch off `beta`** for PRs — `main` is for stable releases only
-- Remote: `origin` → `git@github-the1studio:The1Studio/unity-mcp.git` (our fork)
-- Upstream: `CoplayDev/unity-mcp` (sync periodically)
-
-## Code Philosophy
-
-- **Minimal abstraction** — Three similar lines > a helper used once. Abstract only at 3+ use cases.
-- **Delete rather than deprecate** — No `_unused` renames or `// removed` comments.
-- **Keep tools focused** — One tool, one job. No "convenient" parameter bloat.
-- **Resources for reading** — Keep resources smart and focused, not "read everything" dumps.
-- **Test coverage required** — Every new feature needs tests. Run them before PRs.
+- Don't add features without tests
+- Don't create helper functions for one-time operations
+- Don't add error handling for scenarios that can't happen
+- Don't commit to `main` directly - branch off `beta` for PRs
+- Don't add docstrings/comments to code you didn't change

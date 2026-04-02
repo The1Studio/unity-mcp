@@ -70,16 +70,71 @@ namespace MCPForUnity.Editor.Services.Server
                 CreateNoWindow = true
             };
 #else
-            // Linux: Run headless via bash — no terminal window needed.
-            // Server logs are still available via Unity console (MCP-FOR-UNITY prefix).
+            // Linux: Try common terminal emulators.
+            // ProcessStartInfo passes the argument string directly to the terminal, so we only
+            // need to escape for the double-quoted bash -c payload — no inner single quotes.
+            string script = $"{command}; exec bash";
+            string escapedScriptForArg = script
+                .Replace("\\", "\\\\")
+                .Replace("\"", "\\\"");
+            string bashCmdArgs = $"bash -c \"{escapedScriptForArg}\"";
+
+            string[] terminals = { "gnome-terminal", "xterm", "konsole", "xfce4-terminal" };
+            string terminalCmd = null;
+
+            foreach (var term in terminals)
+            {
+                try
+                {
+                    var which = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = "which",
+                        Arguments = term,
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        CreateNoWindow = true
+                    });
+                    which.WaitForExit(5000); // Wait for up to 5 seconds, the command is typically instantaneous
+                    if (which.ExitCode == 0)
+                    {
+                        terminalCmd = term;
+                        break;
+                    }
+                }
+                catch { }
+            }
+
+            if (terminalCmd == null)
+            {
+                terminalCmd = "xterm"; // Fallback
+            }
+
+            // Different terminals have different argument formats
+            string args;
+            if (terminalCmd == "gnome-terminal")
+            {
+                args = $"-- {bashCmdArgs}";
+            }
+            else if (terminalCmd == "konsole")
+            {
+                args = $"-e {bashCmdArgs}";
+            }
+            else if (terminalCmd == "xfce4-terminal")
+            {
+                // xfce4-terminal expects -e "command string" or -e command arg
+                args = $"--hold -e \"{bashCmdArgs.Replace("\"", "\\\"")}\"";
+            }
+            else // xterm and others
+            {
+                args = $"-hold -e {bashCmdArgs}";
+            }
+
             return new System.Diagnostics.ProcessStartInfo
             {
-                FileName = "/bin/bash",
-                Arguments = $"-c \"{command.Replace("\"", "\\\"")}\"",
+                FileName = terminalCmd,
+                Arguments = args,
                 UseShellExecute = false,
-                CreateNoWindow = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true
+                CreateNoWindow = true
             };
 #endif
         }
