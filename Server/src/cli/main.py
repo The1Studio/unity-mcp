@@ -277,6 +277,7 @@ def register_commands():
         ("cli.commands.packages", "packages"),
         ("cli.commands.reflect", "reflect"),
         ("cli.commands.docs", "docs"),
+        ("cli.commands.input_simulation", "input_simulation"),
     ]
 
     for module_name, command_name in optional_commands:
