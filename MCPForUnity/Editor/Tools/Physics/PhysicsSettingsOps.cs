@@ -59,7 +59,11 @@ namespace MCPForUnity.Editor.Tools.Physics
                         queriesHitTriggers = Physics2D.queriesHitTriggers,
                         queriesStartInColliders = Physics2D.queriesStartInColliders,
                         callbacksOnDisable = Physics2D.callbacksOnDisable,
+                        // Physics2D.autoSyncTransforms deprecated in Unity 6 (use Physics2D.SyncTransforms()).
+                        // Reading it preserves the JSON response contract for MCP clients.
+#pragma warning disable CS0618
                         autoSyncTransforms = Physics2D.autoSyncTransforms
+#pragma warning restore CS0618
                     }
                 };
             }
@@ -281,7 +285,11 @@ namespace MCPForUnity.Editor.Tools.Physics
                         changed.Add("callbacksOnDisable");
                         break;
                     case "autosynctransforms":
+                        // Physics2D.autoSyncTransforms deprecated in Unity 6 (use Physics2D.SyncTransforms()).
+                        // Setter preserved for JSON contract; new code should call Physics2D.SyncTransforms() manually.
+#pragma warning disable CS0618
                         Physics2D.autoSyncTransforms = prop.Value.Value<bool>();
+#pragma warning restore CS0618
                         changed.Add("autoSyncTransforms");
                         break;
                 }

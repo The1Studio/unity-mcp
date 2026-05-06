@@ -112,7 +112,13 @@ namespace MCPForUnity.Editor.Tools.InputSimulation
             if (!string.IsNullOrEmpty(path))
                 go = GameObject.Find(path);
             else if (!string.IsNullOrEmpty(instanceId) && int.TryParse(instanceId, out int id))
+            {
+                // Unity 6 deprecated InstanceIDToObject(int) in favor of EntityIdToObject.
+                // Preserved here for the 'instance_id' JSON contract; both APIs accept int.
+#pragma warning disable CS0618
                 go = UnityEditor.EditorUtility.InstanceIDToObject(id) as GameObject;
+#pragma warning restore CS0618
+            }
             else if (!string.IsNullOrEmpty(name))
                 go = GameObject.Find(name);
 
