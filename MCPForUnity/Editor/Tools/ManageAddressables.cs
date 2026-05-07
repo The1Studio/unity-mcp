@@ -205,7 +205,9 @@ namespace MCPForUnity.Editor.Tools
 
         private static object Build(ToolParams p)
         {
-            bool clean = p.GetBool("clean") ?? false;
+            // ToolParams.GetBool already takes a default; the null-coalesce was a leftover from
+            // when GetBool returned bool? — dropping it fixes CS0019 once UNITY_ADDRESSABLES is defined.
+            bool clean = p.GetBool("clean", false);
 
             if (clean)
             {

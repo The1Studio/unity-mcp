@@ -20,6 +20,7 @@
         "Unity.Addressables",
         "Unity.Addressables.Editor",
         "Unity.Localization",
+        "Unity.Localization.Editor",
         "Unity.Netcode.Runtime",
         "Unity.Behavior",
         "Unity.AI.Navigation",
