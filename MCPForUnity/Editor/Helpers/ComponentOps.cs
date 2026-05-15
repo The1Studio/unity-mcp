@@ -5,6 +5,7 @@ using Newtonsoft.Json.Linq;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Events;
+using MCPForUnity.Runtime.Helpers;
 
 namespace MCPForUnity.Editor.Helpers
 {
@@ -748,6 +749,18 @@ namespace MCPForUnity.Editor.Helpers
                     return AssignObjectReference(prop, resolved, null, out error);
                 }
 
+                // Try as asset GUID (32-char hex string)
+                if (strVal.Length == 32 && IsHexString(strVal))
+                {
+                    string assetPath = AssetDatabase.GUIDToAssetPath(strVal);
+                    if (!string.IsNullOrEmpty(assetPath))
+                    {
+                        var resolved = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(assetPath);
+                        if (resolved != null)
+                            return AssignObjectReference(prop, resolved, null, out error);
+                    }
+                }
+
                 // Fall back to scene hierarchy lookup by name.
                 return ResolveSceneObjectByName(prop, strVal, null, out error);
             }
@@ -965,9 +978,19 @@ namespace MCPForUnity.Editor.Helpers
             }
             catch (Exception ex)
             {
-                McpLog.Warn($"Failed to get fileID for sprite '{sprite.name}' (instanceID={sprite.GetInstanceID()}): {ex.Message}");
+                McpLog.Warn($"Failed to get fileID for sprite '{sprite.name}' (instanceID={sprite.GetInstanceIDCompat()}): {ex.Message}");
                 return 0;
             }
+        }
+
+        private static bool IsHexString(string str)
+        {
+            foreach (char c in str)
+            {
+                if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')))
+                    return false;
+            }
+            return true;
         }
     }
 }

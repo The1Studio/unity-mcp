@@ -3,6 +3,7 @@ using Newtonsoft.Json.Linq;
 using UnityEditor;
 using UnityEngine;
 using MCPForUnity.Editor.Helpers;
+using MCPForUnity.Runtime.Helpers;
 
 namespace MCPForUnity.Editor.Tools.Vfx
 {
@@ -90,7 +91,7 @@ namespace MCPForUnity.Editor.Tools.Vfx
                 success = true,
                 message = $"ParticleSystem ready on '{go.name}'",
                 target = go.name,
-                targetId = go.GetInstanceID(),
+                targetId = go.GetInstanceIDCompat(),
                 createdGameObject,
                 addedParticleSystem,
                 assignedMaterial = renderer?.sharedMaterial?.name
@@ -100,7 +101,7 @@ namespace MCPForUnity.Editor.Tools.Vfx
         public static object EnableModule(JObject @params)
         {
             ParticleSystem ps = ParticleCommon.FindParticleSystem(@params);
-            if (ps == null) return new { success = false, message = "ParticleSystem not found" };
+            if (ps == null) return new { success = false, message = ParticleCommon.FindParticleSystemError(@params) };
 
             string moduleName = @params["module"]?.ToString()?.ToLowerInvariant();
             bool enabled = @params["enabled"]?.ToObject<bool>() ?? true;
@@ -130,7 +131,7 @@ namespace MCPForUnity.Editor.Tools.Vfx
         public static object Control(JObject @params, string action)
         {
             ParticleSystem ps = ParticleCommon.FindParticleSystem(@params);
-            if (ps == null) return new { success = false, message = "ParticleSystem not found" };
+            if (ps == null) return new { success = false, message = ParticleCommon.FindParticleSystemError(@params) };
 
             RendererHelpers.EnsureMaterialResult ensureResult = default;
             bool materialChecked = false;
@@ -138,7 +139,7 @@ namespace MCPForUnity.Editor.Tools.Vfx
             // Ensure material is assigned before playing
             if (action == "play" || action == "restart")
             {
-                var renderer = ps.GetComponent<ParticleSystemRenderer>();
+                var renderer = ParticleCommon.FindParticleSystemRenderer(ps);
                 if (renderer != null)
                 {
                     ensureResult = RendererHelpers.EnsureMaterial(renderer);
@@ -170,10 +171,10 @@ namespace MCPForUnity.Editor.Tools.Vfx
         public static object AddBurst(JObject @params)
         {
             ParticleSystem ps = ParticleCommon.FindParticleSystem(@params);
-            if (ps == null) return new { success = false, message = "ParticleSystem not found" };
+            if (ps == null) return new { success = false, message = ParticleCommon.FindParticleSystemError(@params) };
 
             // Ensure material is assigned
-            var renderer = ps.GetComponent<ParticleSystemRenderer>();
+            var renderer = ParticleCommon.FindParticleSystemRenderer(ps);
             RendererHelpers.EnsureMaterialResult ensureResult = default;
             bool materialChecked = false;
             if (renderer != null)
@@ -216,7 +217,7 @@ namespace MCPForUnity.Editor.Tools.Vfx
         public static object ClearBursts(JObject @params)
         {
             ParticleSystem ps = ParticleCommon.FindParticleSystem(@params);
-            if (ps == null) return new { success = false, message = "ParticleSystem not found" };
+            if (ps == null) return new { success = false, message = ParticleCommon.FindParticleSystemError(@params) };
 
             Undo.RecordObject(ps, "Clear Bursts");
             var emission = ps.emission;

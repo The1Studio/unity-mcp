@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using MCPForUnity.Editor.Helpers;
+using MCPForUnity.Runtime.Helpers;
 using Newtonsoft.Json.Linq;
 using UnityEditor;
 
@@ -81,7 +82,7 @@ namespace MCPForUnity.Editor.Tools
                     return _assemblyTypeCache;
 
                 _assemblyTypeCache = new Dictionary<string, Type[]>();
-                foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+                foreach (var asm in UnityAssembliesCompat.GetLoadedAssemblies())
                 {
                     try
                     {
@@ -167,6 +168,23 @@ namespace MCPForUnity.Editor.Tools
                 {
                     found = false,
                     query = className
+                });
+            }
+
+            // Open generic type definitions (e.g. List<T>) segfault Mono on Unity 2021.3
+            // in mono_metadata_generic_param_equal_internal when any member reflection is
+            // performed. Return minimal info using only safe property accesses.
+            if (type.IsGenericTypeDefinition)
+            {
+                return new SuccessResponse($"Type info for '{type.Name}'.", new
+                {
+                    found = true,
+                    name = type.Name,
+                    full_name = type.FullName,
+                    @namespace = type.Namespace,
+                    assembly = type.Assembly.GetName().Name,
+                    is_generic_type_definition = true,
+                    hint = "Open generic type — consult docs for member details."
                 });
             }
 
@@ -270,6 +288,19 @@ namespace MCPForUnity.Editor.Tools
                     found = false,
                     query = className
                 });
+            }
+
+            if (type.IsGenericTypeDefinition)
+            {
+                return new SuccessResponse(
+                    $"Open generic type '{type.Name}' — consult docs for member details.", new
+                    {
+                        found = false,
+                        type_name = type.FullName,
+                        member_name = memberName,
+                        is_generic_type_definition = true,
+                        hint = "Open generic type — consult docs for member details."
+                    });
             }
 
             // Use flags without DeclaredOnly to find inherited members
