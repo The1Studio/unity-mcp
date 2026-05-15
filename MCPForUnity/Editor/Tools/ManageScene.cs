@@ -558,12 +558,12 @@ namespace MCPForUnity.Editor.Tools
                         fileName, resolvedSuperSize, ensureUniqueFileName: true,
                         includeImage: includeImage, maxResolution: maxResolution);
 
-                    AssetDatabase.ImportAsset(screenResult.AssetsRelativePath, ImportAssetOptions.ForceSynchronousImport);
-                    string screenMsg = $"Screenshot captured to '{screenResult.AssetsRelativePath}' (full screen including GUI).";
+                    AssetDatabase.ImportAsset(screenResult.ProjectRelativePath, ImportAssetOptions.ForceSynchronousImport);
+                    string screenMsg = $"Screenshot captured to '{screenResult.ProjectRelativePath}' (full screen including GUI).";
 
                     var screenData = new Dictionary<string, object>
                     {
-                        { "path", screenResult.AssetsRelativePath },
+                        { "path", screenResult.ProjectRelativePath },
                         { "fullPath", screenResult.FullPath },
                         { "superSize", screenResult.SuperSize },
                         { "isAsync", false },

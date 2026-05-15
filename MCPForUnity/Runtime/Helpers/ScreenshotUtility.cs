@@ -339,7 +339,7 @@ namespace MCPForUnity.Runtime.Helpers
                     "Enable it via Window > Package Manager > Built-in > Screen Capture > Enable.");
             }
 
-            ScreenshotCaptureResult result = PrepareCaptureResult(fileName, superSize, ensureUniqueFileName, isAsync: false);
+            ScreenshotCaptureResult result = PrepareCaptureResult(fileName, superSize, ensureUniqueFileName, folderOverride: null, isAsync: false);
 
             Texture2D screenTex = null;
             Texture2D downscaled = null;
@@ -384,7 +384,7 @@ namespace MCPForUnity.Runtime.Helpers
             if (includeImage && imageBase64 != null)
             {
                 return new ScreenshotCaptureResult(
-                    result.FullPath, result.AssetsRelativePath, result.SuperSize, false,
+                    result.FullPath, result.ProjectRelativePath, result.SuperSize, false,
                     imageBase64, imgW, imgH);
             }
             return result;
