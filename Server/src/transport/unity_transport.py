@@ -1,6 +1,7 @@
 """Transport helpers for routing commands to Unity."""
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Awaitable, Callable, TypeVar
 
@@ -84,11 +85,38 @@ async def send_with_unity_instance(
                 retry_on_reload=retry_on_reload,
             )
             return normalize_unity_response(raw)
+        except asyncio.TimeoutError:
+            return normalize_unity_response(MCPResponse(
+                success=False,
+                error="unity_request_timeout",
+                message=(
+                    "Unity did not respond in time. Common causes: "
+                    "(1) Unity is mid-domain-reload — wait, check "
+                    "Library/ScriptAssemblies/*.dll mtime, "
+                    "(2) Unity main thread is busy with a long operation "
+                    "(script compile, asset import, scene bake), "
+                    "(3) the bridge socket died — check Unity console and "
+                    "Window > MCP for Unity panel. "
+                    "Inspect Unity Editor BEFORE retrying."
+                ),
+                hint="diagnose_then_retry",
+            ).model_dump())
+        except (ConnectionRefusedError, ConnectionResetError):
+            return normalize_unity_response(MCPResponse(
+                success=False,
+                error="unity_unreachable",
+                message=(
+                    "Unity is not reachable. The MCP bridge is either not "
+                    "running or has crashed. Open Unity Editor → Window > "
+                    "MCP for Unity > Start Session. Do NOT kill or restart "
+                    "the Unity Editor process to recover this — the bridge "
+                    "can be restarted from inside the running Editor."
+                ),
+                hint="restart_bridge",
+            ).model_dump())
         except Exception as exc:
-            # NOTE: asyncio.TimeoutError has an empty str() by default, which is confusing for clients.
+            # Truly unknown — preserve previous wrapping for backward-compat.
             err = str(exc) or f"{type(exc).__name__}"
-            # Fail fast with a retry hint instead of hanging for COMMAND_TIMEOUT.
-            # The client can decide whether retrying is appropriate for the command.
             return normalize_unity_response(
                 MCPResponse(success=False, error=err,
                             hint="retry").model_dump()
