@@ -27,6 +27,23 @@ _connection_lock = threading.Lock()
 FRAMED_MAX = 64 * 1024 * 1024
 
 
+class EvictedByOtherClientError(ConnectionError):
+    """Raised when the Unity bridge sends an eviction notice frame —
+    another MCP client connected and took over the single stdio slot.
+
+    Carries the C#-side payload so callers can surface the structured
+    error (new client endpoint, eviction timestamp) instead of seeing
+    only a generic socket close.
+    """
+
+    def __init__(self, message: str, payload: dict | None = None):
+        super().__init__(message)
+        self.payload = payload or {}
+        self.reason = self.payload.get("reason")
+        self.new_client_endpoint = self.payload.get("new_client_endpoint")
+        self.evicted_at_unix_ms = self.payload.get("evicted_at_unix_ms")
+
+
 @dataclass
 class UnityConnection:
     """Manages the socket connection to the Unity Editor."""
@@ -198,11 +215,29 @@ class UnityConnection:
                     payload = self._read_exact(sock, payload_len)
                     logger.debug(
                         f"Received framed response ({len(payload)} bytes)")
+                    # Detect eviction-notice frames sent by StdioBridgeHost when
+                    # a new MCP client connects and stomps this one. The C# side
+                    # writes a JSON payload with status="evicted" immediately
+                    # before closing the stale socket; raising a typed exception
+                    # lets the MCP tool layer surface a clear error rather than
+                    # the generic IOException that would follow the socket close.
+                    try:
+                        decoded = json.loads(payload.decode('utf-8'))
+                    except (ValueError, UnicodeDecodeError):
+                        decoded = None
+                    if isinstance(decoded, dict) and decoded.get("status") == "evicted":
+                        message = decoded.get(
+                            "error") or "Connection evicted by another MCP client."
+                        logger.warning(
+                            "Received eviction notice from Unity bridge: %s", message)
+                        raise EvictedByOtherClientError(message, decoded)
                     return payload
             except socket.timeout as exc:
                 logger.warning("Socket timeout during framed receive")
                 raise TimeoutError("Timeout receiving Unity response") from exc
             except TimeoutError:
+                raise
+            except EvictedByOtherClientError:
                 raise
             except Exception as exc:
                 logger.error(f"Error during framed receive: {exc}")
