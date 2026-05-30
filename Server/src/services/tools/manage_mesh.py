@@ -59,7 +59,7 @@ async def manage_mesh(
     count: Annotated[int, "Number of samples to return for sample_* and inspect actions (default 10)."] | None = None,
     offset: Annotated[int, "Start offset index for sampling (default 0)."] | None = None,
 ) -> dict[str, Any]:
-    unity_instance = get_unity_instance_from_context(ctx)
+    unity_instance = await get_unity_instance_from_context(ctx)
 
     params = {
         "action": action,

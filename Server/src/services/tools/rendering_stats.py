@@ -54,7 +54,7 @@ async def rendering_stats(
     include_csv: Annotated[bool | None, "For get_session_report: include CSV data."] = True,
     filename: Annotated[str | None, "For load_session/analyze_session: session JSON filename."] = None,
 ) -> dict[str, Any]:
-    unity_instance = get_unity_instance_from_context(ctx)
+    unity_instance = await get_unity_instance_from_context(ctx)
 
     params: dict[str, Any] = {"action": action}
     if frames is not None:

@@ -53,7 +53,7 @@ async def manage_render_pipeline(
     page_size: Annotated[int, "Max results to return (default 50)"] | None = None,
     cursor: Annotated[int, "Pagination cursor (0-based offset)"] | None = None,
 ) -> dict[str, Any]:
-    unity_instance = get_unity_instance_from_context(ctx)
+    unity_instance = await get_unity_instance_from_context(ctx)
 
     params = {
         "action": action,
