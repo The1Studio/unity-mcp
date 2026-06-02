@@ -47,7 +47,7 @@ async def manage_shader_tool(
         "Used by: find, get_errors, get_info, get_passes."
     ] | None = None,
 ) -> dict[str, Any]:
-    unity_instance = get_unity_instance_from_context(ctx)
+    unity_instance = await get_unity_instance_from_context(ctx)
 
     params = {
         "action": action,

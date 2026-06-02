@@ -89,7 +89,7 @@ async def manage_input_simulation(
     page_size: Annotated[int | None, "Max results (default 50)"] = None,
     cursor: Annotated[int | None, "Pagination cursor"] = None,
 ) -> dict[str, Any]:
-    unity_instance = get_unity_instance_from_context(ctx)
+    unity_instance = await get_unity_instance_from_context(ctx)
 
     params: dict[str, Any] = {
         "action": action,

@@ -47,7 +47,7 @@ async def validation_snapshot(
         "Current snapshot JSON (for 'compare' action)."
     ] | None = None,
 ) -> dict[str, Any]:
-    unity_instance = get_unity_instance_from_context(ctx)
+    unity_instance = await get_unity_instance_from_context(ctx)
 
     params = {
         "action": action,

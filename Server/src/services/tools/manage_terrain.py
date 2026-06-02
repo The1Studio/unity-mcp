@@ -62,7 +62,7 @@ async def manage_terrain(
     # Heightmap sample
     size: Annotated[int, "Patch size NxN in heightmap pixels, clamped to 64 (for get_heightmap_sample)"] | None = None,
 ) -> dict[str, Any]:
-    unity_instance = get_unity_instance_from_context(ctx)
+    unity_instance = await get_unity_instance_from_context(ctx)
 
     params = {
         "action": action,

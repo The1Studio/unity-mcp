@@ -43,7 +43,7 @@ async def manage_localization(
     value: Annotated[str, "Localized string value (for set_entry)"] | None = None,
     type: Annotated[str, "Table type: 'string' or 'asset' (for list_tables)"] | None = None,
 ) -> dict[str, Any]:
-    unity_instance = get_unity_instance_from_context(ctx)
+    unity_instance = await get_unity_instance_from_context(ctx)
 
     params = {"action": action, "locale_code": locale_code, "table": table,
               "key": key, "locale": locale, "value": value, "type": type}
