@@ -4,6 +4,7 @@ using System.IO;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
+using Newtonsoft.Json.Linq;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
@@ -147,6 +148,67 @@ namespace MCPForUnityTests.Editor.Services
                 }
 
                 Assert.IsTrue(firstClientDisconnected, "First client should be disconnected after second client connects");
+            }
+            finally
+            {
+                try { client1.Close(); } catch { }
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator NewClient_SendsStructuredEvictionFrame_BeforeClosingStaleClient()
+        {
+            if (!StdioBridgeHost.IsRunning)
+            {
+                Assert.Ignore("StdioBridgeHost is not running; skipping eviction-frame test.");
+                yield break;
+            }
+
+            int port = StdioBridgeHost.GetCurrentPort();
+
+            // --- First client: connect and consume handshake ---
+            var client1 = new TcpClient();
+            try
+            {
+                Assert.IsTrue(client1.ConnectAsync("127.0.0.1", port).Wait(ConnectTimeoutMs),
+                    "First client connect timed out");
+                client1.ReceiveTimeout = ReadTimeoutMs;
+                var stream1 = client1.GetStream();
+
+                string handshake1 = ReadLine(stream1, ReadTimeoutMs);
+                Assert.That(handshake1, Does.Contain("FRAMING=1"), "First client should receive handshake");
+
+                // --- Second client: connect — this triggers stale-client eviction ---
+                using (var client2 = new TcpClient())
+                {
+                    Assert.IsTrue(client2.ConnectAsync("127.0.0.1", port).Wait(ConnectTimeoutMs),
+                        "Second client connect timed out");
+                    client2.ReceiveTimeout = ReadTimeoutMs;
+                    var stream2 = client2.GetStream();
+
+                    string handshake2 = ReadLine(stream2, ReadTimeoutMs);
+                    Assert.That(handshake2, Does.Contain("FRAMING=1"), "Second client should receive handshake");
+
+                    // First client should now receive an eviction-notice frame before
+                    // its socket is closed. The bridge writes this frame with a 500ms
+                    // best-effort timeout, so we give it a comfortable 2000ms window.
+                    byte[] evictionFrame = ReadFrame(stream1, 2000);
+                    string evictionJson = Encoding.UTF8.GetString(evictionFrame);
+
+                    var parsed = JObject.Parse(evictionJson);
+                    Assert.AreEqual("evicted", (string)parsed["status"],
+                        "Eviction frame must have status=\"evicted\"");
+                    Assert.AreEqual("stdio_single_client_stomped", (string)parsed["reason"],
+                        "Eviction frame must have reason=\"stdio_single_client_stomped\"");
+                    Assert.That((string)parsed["error"], Is.Not.Null.And.Not.Empty,
+                        "Eviction frame must carry a human-readable error message");
+                    Assert.That((string)parsed["new_client_endpoint"], Is.Not.Null.And.Not.Empty,
+                        "Eviction frame must identify the stomping client's endpoint");
+                    Assert.That(parsed["evicted_at_unix_ms"], Is.Not.Null,
+                        "Eviction frame must carry an eviction timestamp");
+
+                    client2.Close();
+                }
             }
             finally
             {

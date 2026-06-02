@@ -510,6 +510,12 @@ namespace MCPForUnity.Editor.Services.Transport.Transports
                     // In stdio transport there is only ever one active Python server.
                     // A new connection means the old one is dead — close stale clients so
                     // their hung ReadFrameAsUtf8Async calls throw and exit cleanly.
+                    //
+                    // Before closing, send a structured eviction notice frame so the stomped
+                    // client can surface a clear error ("you were evicted by another MCP
+                    // client") instead of a generic "Connection closed before reading
+                    // expected bytes". The notice is best-effort with a tight timeout — a
+                    // half-dead socket must not block the accept loop.
                     TcpClient[] staleClients;
                     lock (clientsLock)
                     {
@@ -517,9 +523,28 @@ namespace MCPForUnity.Editor.Services.Transport.Transports
                     }
                     if (staleClients.Length > 0)
                     {
-                        McpLog.Info($"Closing {staleClients.Length} stale client(s) after new connection");
+                        var newEp = client.Client?.RemoteEndPoint?.ToString() ?? "unknown";
+                        McpLog.Info($"Closing {staleClients.Length} stale client(s) after new connection from {newEp}");
+                        var evictionPayload = JsonConvert.SerializeObject(new
+                        {
+                            status = "evicted",
+                            reason = "stdio_single_client_stomped",
+                            error = $"Another MCP client connected from {newEp}. Stdio transport allows " +
+                                    "only one MCP client at a time; this connection has been evicted. " +
+                                    "If you need concurrent MCP clients (e.g. multiple Claude Code sessions), " +
+                                    "switch the bridge to HTTP transport mode.",
+                            evicted_at_unix_ms = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                            new_client_endpoint = newEp,
+                        });
+                        var evictionBytes = System.Text.Encoding.UTF8.GetBytes(evictionPayload);
                         foreach (var stale in staleClients)
                         {
+                            try
+                            {
+                                using var noticeCts = new CancellationTokenSource(500);
+                                await WriteFrameAsync(stale.GetStream(), evictionBytes, noticeCts.Token).ConfigureAwait(false);
+                            }
+                            catch { /* best-effort; socket may already be dead */ }
                             try { stale.Close(); } catch { }
                         }
                     }
