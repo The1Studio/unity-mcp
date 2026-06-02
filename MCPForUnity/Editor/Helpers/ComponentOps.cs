@@ -148,6 +148,19 @@ namespace MCPForUnity.Editor.Helpers
         /// <returns>True if property was set successfully</returns>
         public static bool SetProperty(Component component, string propertyName, JToken value, out string error)
         {
+            return SetProperty(component, propertyName, value, null, out error);
+        }
+
+        /// <summary>
+        /// Sets a property on a component, optionally resolving in-prefab object references
+        /// against <paramref name="prefabRoot"/> instead of the active scene.
+        /// When <paramref name="prefabRoot"/> is non-null (e.g. headless prefab editing via
+        /// PrefabUtility.LoadPrefabContents), name/path/instanceID object-reference payloads are
+        /// resolved exclusively within the loaded prefab hierarchy and never fall back to the scene,
+        /// preventing cross-contamination of references between the prefab and any open scene.
+        /// </summary>
+        public static bool SetProperty(Component component, string propertyName, JToken value, GameObject prefabRoot, out string error)
+        {
             error = null;
 
             if (component == null)
@@ -172,17 +185,27 @@ namespace MCPForUnity.Editor.Helpers
             Type memberType = ResolveMemberType(type, propertyName, normalizedName);
             if (memberType != null && typeof(UnityEventBase).IsAssignableFrom(memberType))
             {
-                return SetViaSerializedProperty(component, propertyName, normalizedName, value, out error);
+                return SetViaSerializedProperty(component, propertyName, normalizedName, value, prefabRoot, out error);
             }
 
+            // When resolving inside a loaded prefab, object references must be resolved against
+            // the prefab hierarchy via SerializedProperty — skip the reflection path so the
+            // prefabRoot-aware resolver is always used for object-reference payloads.
+            bool deferToSerializedForPrefab = prefabRoot != null
+                && value != null
+                && value.Type == JTokenType.Object
+                && memberType != null
+                && typeof(UnityEngine.Object).IsAssignableFrom(memberType);
+
             // Try reflection first (property, field, then non-public serialized field)
-            if (TrySetViaReflection(component, type, propertyName, normalizedName, flags, value, out error))
+            if (!deferToSerializedForPrefab
+                && TrySetViaReflection(component, type, propertyName, normalizedName, flags, value, out error))
                 return true;
 
             // Reflection failed — fall back to SerializedProperty which handles arrays,
             // custom serialization (e.g. UdonSharp), and types reflection can't convert.
             string reflectionError = error;
-            if (SetViaSerializedProperty(component, propertyName, normalizedName, value, out error))
+            if (SetViaSerializedProperty(component, propertyName, normalizedName, value, prefabRoot, out error))
                 return true;
 
             // Both paths failed. If reflection found the member but couldn't convert,
@@ -452,6 +475,11 @@ namespace MCPForUnity.Editor.Helpers
 
         private static bool SetViaSerializedProperty(Component component, string propertyName, string normalizedName, JToken value, out string error)
         {
+            return SetViaSerializedProperty(component, propertyName, normalizedName, value, null, out error);
+        }
+
+        private static bool SetViaSerializedProperty(Component component, string propertyName, string normalizedName, JToken value, GameObject prefabRoot, out string error)
+        {
             error = null;
             using var so = new SerializedObject(component);
 
@@ -463,7 +491,7 @@ namespace MCPForUnity.Editor.Helpers
                 return false;
             }
 
-            if (!SetSerializedPropertyRecursive(prop, value, out error, 0))
+            if (!SetSerializedPropertyRecursive(prop, value, prefabRoot, out error, 0))
                 return false;
 
             so.ApplyModifiedProperties();
@@ -491,6 +519,11 @@ namespace MCPForUnity.Editor.Helpers
 
         private static bool SetSerializedPropertyRecursive(SerializedProperty prop, JToken value, out string error, int depth)
         {
+            return SetSerializedPropertyRecursive(prop, value, null, out error, depth);
+        }
+
+        private static bool SetSerializedPropertyRecursive(SerializedProperty prop, JToken value, GameObject prefabRoot, out string error, int depth)
+        {
             error = null;
             const int MaxDepth = 20;
             if (depth > MaxDepth)
@@ -511,7 +544,7 @@ namespace MCPForUnity.Editor.Helpers
                     for (int i = 0; i < jArray.Count; i++)
                     {
                         var element = prop.GetArrayElementAtIndex(i);
-                        if (!SetSerializedPropertyRecursive(element, jArray[i], out error, depth + 1))
+                        if (!SetSerializedPropertyRecursive(element, jArray[i], prefabRoot, out error, depth + 1))
                             return false;
                     }
                     return true;
@@ -528,7 +561,7 @@ namespace MCPForUnity.Editor.Helpers
                             error = $"Sub-property '{kvp.Key}' not found under '{prop.propertyPath}'.";
                             return false;
                         }
-                        if (!SetSerializedPropertyRecursive(child, kvp.Value, out error, depth + 1))
+                        if (!SetSerializedPropertyRecursive(child, kvp.Value, prefabRoot, out error, depth + 1))
                             return false;
                     }
                     return true;
@@ -536,7 +569,7 @@ namespace MCPForUnity.Editor.Helpers
 
                 // ObjectReference
                 if (prop.propertyType == SerializedPropertyType.ObjectReference)
-                    return SetObjectReference(prop, value, out error);
+                    return SetObjectReference(prop, value, prefabRoot, out error);
 
                 // Leaf types
                 switch (prop.propertyType)
@@ -595,6 +628,19 @@ namespace MCPForUnity.Editor.Helpers
 
         internal static bool SetObjectReference(SerializedProperty prop, JToken value, out string error)
         {
+            return SetObjectReference(prop, value, null, out error);
+        }
+
+        /// <summary>
+        /// Resolves and assigns an object reference. When <paramref name="prefabRoot"/> is non-null,
+        /// name/path/instanceID payloads are resolved against the loaded prefab hierarchy
+        /// (<see cref="GameObject.GetComponentsInChildren{T}(bool)"/> on the prefab root) with
+        /// prefab-only precedence — the active scene is never consulted, so references cannot
+        /// cross-contaminate between the prefab and any open scene. Asset payloads
+        /// (guid/path-to-asset) are unaffected and resolve via the AssetDatabase as before.
+        /// </summary>
+        internal static bool SetObjectReference(SerializedProperty prop, JToken value, GameObject prefabRoot, out string error)
+        {
             error = null;
 
             if (value == null || value.Type == JTokenType.Null)
@@ -606,6 +652,16 @@ namespace MCPForUnity.Editor.Helpers
             if (value.Type == JTokenType.Integer)
             {
                 int id = value.Value<int>();
+                if (prefabRoot != null)
+                {
+                    var prefabObj = ResolveInPrefabByInstanceId(prefabRoot, id);
+                    if (prefabObj == null)
+                    {
+                        error = $"No object found with instanceID {id} in loaded prefab.";
+                        return false;
+                    }
+                    return AssignObjectReference(prop, prefabObj, null, out error);
+                }
                 var resolved = GameObjectLookup.ResolveInstanceID(id);
                 if (resolved == null)
                 {
@@ -624,6 +680,16 @@ namespace MCPForUnity.Editor.Helpers
                 if (idToken != null)
                 {
                     int id = ParamCoercion.CoerceInt(idToken, 0);
+                    if (prefabRoot != null)
+                    {
+                        var prefabObj = ResolveInPrefabByInstanceId(prefabRoot, id);
+                        if (prefabObj == null)
+                        {
+                            error = $"No object found with instanceID {id} in loaded prefab.";
+                            return false;
+                        }
+                        return AssignObjectReference(prop, prefabObj, componentFilter, out error);
+                    }
                     var resolved = GameObjectLookup.ResolveInstanceID(id);
                     if (resolved == null)
                     {
@@ -704,7 +770,23 @@ namespace MCPForUnity.Editor.Helpers
                 var pathToken = jObj["path"];
                 if (pathToken != null)
                 {
-                    string sanitized = AssetPathUtility.SanitizeAssetPath(pathToken.ToString());
+                    string pathStr = pathToken.ToString();
+
+                    // When editing a loaded prefab, a {"path": ...} payload refers to an in-prefab
+                    // hierarchy path (e.g. "HomeScreenView/Container/BtnProfile"), NOT an asset path.
+                    // Resolve against the prefab hierarchy only; do not fall back to the scene/AssetDatabase.
+                    if (prefabRoot != null)
+                    {
+                        var prefabObj = ResolveInPrefabByPath(prefabRoot, pathStr);
+                        if (prefabObj == null)
+                        {
+                            error = $"No GameObject found at path '{pathStr}' within loaded prefab '{prefabRoot.name}'.";
+                            return false;
+                        }
+                        return AssignObjectReference(prop, prefabObj, componentFilter, out error);
+                    }
+
+                    string sanitized = AssetPathUtility.SanitizeAssetPath(pathStr);
                     var resolved = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(sanitized);
                     if (resolved == null)
                     {
@@ -717,6 +799,16 @@ namespace MCPForUnity.Editor.Helpers
                 var nameToken = jObj["name"];
                 if (nameToken != null)
                 {
+                    if (prefabRoot != null)
+                    {
+                        var prefabObj = ResolveInPrefabByName(prefabRoot, nameToken.ToString());
+                        if (prefabObj == null)
+                        {
+                            error = $"No GameObject named '{nameToken}' found in loaded prefab '{prefabRoot.name}'.";
+                            return false;
+                        }
+                        return AssignObjectReference(prop, prefabObj, componentFilter, out error);
+                    }
                     return ResolveSceneObjectByName(prop, nameToken.ToString(), componentFilter, out error);
                 }
 
@@ -727,6 +819,54 @@ namespace MCPForUnity.Editor.Helpers
             if (value.Type == JTokenType.String)
             {
                 string strVal = value.ToString();
+
+                // Prefab-scoped resolution: a bare string identifies an in-prefab child by
+                // instanceID, hierarchy path, or name. Genuine asset references (Assets/-paths
+                // and 32-char GUIDs) still resolve via the AssetDatabase, since a prefab may
+                // legitimately reference project assets.
+                if (prefabRoot != null)
+                {
+                    if (int.TryParse(strVal, out int prefabParsedId))
+                    {
+                        var prefabObj = ResolveInPrefabByInstanceId(prefabRoot, prefabParsedId);
+                        if (prefabObj != null)
+                            return AssignObjectReference(prop, prefabObj, null, out error);
+                        // Fall through to path/name resolution within the prefab.
+                    }
+
+                    if (strVal.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase))
+                    {
+                        string sanitizedAsset = AssetPathUtility.SanitizeAssetPath(strVal);
+                        var assetRef = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(sanitizedAsset);
+                        if (assetRef == null)
+                        {
+                            error = $"No asset found at path '{strVal}'.";
+                            return false;
+                        }
+                        return AssignObjectReference(prop, assetRef, null, out error);
+                    }
+
+                    if (strVal.Length == 32 && IsHexString(strVal))
+                    {
+                        string assetPath = AssetDatabase.GUIDToAssetPath(strVal);
+                        if (!string.IsNullOrEmpty(assetPath))
+                        {
+                            var assetRef = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(assetPath);
+                            if (assetRef != null)
+                                return AssignObjectReference(prop, assetRef, null, out error);
+                        }
+                    }
+
+                    var prefabByPath = strVal.Contains("/")
+                        ? ResolveInPrefabByPath(prefabRoot, strVal)
+                        : ResolveInPrefabByName(prefabRoot, strVal);
+                    if (prefabByPath == null)
+                    {
+                        error = $"No GameObject matching '{strVal}' found in loaded prefab '{prefabRoot.name}'.";
+                        return false;
+                    }
+                    return AssignObjectReference(prop, prefabByPath, null, out error);
+                }
 
                 // Try as instanceID if the string is purely numeric
                 if (int.TryParse(strVal, out int parsedId))
@@ -897,6 +1037,90 @@ namespace MCPForUnity.Editor.Helpers
             }
 
             return AssignObjectReference(prop, go, componentFilter, out error);
+        }
+
+        /// <summary>
+        /// Resolves a GameObject within a loaded prefab hierarchy by name.
+        /// Searches all transforms (including inactive) under the prefab root and the root itself.
+        /// Prefab-only — never consults the active scene.
+        /// </summary>
+        private static GameObject ResolveInPrefabByName(GameObject prefabRoot, string name)
+        {
+            if (prefabRoot == null || string.IsNullOrWhiteSpace(name))
+                return null;
+
+            // Match the root first (callers commonly target the root by name).
+            if (prefabRoot.name == name)
+                return prefabRoot;
+
+            foreach (var t in prefabRoot.GetComponentsInChildren<Transform>(true))
+            {
+                if (t != null && t.gameObject.name == name)
+                    return t.gameObject;
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Resolves a GameObject within a loaded prefab hierarchy by hierarchy path
+        /// (e.g. "Root/Container/BtnProfile"). Tolerates a leading root-name segment.
+        /// Prefab-only — never consults the active scene or the AssetDatabase.
+        /// </summary>
+        private static GameObject ResolveInPrefabByPath(GameObject prefabRoot, string path)
+        {
+            if (prefabRoot == null || string.IsNullOrWhiteSpace(path))
+                return null;
+
+            string trimmed = path.Trim('/');
+            if (trimmed.Length == 0)
+                return prefabRoot;
+
+            // Try the path verbatim relative to the root.
+            Transform found = prefabRoot.transform.Find(trimmed);
+            if (found != null)
+                return found.gameObject;
+
+            // Tolerate a leading root-name segment ("Root/Child/..." → "Child/...").
+            string rootPrefix = prefabRoot.name + "/";
+            if (trimmed.StartsWith(rootPrefix, StringComparison.Ordinal))
+            {
+                string relative = trimmed.Substring(rootPrefix.Length);
+                found = prefabRoot.transform.Find(relative);
+                if (found != null)
+                    return found.gameObject;
+            }
+
+            // Fall back to matching the final segment by name anywhere in the hierarchy.
+            int lastSlash = trimmed.LastIndexOf('/');
+            string leaf = lastSlash >= 0 ? trimmed.Substring(lastSlash + 1) : trimmed;
+            return ResolveInPrefabByName(prefabRoot, leaf);
+        }
+
+        /// <summary>
+        /// Resolves a GameObject or Component within a loaded prefab hierarchy by instanceID.
+        /// Prefab-only — never consults the active scene. Returns the matching GameObject,
+        /// Component, or null if the instanceID does not belong to the loaded prefab.
+        /// </summary>
+        private static UnityEngine.Object ResolveInPrefabByInstanceId(GameObject prefabRoot, int instanceId)
+        {
+            if (prefabRoot == null || instanceId == 0)
+                return null;
+
+            foreach (var t in prefabRoot.GetComponentsInChildren<Transform>(true))
+            {
+                if (t == null) continue;
+
+                var go = t.gameObject;
+                if (go.GetInstanceIDCompat() == instanceId)
+                    return go;
+
+                foreach (var comp in go.GetComponents<Component>())
+                {
+                    if (comp != null && comp.GetInstanceIDCompat() == instanceId)
+                        return comp;
+                }
+            }
+            return null;
         }
 
         /// <summary>
