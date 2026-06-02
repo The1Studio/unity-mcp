@@ -965,7 +965,10 @@ namespace MCPForUnity.Editor.Tools.Prefabs
 
                     foreach (var prop in props.Properties())
                     {
-                        if (!ComponentOps.SetProperty(component, prop.Name, prop.Value, out string setError))
+                        // Forward the loaded prefab root so in-prefab object references
+                        // (name/path/instanceID payloads) resolve against the prefab hierarchy,
+                        // not the active scene (issue #11).
+                        if (!ComponentOps.SetProperty(component, prop.Name, prop.Value, prefabRoot, out string setError))
                         {
                             errors.Add($"{typeName}.{prop.Name}: {setError}");
                         }
