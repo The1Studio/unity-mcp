@@ -110,34 +110,41 @@ namespace MCPForUnity.Editor.Helpers
         {
             try
             {
+                // Script-path derivation is the most reliable root for local/submodule
+                // layouts; compute it up front so we can validate PackageInfo against it.
+                string scriptDerivedRoot = GetScriptDerivedPackageRoot();
+
                 // Try Package Manager first (registry and local installs)
                 var packageInfo = PackageInfo.FindForAssembly(typeof(AssetPathUtility).Assembly);
                 if (packageInfo != null && !string.IsNullOrEmpty(packageInfo.assetPath))
                 {
+                    // Under a file:.../MCPForUnity submodule mount, PackageInfo.assetPath
+                    // points at the mount root and misses the trailing "/MCPForUnity"
+                    // segment, so every Editor-window UXML load returns null (issue #16).
+                    // Validate by probing a known asset; if it's missing, prefer the
+                    // script-derived root, which resolves the real package folder.
+                    if (PackageRootContainsKnownAsset(packageInfo.assetPath))
+                    {
+                        return packageInfo.assetPath;
+                    }
+
+                    if (!string.IsNullOrEmpty(scriptDerivedRoot))
+                    {
+                        McpLog.Warn($"PackageInfo.assetPath '{packageInfo.assetPath}' is missing expected " +
+                                    $"MCP assets; using script-derived root '{scriptDerivedRoot}' instead (issue #16)");
+                        return scriptDerivedRoot;
+                    }
+
                     return packageInfo.assetPath;
                 }
 
                 // Fallback to AssetDatabase for Asset Store installs (Assets/MCPForUnity)
-                string[] guids = AssetDatabase.FindAssets($"t:Script {nameof(AssetPathUtility)}");
-
-                if (guids.Length == 0)
+                if (!string.IsNullOrEmpty(scriptDerivedRoot))
                 {
-                    McpLog.Warn("Could not find AssetPathUtility script in AssetDatabase");
-                    return null;
+                    return scriptDerivedRoot;
                 }
 
-                string scriptPath = AssetDatabase.GUIDToAssetPath(guids[0]);
-
-                // Script is at: {packageRoot}/Editor/Helpers/AssetPathUtility.cs
-                // Extract {packageRoot}
-                int editorIndex = scriptPath.LastIndexOf("/Editor/", StringComparison.Ordinal);
-
-                if (editorIndex >= 0)
-                {
-                    return scriptPath.Substring(0, editorIndex);
-                }
-
-                McpLog.Warn($"Could not determine package root from script path: {scriptPath}");
+                McpLog.Warn("Could not determine package root from script path");
                 return null;
             }
             catch (Exception ex)
@@ -145,6 +152,39 @@ namespace MCPForUnity.Editor.Helpers
                 McpLog.Error($"Failed to get package root path: {ex.Message}");
                 return null;
             }
+        }
+
+        /// <summary>
+        /// Derives the package root from this script's own asset path.
+        /// Script lives at {packageRoot}/Editor/Helpers/AssetPathUtility.cs, so the
+        /// root is everything before "/Editor/". Robust to the file:.../MCPForUnity
+        /// submodule mount where PackageInfo.assetPath misses the package segment.
+        /// </summary>
+        /// <returns>The package root, or null if it cannot be determined.</returns>
+        private static string GetScriptDerivedPackageRoot()
+        {
+            string[] guids = AssetDatabase.FindAssets($"t:Script {nameof(AssetPathUtility)}");
+            if (guids.Length == 0)
+            {
+                return null;
+            }
+
+            string scriptPath = AssetDatabase.GUIDToAssetPath(guids[0]);
+            int editorIndex = scriptPath.LastIndexOf("/Editor/", StringComparison.Ordinal);
+            return editorIndex >= 0 ? scriptPath.Substring(0, editorIndex) : null;
+        }
+
+        /// <summary>
+        /// Probes whether a candidate package root actually contains MCP's editor
+        /// assets. Used to detect the issue #16 layout where PackageInfo.assetPath
+        /// resolves to the submodule mount root rather than the real package folder.
+        /// </summary>
+        private static bool PackageRootContainsKnownAsset(string packageRoot)
+        {
+            // The editor window UXML is the exact asset that fails to resolve under
+            // the issue #16 layout — probe it directly via its GUID lookup.
+            string probe = $"{packageRoot}/Editor/Windows/MCPForUnityEditorWindow.uxml";
+            return !string.IsNullOrEmpty(AssetDatabase.AssetPathToGUID(probe));
         }
 
         /// <summary>
