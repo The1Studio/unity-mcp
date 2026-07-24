@@ -97,12 +97,40 @@ namespace MCPForUnity.Editor.Tools
                         resourceCount++;
                 }
 
-                McpLog.Info($"Auto-discovered {toolCount} tools and {resourceCount} resources ({_handlers.Count} total handlers)", false);
+                // Tools gated behind an optional package leave no handler when that package is
+                // absent. Fill those gaps with a placeholder so callers get an actionable
+                // "install <package>" error instead of "Unknown or unsupported command type".
+                int placeholderCount = RegisterOptionalPackagePlaceholders();
+
+                McpLog.Info($"Auto-discovered {toolCount} tools and {resourceCount} resources ({_handlers.Count} total handlers, {placeholderCount} awaiting an optional package)", false);
             }
             catch (Exception ex)
             {
                 McpLog.Error($"Failed to auto-discover MCP commands: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// Register a placeholder handler for every optional-package tool whose real handler was
+        /// compiled out. Returns how many placeholders were added.
+        /// </summary>
+        private static int RegisterOptionalPackagePlaceholders()
+        {
+            int count = 0;
+            foreach (var entry in OptionalPackageTools.CommandToPackage)
+            {
+                if (_handlers.ContainsKey(entry.Key)) continue;
+
+                string commandName = entry.Key;
+                string packageName = entry.Value;
+                _handlers[commandName] = new HandlerInfo(
+                    commandName,
+                    _ => OptionalPackageTools.MissingPackageResponse(commandName, packageName),
+                    null);
+                count++;
+            }
+
+            return count;
         }
 
         private static bool HasAttributeSafe<T>(Type type) where T : Attribute

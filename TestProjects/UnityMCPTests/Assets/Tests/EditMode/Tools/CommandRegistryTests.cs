@@ -1,5 +1,6 @@
 using System;
 using NUnit.Framework;
+using MCPForUnity.Editor.Helpers;
 using MCPForUnity.Editor.Tools;
 
 namespace MCPForUnityTests.Editor.Tools
@@ -22,6 +23,40 @@ namespace MCPForUnityTests.Editor.Tools
             {
                 CommandRegistry.GetHandler(unknown);
             }, "Should throw InvalidOperationException for unknown handler");
+        }
+
+        [Test]
+        public void OptionalPackageTools_AlwaysResolveToAHandler()
+        {
+            // Whether or not the optional package is installed, the command must dispatch.
+            // An absent package yields a placeholder that names the package to install,
+            // never "Unknown or unsupported command type".
+            foreach (var entry in OptionalPackageTools.CommandToPackage)
+            {
+                var handler = CommandRegistry.GetHandler(entry.Key);
+                Assert.IsNotNull(handler, $"Handler for '{entry.Key}' should not be null");
+
+                var result = handler(new Newtonsoft.Json.Linq.JObject());
+                Assert.IsNotNull(result, $"Handler for '{entry.Key}' should return a result for empty params");
+
+                if (result is ErrorResponse error && error.Error.Contains("not installed in this project"))
+                {
+                    StringAssert.Contains(entry.Value, error.Error,
+                        $"Placeholder for '{entry.Key}' should name the required package");
+                }
+            }
+        }
+
+        [Test]
+        public void MissingPackageResponse_NamesTheCommandAndPackage()
+        {
+            var response = OptionalPackageTools.MissingPackageResponse("manage_splines", "com.unity.splines")
+                as ErrorResponse;
+
+            Assert.IsNotNull(response, "Missing-package response should be an ErrorResponse");
+            Assert.IsFalse(response.Success, "Missing-package response should not report success");
+            StringAssert.Contains("manage_splines", response.Error);
+            StringAssert.Contains("com.unity.splines", response.Error);
         }
 
         [Test]
