@@ -144,9 +144,16 @@ async def batch_execute(
     if max_parallelism is not None:
         payload["maxParallelism"] = int(max_parallelism)
 
+    # batch_execute applies non-idempotent mutations sequentially with no
+    # completion registry, so a connection-level replay re-runs every command
+    # that already succeeded (issue #18: a 4-command batch produced 16 nodes).
+    # Opt out of the retry the same way refresh_unity does for its
+    # reload-triggering commands (issue #577). A timeout now surfaces as a
+    # visible error instead of silent scene duplication.
     return await send_with_unity_instance(
         async_send_command_with_retry,
         unity_instance,
         "batch_execute",
         payload,
+        retry_on_reload=False,
     )
