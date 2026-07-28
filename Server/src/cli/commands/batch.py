@@ -73,7 +73,10 @@ def batch_run(file: str, parallel: bool, fail_fast: bool):
     click.echo(format_output(result, config.format))
 
     if isinstance(result, dict):
-        results = result.get("data", {}).get("results", [])
+        # A failed/empty batch can return an explicit ``"data": null``; .get(k, {})
+        # only substitutes the default when the key is ABSENT, so ``or {}`` is
+        # needed to avoid ``NoneType.get`` (cf. input_simulation.py's isinstance guard).
+        results = (result.get("data") or {}).get("results", [])
         succeeded = sum(1 for r in results if r.get("success"))
         failed = len(results) - succeeded
 
