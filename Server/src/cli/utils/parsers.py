@@ -3,7 +3,39 @@ import json
 import sys
 from typing import Any
 
+import click
+
 from cli.utils.output import print_error, print_info
+
+
+def parse_float_list(value: str, name: str = "value") -> list[float]:
+    """Parse a comma-separated ``"x,y,z"`` string into a list of floats.
+
+    Raises ``click.BadParameter`` (a clean CLI error + non-zero exit) instead of
+    letting a malformed component (trailing comma, empty part, non-number) crash
+    the command with an uncaught ``ValueError`` traceback. Mirrors the guarded
+    pattern in ``prefab._parse_vector3``.
+    """
+    try:
+        return [float(p.strip()) for p in value.split(",")]
+    except ValueError as e:
+        raise click.BadParameter(
+            f"{name} must be comma-separated numbers, got: '{value}'"
+        ) from e
+
+
+def parse_int_list(value: str, name: str = "value") -> list[int]:
+    """Parse a comma-separated ``"1,2,3"`` string into a list of ints.
+
+    Like :func:`parse_float_list`, raises ``click.BadParameter`` on a malformed
+    component instead of an uncaught ``ValueError``.
+    """
+    try:
+        return [int(p.strip()) for p in value.split(",")]
+    except ValueError as e:
+        raise click.BadParameter(
+            f"{name} must be comma-separated integers, got: '{value}'"
+        ) from e
 
 
 def parse_value_safe(value: str) -> Any:
