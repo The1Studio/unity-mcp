@@ -67,7 +67,7 @@ def set_instance(instance_id: str):
     }, config)
     click.echo(format_output(result, config.format))
     if result.get("success"):
-        data = result.get("data", {})
+        data = result.get("data") or {}
         active = data.get("instance", instance_id)
         print_success(f"Active instance set to: {active}")
 

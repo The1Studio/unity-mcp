@@ -350,7 +350,7 @@ def run_tests(mode: str, async_mode: bool, wait: Optional[int], details: bool, f
 
     # For async mode, just show job ID
     if async_mode and result.get("success"):
-        job_id = result.get("data", {}).get("job_id")
+        job_id = (result.get("data") or {}).get("job_id")
         if job_id:
             click.echo(f"Test job started: {job_id}")
             print_info("Poll with: unity-mcp editor poll-test " + job_id)
@@ -401,7 +401,7 @@ def poll_test(job_id: str, wait: int, details: bool, failed_only: bool):
     click.echo(format_output(result, config.format))
 
     if isinstance(result, dict) and result.get("success"):
-        data = result.get("data", {})
+        data = result.get("data") or {}
         status = data.get("status", "unknown")
         if status == "succeeded":
             print_success("Tests completed successfully")

@@ -339,7 +339,7 @@ def validate(repair: bool):
     result = run_command("manage_scene", params, config)
     click.echo(format_output(result, config.format))
     if result.get("success"):
-        data = result.get("data", {})
+        data = result.get("data") or {}
         total = data.get("totalIssues", 0)
         repaired = data.get("repaired", 0)
         if total == 0:

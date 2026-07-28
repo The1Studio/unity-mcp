@@ -40,7 +40,7 @@ def read_shader(path: str):
     }, config)
 
     # If successful, display the contents nicely
-    if result.get("success") and result.get("data", {}).get("contents"):
+    if result.get("success") and (result.get("data") or {}).get("contents"):
         click.echo(result["data"]["contents"])
     else:
         click.echo(format_output(result, config.format))
