@@ -104,7 +104,11 @@ async def find_in_file(
     if not isinstance(read_resp, dict) or not read_resp.get("success"):
         return read_resp if isinstance(read_resp, dict) else {"success": False, "message": str(read_resp)}
 
-    data = read_resp.get("data", {})
+    # A successful response can still carry an explicit ``"data": null`` (e.g. a
+    # tool that returns ``data=response.get("data")``). ``.get("data", {})`` only
+    # substitutes the default when the KEY is absent, so ``or {}`` is required to
+    # avoid ``NoneType.get`` on the next line.
+    data = read_resp.get("data") or {}
     contents = data.get("contents")
     if not contents and data.get("contentsEncoded") and data.get("encodedContents"):
         try:
