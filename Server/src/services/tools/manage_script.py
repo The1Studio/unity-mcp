@@ -131,7 +131,11 @@ async def apply_text_edits(
         )
         if not (isinstance(read_resp, dict) and read_resp.get("success")):
             return read_resp if isinstance(read_resp, dict) else {"success": False, "message": str(read_resp)}
-        data = read_resp.get("data", {})
+        # A successful `manage_script read` can carry an explicit ``"data": null``
+        # (same shape guarded in find_in_file); ``.get("data", {})`` only substitutes
+        # the default when the KEY is absent, so ``or {}`` is required to avoid
+        # ``NoneType.get`` on the next line.
+        data = read_resp.get("data") or {}
         contents = data.get("contents")
         if not contents and data.get("contentsEncoded") and data.get("encodedContents"):
             try:
