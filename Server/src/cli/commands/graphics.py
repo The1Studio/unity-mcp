@@ -1,6 +1,7 @@
 import click
 from cli.utils.connection import handle_unity_errors, run_command, get_config
 from cli.utils.output import format_output
+from cli.utils.parsers import parse_float_list, parse_int_list
 
 
 @click.group("graphics")
@@ -398,7 +399,7 @@ def feature_configure(index, name, prop):
 def feature_reorder(order):
     """Reorder renderer features."""
     config = get_config()
-    order_list = [int(x.strip()) for x in order.split(",")]
+    order_list = parse_int_list(order, "order")
     params = {"action": "feature_reorder", "order": order_list}
     result = run_command("manage_graphics", params, config)
     click.echo(format_output(result, config.format))
@@ -472,11 +473,11 @@ def skybox_set_ambient(mode, intensity, color, equator_color, ground_color):
     if intensity is not None:
         params["intensity"] = intensity
     if color:
-        params["color"] = [float(x) for x in color.split(",")]
+        params["color"] = parse_float_list(color, "color")
     if equator_color:
-        params["equator_color"] = [float(x) for x in equator_color.split(",")]
+        params["equator_color"] = parse_float_list(equator_color, "equator_color")
     if ground_color:
-        params["ground_color"] = [float(x) for x in ground_color.split(",")]
+        params["ground_color"] = parse_float_list(ground_color, "ground_color")
     result = run_command("manage_graphics", params, config)
     click.echo(format_output(result, config.format))
 
@@ -498,7 +499,7 @@ def skybox_set_fog(fog_enabled, mode, color, density, start, end):
     if mode:
         params["fog_mode"] = mode
     if color:
-        params["fog_color"] = [float(x) for x in color.split(",")]
+        params["fog_color"] = parse_float_list(color, "color")
     if density is not None:
         params["fog_density"] = density
     if start is not None:

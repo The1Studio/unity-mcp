@@ -2,6 +2,7 @@ import click
 
 from cli.utils.connection import handle_unity_errors, run_command, get_config
 from cli.utils.output import format_output
+from cli.utils.parsers import parse_float_list, parse_int_list
 
 
 def _coerce_cli_value(value: str):
@@ -151,8 +152,8 @@ def raycast(origin, direction, max_distance, dimension):
     config = get_config()
     params = {
         "action": "raycast",
-        "origin": [float(x) for x in origin.split(",")],
-        "direction": [float(x) for x in direction.split(",")],
+        "origin": parse_float_list(origin, "origin"),
+        "direction": parse_float_list(direction, "direction"),
         "dimension": dimension,
     }
     if max_distance is not None:
@@ -293,12 +294,12 @@ def remove_joint(target, joint_type, component_index):
 def overlap(shape, position, size, dimension):
     """Perform a physics overlap query."""
     config = get_config()
-    pos_parts = [float(x) for x in position.split(",")]
+    pos_parts = parse_float_list(position, "position")
     # Try to parse size as float first, then as array
     try:
         parsed_size = float(size)
     except ValueError:
-        parsed_size = [float(x) for x in size.split(",")]
+        parsed_size = parse_float_list(size, "size")
     params = {
         "action": "overlap",
         "shape": shape,
@@ -321,8 +322,8 @@ def raycast_all(origin, direction, max_distance, dimension):
     config = get_config()
     params = {
         "action": "raycast_all",
-        "origin": [float(x) for x in origin.split(",")],
-        "direction": [float(x) for x in direction.split(",")],
+        "origin": parse_float_list(origin, "origin"),
+        "direction": parse_float_list(direction, "direction"),
         "dimension": dimension,
     }
     if max_distance is not None:
@@ -341,8 +342,8 @@ def linecast(start, end, dimension):
     config = get_config()
     params = {
         "action": "linecast",
-        "start": [float(x) for x in start.split(",")],
-        "end": [float(x) for x in end.split(",")],
+        "start": parse_float_list(start, "start"),
+        "end": parse_float_list(end, "end"),
         "dimension": dimension,
     }
     result = run_command("manage_physics", params, config)
@@ -363,12 +364,12 @@ def shapecast(shape, origin, direction, size, max_distance, dimension):
     try:
         parsed_size = float(size)
     except ValueError:
-        parsed_size = [float(x) for x in size.split(",")]
+        parsed_size = parse_float_list(size, "size")
     params = {
         "action": "shapecast",
         "shape": shape,
-        "origin": [float(x) for x in origin.split(",")],
-        "direction": [float(x) for x in direction.split(",")],
+        "origin": parse_float_list(origin, "origin"),
+        "direction": parse_float_list(direction, "direction"),
         "size": parsed_size,
         "dimension": dimension,
     }
@@ -392,7 +393,7 @@ def apply_force(target, force, force_mode, dimension, torque, position):
     params = {
         "action": "apply_force",
         "target": target,
-        "force": [float(x) for x in force.split(",")],
+        "force": parse_float_list(force, "force"),
         "force_mode": force_mode,
     }
     if dimension:
@@ -401,9 +402,9 @@ def apply_force(target, force, force_mode, dimension, torque, position):
         try:
             params["torque"] = [float(torque)]
         except ValueError:
-            params["torque"] = [float(x) for x in torque.split(",")]
+            params["torque"] = parse_float_list(torque, "torque")
     if position:
-        params["position"] = [float(x) for x in position.split(",")]
+        params["position"] = parse_float_list(position, "position")
     result = run_command("manage_physics", params, config)
     click.echo(format_output(result, config.format))
 
