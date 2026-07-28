@@ -208,8 +208,12 @@ async def manage_gameobject(
             if "prefabPath" not in params:
                 if "name" not in params or not params["name"]:
                     return {"success": False, "message": "Cannot create default prefab path: 'name' parameter is missing."}
-                # Use the provided prefab_folder (which has a default) and the name to construct the path
-                constructed_path = f"{prefab_folder}/{params['name']}.prefab"
+                # prefab_folder has NO default (it's None unless the caller passes it),
+                # so coalesce to the project convention — otherwise the path becomes
+                # the literal string "None/<name>.prefab" for a normal
+                # create+save_as_prefab call.
+                folder = prefab_folder or "Assets/Prefabs"
+                constructed_path = f"{folder}/{params['name']}.prefab"
                 # Ensure clean path separators (Unity prefers '/')
                 params["prefabPath"] = constructed_path.replace("\\", "/")
             elif not params["prefabPath"].lower().endswith(".prefab"):
