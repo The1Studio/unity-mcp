@@ -423,7 +423,8 @@ def test_screenshot_invalid_capture_source(mock_unity):
         )
     )
     assert result["success"] is False
-    assert "capture_source must be either" in result["message"]
+    assert "capture_source must be" in result["message"]
+    assert "'game_view', 'scene_view', or 'screen'" in result["message"]
     assert "params" not in mock_unity
 
 
