@@ -21,6 +21,13 @@ def _parse_edges_param(edges: str) -> dict[str, Any]:
     except json.JSONDecodeError:
         print_error("Invalid JSON for edges parameter")
         raise SystemExit(1)
+    # json.loads may yield a non-list (int/dict/bool/str); indexing parsed[0]
+    # below would then crash uncaught (TypeError/KeyError). Require an array.
+    if not isinstance(parsed, list):
+        print_error(
+            "edges parameter must be a JSON array, e.g. '[0,1,2]' or '[{\"a\":0,\"b\":1}]'"
+        )
+        raise SystemExit(1)
     if parsed and isinstance(parsed[0], dict):
         return {"edges": parsed}
     return {"edgeIndices": parsed}
