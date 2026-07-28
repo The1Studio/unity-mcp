@@ -275,3 +275,61 @@ class TestManageTextureIntegration:
 
         assert resp["success"] is False
         assert "positive" in resp["message"].lower()
+
+
+class TestManageTextureAsSpriteFalse:
+    """Regression: as_sprite=False (a type-valid value of the dict|bool param)
+    must NOT abort the texture operation. Pre-fix, `isinstance(value, bool) and
+    value` let False fall through to the error branch, returning the
+    self-contradictory 'as_sprite must be a dict or boolean, got bool' and never
+    contacting Unity."""
+
+    @pytest.mark.parametrize("as_sprite_value", [False, "false"])
+    def test_as_sprite_false_does_not_abort(self, monkeypatch, as_sprite_value):
+        captured = {}
+
+        async def fake_send(func, instance, cmd, params, **kwargs):
+            captured["params"] = params
+            return {"success": True, "message": "Created texture"}
+
+        monkeypatch.setattr(manage_texture_mod, "send_with_unity_instance", fake_send)
+        monkeypatch.setattr(manage_texture_mod, "preflight", noop_preflight)
+
+        resp = run_async(manage_texture_mod.manage_texture(
+            ctx=DummyContext(),
+            action="create",
+            path="Assets/TestTextures/Plain.png",
+            width=64,
+            height=64,
+            fill_color=[255, 0, 0, 255],
+            as_sprite=as_sprite_value,
+        ))
+
+        # Pre-fix: success False, message "as_sprite must be a dict or boolean,
+        # got bool", and fake_send never called (no captured params).
+        assert resp["success"] is True
+        assert "params" in captured, "transport should have been called"
+        assert captured["params"].get("spriteSettings") is None
+
+    def test_as_sprite_true_still_enables_defaults(self, monkeypatch):
+        captured = {}
+
+        async def fake_send(func, instance, cmd, params, **kwargs):
+            captured["params"] = params
+            return {"success": True, "message": "Created texture"}
+
+        monkeypatch.setattr(manage_texture_mod, "send_with_unity_instance", fake_send)
+        monkeypatch.setattr(manage_texture_mod, "preflight", noop_preflight)
+
+        resp = run_async(manage_texture_mod.manage_texture(
+            ctx=DummyContext(),
+            action="create",
+            path="Assets/TestTextures/Sprite.png",
+            width=64,
+            height=64,
+            fill_color=[255, 0, 0, 255],
+            as_sprite=True,
+        ))
+
+        assert resp["success"] is True
+        assert captured["params"]["spriteSettings"] == {"pivot": [0.5, 0.5], "pixelsPerUnit": 100}

@@ -138,9 +138,13 @@ def _normalize_sprite_settings(value: Any) -> tuple[dict | None, str | None]:
             result["pixelsPerUnit"] = float(value["pixelsPerUnit"])
         return result, None
 
-    if isinstance(value, bool) and value:
-        # Just enable sprite mode with defaults
-        return {"pivot": [0.5, 0.5], "pixelsPerUnit": 100}, None
+    if isinstance(value, bool):
+        # True → enable sprite mode with defaults; False → not a sprite (no
+        # settings). `False` is a type-valid value of the `dict | bool` param
+        # (and the stringified "false" parsed above), so it must NOT fall through
+        # to the error branch — doing so aborted the whole texture operation with
+        # the self-contradictory "must be a dict or boolean, got bool".
+        return ({"pivot": [0.5, 0.5], "pixelsPerUnit": 100} if value else None), None
 
     return None, f"as_sprite must be a dict or boolean, got {type(value).__name__}"
 
