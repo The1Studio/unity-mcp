@@ -280,7 +280,12 @@ async def manage_ui(
     if isinstance(result, dict):
         # Decode base64 contents in read responses
         if action_lower == "read" and result.get("success"):
-            data = result.get("data", {})
+            # A successful read can carry an explicit ``"data": null`` — ``.get(k, {})``
+            # only substitutes the default when the key is ABSENT, so ``or {}`` is
+            # required to avoid ``AttributeError`` on the following ``data.get(...)``
+            # (this line sits outside the try/except below). Matches the sibling
+            # fixes in find_in_file / manage_script.apply_text_edits.
+            data = result.get("data") or {}
             if data.get("contentsEncoded") and data.get("encodedContents"):
                 try:
                     decoded = base64.b64decode(
