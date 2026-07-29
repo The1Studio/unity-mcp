@@ -8,6 +8,7 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.AI;
 using Unity.AI.Navigation;
+using MCPForUnity.Runtime.Helpers;
 
 namespace MCPForUnity.Editor.Tools
 {
@@ -72,7 +73,7 @@ namespace MCPForUnity.Editor.Tools
                 allItems.Add(new Dictionary<string, object>
                 {
                     ["name"] = surface.gameObject.name,
-                    ["instance_id"] = surface.gameObject.GetInstanceID(),
+                    ["instance_id"] = surface.gameObject.GetInstanceIDCompat(),
                     ["agent_type_id"] = surface.agentTypeID,
                     ["collect_objects"] = surface.collectObjects.ToString(),
                     ["use_geometry"] = surface.useGeometry.ToString(),
@@ -135,7 +136,7 @@ namespace MCPForUnity.Editor.Tools
                 allItems.Add(new Dictionary<string, object>
                 {
                     ["name"] = agent.gameObject.name,
-                    ["instance_id"] = agent.gameObject.GetInstanceID(),
+                    ["instance_id"] = agent.gameObject.GetInstanceIDCompat(),
                     ["speed"] = Math.Round(agent.speed, 4),
                     ["radius"] = Math.Round(agent.radius, 4),
                     ["is_on_nav_mesh"] = agent.isOnNavMesh,
@@ -227,7 +228,7 @@ namespace MCPForUnity.Editor.Tools
                 allItems.Add(new Dictionary<string, object>
                 {
                     ["name"] = obs.gameObject.name,
-                    ["instance_id"] = obs.gameObject.GetInstanceID(),
+                    ["instance_id"] = obs.gameObject.GetInstanceIDCompat(),
                     ["shape"] = obs.shape.ToString(),
                     ["carving"] = obs.carving,
                     ["enabled"] = obs.enabled,

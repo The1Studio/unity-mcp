@@ -7,6 +7,7 @@ using Newtonsoft.Json.Linq;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Tilemaps;
+using MCPForUnity.Runtime.Helpers;
 
 namespace MCPForUnity.Editor.Tools
 {
@@ -56,7 +57,7 @@ namespace MCPForUnity.Editor.Tools
                 allItems.Add(new Dictionary<string, object>
                 {
                     ["name"] = tm.gameObject.name,
-                    ["instance_id"] = tm.gameObject.GetInstanceID(),
+                    ["instance_id"] = tm.gameObject.GetInstanceIDCompat(),
                     ["cell_layout"] = tm.layoutGrid != null ? tm.layoutGrid.cellLayout.ToString() : "Unknown",
                     ["size"] = $"{bounds.size.x},{bounds.size.y},{bounds.size.z}",
                 });

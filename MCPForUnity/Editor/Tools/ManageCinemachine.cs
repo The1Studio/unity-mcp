@@ -6,6 +6,7 @@ using Newtonsoft.Json.Linq;
 using UnityEditor;
 using UnityEngine;
 using Unity.Cinemachine;
+using MCPForUnity.Runtime.Helpers;
 
 namespace MCPForUnity.Editor.Tools
 {
@@ -52,7 +53,7 @@ namespace MCPForUnity.Editor.Tools
                 allItems.Add(new Dictionary<string, object>
                 {
                     ["name"] = vcam.gameObject.name,
-                    ["instance_id"] = vcam.gameObject.GetInstanceID(),
+                    ["instance_id"] = vcam.gameObject.GetInstanceIDCompat(),
                     ["priority"] = vcam.Priority.Value,
                     ["follow"] = vcam.Follow != null ? vcam.Follow.name : null,
                     ["look_at"] = vcam.LookAt != null ? vcam.LookAt.name : null,

@@ -8,6 +8,7 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.Splines;
 using Unity.Mathematics;
+using MCPForUnity.Runtime.Helpers;
 
 namespace MCPForUnity.Editor.Tools
 {
@@ -55,7 +56,7 @@ namespace MCPForUnity.Editor.Tools
                 allItems.Add(new Dictionary<string, object>
                 {
                     ["name"] = sc.gameObject.name,
-                    ["instance_id"] = sc.gameObject.GetInstanceID(),
+                    ["instance_id"] = sc.gameObject.GetInstanceIDCompat(),
                     ["spline_count"] = sc.Splines.Count,
                 });
             }

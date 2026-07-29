@@ -7,6 +7,7 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.Playables;
 using UnityEngine.Timeline;
+using MCPForUnity.Runtime.Helpers;
 
 namespace MCPForUnity.Editor.Tools
 {
@@ -55,7 +56,7 @@ namespace MCPForUnity.Editor.Tools
                 allItems.Add(new Dictionary<string, object>
                 {
                     ["name"] = dir.gameObject.name,
-                    ["instance_id"] = dir.gameObject.GetInstanceID(),
+                    ["instance_id"] = dir.gameObject.GetInstanceIDCompat(),
                     ["state"] = dir.state.ToString(),
                     ["time"] = Math.Round(dir.time, 4),
                     ["duration"] = Math.Round(dir.duration, 4),

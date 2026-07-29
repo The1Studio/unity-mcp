@@ -4,6 +4,7 @@ using MCPForUnity.Editor.Helpers;
 using Newtonsoft.Json.Linq;
 using UnityEditor;
 using UnityEngine;
+using MCPForUnity.Runtime.Helpers;
 
 namespace MCPForUnity.Editor.Tools
 {
@@ -75,7 +76,7 @@ namespace MCPForUnity.Editor.Tools
                 allItems.Add(new Dictionary<string, object>
                 {
                     ["name"] = light.gameObject.name,
-                    ["instance_id"] = light.gameObject.GetInstanceID(),
+                    ["instance_id"] = light.gameObject.GetInstanceIDCompat(),
                     ["type"] = light.type.ToString(),
                     ["color"] = FormatColor(light.color),
                     ["intensity"] = Math.Round(light.intensity, 4),
@@ -106,7 +107,7 @@ namespace MCPForUnity.Editor.Tools
             var data = new Dictionary<string, object>
             {
                 ["name"] = go.name,
-                ["instance_id"] = go.GetInstanceID(),
+                ["instance_id"] = go.GetInstanceIDCompat(),
                 ["type"] = light.type.ToString(),
                 ["color"] = FormatColor(light.color),
                 ["intensity"] = Math.Round(light.intensity, 4),
@@ -211,7 +212,7 @@ namespace MCPForUnity.Editor.Tools
                 allItems.Add(new Dictionary<string, object>
                 {
                     ["name"] = lpg.gameObject.name,
-                    ["instance_id"] = lpg.gameObject.GetInstanceID(),
+                    ["instance_id"] = lpg.gameObject.GetInstanceIDCompat(),
                     ["type"] = "LightProbeGroup",
                     ["probe_count"] = lpg.probePositions.Length,
                 });
@@ -224,7 +225,7 @@ namespace MCPForUnity.Editor.Tools
                 allItems.Add(new Dictionary<string, object>
                 {
                     ["name"] = rp.gameObject.name,
-                    ["instance_id"] = rp.gameObject.GetInstanceID(),
+                    ["instance_id"] = rp.gameObject.GetInstanceIDCompat(),
                     ["type"] = "ReflectionProbe",
                     ["mode"] = rp.mode.ToString(),
                     ["resolution"] = rp.resolution,

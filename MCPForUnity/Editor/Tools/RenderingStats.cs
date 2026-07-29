@@ -62,6 +62,11 @@ namespace MCPForUnity.Editor.Tools
         {
             bool isPlaying = EditorApplication.isPlaying;
 
+            // UnityStats.batches was removed in Unity 6.5 (CS0117); the dynamic/static/instanced
+            // sibling counters still exist, so the total is their sum.
+            int totalBatches =
+                UnityStats.dynamicBatches + UnityStats.staticBatches + UnityStats.instancedBatches;
+
             // Compute "saved by batching" = total batched draw calls - total batches
             int savedByBatching =
                 (UnityStats.dynamicBatchedDrawCalls - UnityStats.dynamicBatches) +
@@ -109,7 +114,7 @@ namespace MCPForUnity.Editor.Tools
                     cpuMainMs,
                     renderThreadMs,
                     drawCalls = UnityStats.drawCalls,
-                    batches = UnityStats.batches,
+                    batches = totalBatches,
                     savedByBatching,
                     setPassCalls = UnityStats.setPassCalls,
                     triangles = UnityStats.triangles,

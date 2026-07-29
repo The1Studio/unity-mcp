@@ -5,6 +5,7 @@ using Newtonsoft.Json.Linq;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Audio;
+using MCPForUnity.Runtime.Helpers;
 
 namespace MCPForUnity.Editor.Tools
 {
@@ -69,7 +70,7 @@ namespace MCPForUnity.Editor.Tools
                 allItems.Add(new Dictionary<string, object>
                 {
                     ["gameobject_name"] = src.gameObject.name,
-                    ["instance_id"] = src.gameObject.GetInstanceID(),
+                    ["instance_id"] = src.gameObject.GetInstanceIDCompat(),
                     ["clip_name"] = src.clip != null ? src.clip.name : null,
                     ["volume"] = Math.Round(src.volume, 4),
                     ["is_playing"] = src.isPlaying,
@@ -100,7 +101,7 @@ namespace MCPForUnity.Editor.Tools
             return new SuccessResponse($"AudioSource on '{go.name}'.", new Dictionary<string, object>
             {
                 ["gameobject_name"] = go.name,
-                ["instance_id"] = go.GetInstanceID(),
+                ["instance_id"] = go.GetInstanceIDCompat(),
                 ["clip_name"] = src.clip != null ? src.clip.name : null,
                 ["volume"] = Math.Round(src.volume, 4),
                 ["pitch"] = Math.Round(src.pitch, 4),
