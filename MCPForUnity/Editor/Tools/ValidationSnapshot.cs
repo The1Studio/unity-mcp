@@ -531,11 +531,16 @@ namespace MCPForUnity.Editor.Tools
                 renderThreadMs = timings[0].cpuRenderThreadFrameTime;
             }
 
+            // UnityStats.batches was removed in Unity 6.5 (CS0117); the dynamic/static/instanced
+            // sibling counters still exist, so the total is their sum.
+            int totalBatches =
+                UnityStats.dynamicBatches + UnityStats.staticBatches + UnityStats.instancedBatches;
+
             return new Dictionary<string, object>
             {
                 ["fps"] = EditorApplication.isPlaying ? Math.Round(1.0f / Time.unscaledDeltaTime, 1) : 0,
                 ["draw_calls"] = UnityStats.drawCalls,
-                ["batches"] = UnityStats.batches,
+                ["batches"] = totalBatches,
                 ["triangles"] = UnityStats.triangles,
                 ["shadow_casters"] = UnityStats.shadowCasters,
                 ["cpu_main_ms"] = Math.Round(cpuMainMs, 2),

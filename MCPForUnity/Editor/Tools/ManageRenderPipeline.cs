@@ -6,6 +6,7 @@ using Newtonsoft.Json.Linq;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
+using MCPForUnity.Runtime.Helpers;
 
 namespace MCPForUnity.Editor.Tools
 {
@@ -133,7 +134,7 @@ namespace MCPForUnity.Editor.Tools
                 allItems.Add(new Dictionary<string, object>
                 {
                     ["name"] = vol.gameObject.name,
-                    ["instance_id"] = vol.gameObject.GetInstanceID(),
+                    ["instance_id"] = vol.gameObject.GetInstanceIDCompat(),
                     ["is_global"] = vol.isGlobal,
                     ["weight"] = Math.Round(vol.weight, 4),
                     ["priority"] = vol.priority,

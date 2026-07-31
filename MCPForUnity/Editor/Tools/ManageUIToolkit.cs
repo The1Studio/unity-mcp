@@ -5,6 +5,7 @@ using Newtonsoft.Json.Linq;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
+using MCPForUnity.Runtime.Helpers;
 
 namespace MCPForUnity.Editor.Tools
 {
@@ -51,7 +52,7 @@ namespace MCPForUnity.Editor.Tools
                 allItems.Add(new Dictionary<string, object>
                 {
                     ["name"] = doc.gameObject.name,
-                    ["instance_id"] = doc.gameObject.GetInstanceID(),
+                    ["instance_id"] = doc.gameObject.GetInstanceIDCompat(),
                     ["sort_order"] = doc.sortingOrder,
                     ["has_panel_settings"] = doc.panelSettings != null,
                     ["has_source_asset"] = doc.visualTreeAsset != null,

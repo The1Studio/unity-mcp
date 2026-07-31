@@ -5,6 +5,7 @@ using Newtonsoft.Json.Linq;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Video;
+using MCPForUnity.Runtime.Helpers;
 
 namespace MCPForUnity.Editor.Tools
 {
@@ -52,7 +53,7 @@ namespace MCPForUnity.Editor.Tools
                 allItems.Add(new Dictionary<string, object>
                 {
                     ["name"] = vp.gameObject.name,
-                    ["instance_id"] = vp.gameObject.GetInstanceID(),
+                    ["instance_id"] = vp.gameObject.GetInstanceIDCompat(),
                     ["source"] = vp.source.ToString(),
                     ["is_playing"] = vp.isPlaying,
                     ["url"] = vp.source == VideoSource.Url ? vp.url : null,

@@ -6,6 +6,7 @@ using Newtonsoft.Json.Linq;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using MCPForUnity.Runtime.Helpers;
 
 namespace MCPForUnity.Editor.Tools
 {
@@ -203,7 +204,7 @@ namespace MCPForUnity.Editor.Tools
                 allItems.Add(new Dictionary<string, object>
                 {
                     ["name"] = pi.gameObject.name,
-                    ["instance_id"] = pi.gameObject.GetInstanceID(),
+                    ["instance_id"] = pi.gameObject.GetInstanceIDCompat(),
                     ["current_action_map"] = pi.currentActionMap?.name,
                     ["default_scheme"] = pi.defaultControlScheme,
                     ["player_index"] = pi.playerIndex,

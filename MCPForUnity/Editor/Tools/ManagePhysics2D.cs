@@ -5,6 +5,7 @@ using MCPForUnity.Editor.Helpers;
 using Newtonsoft.Json.Linq;
 using UnityEditor;
 using UnityEngine;
+using MCPForUnity.Runtime.Helpers;
 
 namespace MCPForUnity.Editor.Tools
 {
@@ -141,7 +142,7 @@ namespace MCPForUnity.Editor.Tools
                     ["gameobject_name"] = col.gameObject.name,
                     ["collider_type"] = col.GetType().Name,
                     ["layer"] = col.gameObject.layer,
-                    ["instance_id"] = col.gameObject.GetInstanceID(),
+                    ["instance_id"] = col.gameObject.GetInstanceIDCompat(),
                 });
             }
 
@@ -165,7 +166,7 @@ namespace MCPForUnity.Editor.Tools
                 var data = new Dictionary<string, object>
                 {
                     ["name"] = rb.gameObject.name,
-                    ["instance_id"] = rb.gameObject.GetInstanceID(),
+                    ["instance_id"] = rb.gameObject.GetInstanceIDCompat(),
                     ["body_type"] = rb.bodyType.ToString(),
                     ["mass"] = Math.Round(rb.mass, 4),
                     ["gravity_scale"] = Math.Round(rb.gravityScale, 4),
@@ -230,7 +231,7 @@ namespace MCPForUnity.Editor.Tools
                     ["collider_type"] = col.GetType().Name,
                     ["is_trigger"] = col.isTrigger,
                     ["enabled"] = col.enabled,
-                    ["instance_id"] = col.gameObject.GetInstanceID(),
+                    ["instance_id"] = col.gameObject.GetInstanceIDCompat(),
                 });
             }
 
