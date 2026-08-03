@@ -38,6 +38,13 @@ namespace MCPForUnity.Editor.Services.Transport.Transports
         private static readonly object startStopLock = new();
         private static readonly object clientsLock = new();
         private static readonly HashSet<TcpClient> activeClients = new();
+
+        // Clients whose socket we closed on purpose — stale-client eviction, or Stop().
+        // The owning handler is usually parked in a read at that moment, so closing the
+        // socket faults it with ObjectDisposedException. That is the expected consequence
+        // of our own close, not a fault, and must not reach the console as an error.
+        // Entries are removed when the handler exits (see HandleClientAsync's finally).
+        private static readonly HashSet<TcpClient> intentionallyClosed = new();
         private static CancellationTokenSource cts;
         private static Task listenerTask;
         private static int processingCommands = 0;
@@ -352,6 +359,55 @@ namespace MCPForUnity.Editor.Services.Transport.Transports
             return newListener;
         }
 
+        /// <summary>
+        /// Closes a client socket that we are deliberately tearing down (stale-client
+        /// eviction or Stop()), recording it first so the owning handler can tell the
+        /// resulting ObjectDisposedException apart from a genuine fault.
+        /// </summary>
+        private static void CloseClientIntentionally(TcpClient client)
+        {
+            if (client == null) return;
+            lock (clientsLock)
+            {
+                // Only track a handler that is still live. Eviction writes a best-effort
+                // notice (up to 500ms) before closing, so the handler can exit in that
+                // window — and a handler that already ran its cleanup would never remove
+                // the entry again, pinning the TcpClient for the rest of the session.
+                // Stop() clears activeClients up front, so nothing is tracked on that
+                // path; shutdown is covered by the isRunning/token check at the catch.
+                if (activeClients.Contains(client)) intentionallyClosed.Add(client);
+            }
+            try { client.Close(); } catch { }
+        }
+
+        /// <summary>
+        /// Classifies an exception from the client read/write loop. Benign exceptions are
+        /// ordinary connection teardown and are logged at Info; everything else is a real
+        /// fault and reaches the console as an error.
+        /// </summary>
+        /// <param name="closedIntentionally">
+        /// True when we closed this socket ourselves (eviction/Stop) or the bridge is
+        /// shutting down — which makes a disposed-socket or cancellation fault expected.
+        /// </param>
+        internal static bool IsBenignClientException(Exception ex, bool closedIntentionally)
+        {
+            if (ex == null) return false;
+
+            string msg = ex.Message ?? string.Empty;
+            if (msg.IndexOf("Connection closed before reading expected bytes", StringComparison.OrdinalIgnoreCase) >= 0
+                || msg.IndexOf("Read timed out", StringComparison.OrdinalIgnoreCase) >= 0
+                || ex is IOException)
+            {
+                return true;
+            }
+
+            // ObjectDisposedException derives from InvalidOperationException, not
+            // IOException, so it never matched the arms above. Only treat it as benign
+            // when we are the ones who closed the socket — a use-after-dispose on a live
+            // connection is still a real bug and must keep reporting.
+            return closedIntentionally && (ex is ObjectDisposedException || ex is OperationCanceledException);
+        }
+
         public static void Stop()
         {
             Task toWait = null;
@@ -391,7 +447,7 @@ namespace MCPForUnity.Editor.Services.Transport.Transports
             }
             foreach (var c in toClose)
             {
-                try { c.Close(); } catch { }
+                CloseClientIntentionally(c);
             }
 
             if (toWait != null)
@@ -545,7 +601,7 @@ namespace MCPForUnity.Editor.Services.Transport.Transports
                                 await WriteFrameAsync(stale.GetStream(), evictionBytes, noticeCts.Token).ConfigureAwait(false);
                             }
                             catch { /* best-effort; socket may already be dead */ }
-                            try { stale.Close(); } catch { }
+                            CloseClientIntentionally(stale);
                         }
                     }
 
@@ -653,19 +709,14 @@ namespace MCPForUnity.Editor.Services.Transport.Transports
                         catch (Exception ex)
                         {
                             string msg = ex.Message ?? string.Empty;
-                            // Stop() cancels the CTS and then closes every active client, so a
-                            // pending read/write faults with OperationCanceledException or
-                            // ObjectDisposedException. Neither is an IOException — ObjectDisposedException
-                            // derives from InvalidOperationException — so the arms below never matched
-                            // them and expected domain-reload teardown surfaced as a console error.
-                            // Gated on shutdown so a genuine use-after-dispose while live still reports.
-                            bool shuttingDown = !isRunning || token.IsCancellationRequested;
-                            bool isBenign =
-                                msg.IndexOf("Connection closed before reading expected bytes", StringComparison.OrdinalIgnoreCase) >= 0
-                                || msg.IndexOf("Read timed out", StringComparison.OrdinalIgnoreCase) >= 0
-                                || ex is IOException
-                                || (shuttingDown && (ex is ObjectDisposedException || ex is OperationCanceledException));
-                            if (isBenign)
+                            // We close a client's socket on two paths: stale-client eviction
+                            // (bridge still running) and Stop()/domain-reload teardown. Either
+                            // way the parked read here faults, and that is expected.
+                            bool closedIntentionally;
+                            lock (clientsLock) { closedIntentionally = intentionallyClosed.Contains(client); }
+                            closedIntentionally |= !isRunning || token.IsCancellationRequested;
+
+                            if (IsBenignClientException(ex, closedIntentionally))
                             {
                                 if (IsDebugEnabled()) McpLog.Info($"Client handler: {msg}", always: false);
                             }
@@ -679,7 +730,11 @@ namespace MCPForUnity.Editor.Services.Transport.Transports
                 }
                 finally
                 {
-                    lock (clientsLock) { activeClients.Remove(client); }
+                    lock (clientsLock)
+                    {
+                        activeClients.Remove(client);
+                        intentionallyClosed.Remove(client);
+                    }
                     int remaining;
                     lock (clientsLock) { remaining = activeClients.Count; }
                     McpLog.Info($"Client handler exited (remaining clients: {remaining})");
