@@ -653,10 +653,18 @@ namespace MCPForUnity.Editor.Services.Transport.Transports
                         catch (Exception ex)
                         {
                             string msg = ex.Message ?? string.Empty;
+                            // Stop() cancels the CTS and then closes every active client, so a
+                            // pending read/write faults with OperationCanceledException or
+                            // ObjectDisposedException. Neither is an IOException — ObjectDisposedException
+                            // derives from InvalidOperationException — so the arms below never matched
+                            // them and expected domain-reload teardown surfaced as a console error.
+                            // Gated on shutdown so a genuine use-after-dispose while live still reports.
+                            bool shuttingDown = !isRunning || token.IsCancellationRequested;
                             bool isBenign =
                                 msg.IndexOf("Connection closed before reading expected bytes", StringComparison.OrdinalIgnoreCase) >= 0
                                 || msg.IndexOf("Read timed out", StringComparison.OrdinalIgnoreCase) >= 0
-                                || ex is IOException;
+                                || ex is IOException
+                                || (shuttingDown && (ex is ObjectDisposedException || ex is OperationCanceledException));
                             if (isBenign)
                             {
                                 if (IsDebugEnabled()) McpLog.Info($"Client handler: {msg}", always: false);
