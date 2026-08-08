@@ -207,6 +207,28 @@ async def refresh_unity(
     # If we sent the command and connection closed, the refresh was likely triggered successfully.
     # Convert MCPResponse to dict if needed
     response_dict = response if isinstance(response, dict) else (response.model_dump() if hasattr(response, "model_dump") else response.__dict__)
+
+    # Unity REJECTED the command before executing it because it was already
+    # reloading (the transport's status-file preflight returns success=False /
+    # "Unity is reloading; please retry" without ever writing to the socket).
+    # The refresh therefore never ran — so this is NOT the "sent, then connection
+    # lost during the reload it triggered" case handled below. Re-sending is the
+    # FIRST real execution (not a #577 retry of a triggered reload); this mirrors
+    # send_mutation, whose is_reloading_rejection docstring states "The command
+    # was never executed, so retrying is safe." Without this, the block below
+    # reports success and clears the external-dirty flag for a refresh that never
+    # imported anything — a silently stale AssetDatabase reported as success.
+    if not response_dict.get("success", True) and _extract_response_reason(response_dict) == "reloading":
+        await wait_for_editor_ready(ctx)
+        response = await unity_transport.send_with_unity_instance(
+            _legacy_conn.async_send_command_with_retry,
+            unity_instance,
+            "refresh_unity",
+            params,
+            retry_on_reload=False,
+        )
+        response_dict = response if isinstance(response, dict) else (response.model_dump() if hasattr(response, "model_dump") else response.__dict__)
+
     if not response_dict.get("success", True):
         hint = response_dict.get("hint")
         err = (response_dict.get("error") or response_dict.get("message") or "").lower()
