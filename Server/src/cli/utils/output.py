@@ -24,6 +24,23 @@ def format_output(data: Any, format_type: str = "text") -> str:
         return format_as_text(data)
 
 
+def slice_lines(contents: str, start_line: int | None, line_count: int | None) -> str:
+    """Return the 1-based ``start_line`` / ``line_count`` window of ``contents``.
+
+    Unity's ``manage_script`` read handler dispatches to a two-argument
+    ``ReadScript(fullPath, relativePath)`` that reads the whole file and never
+    consults startLine/lineCount, so the CLI's ``--start-line`` / ``--line-count``
+    window must be applied client-side (the same way ``code search`` runs its
+    match pass locally). With neither bound set the text is returned untouched.
+    """
+    if start_line is None and line_count is None:
+        return contents
+    lines = contents.splitlines()
+    begin = max(0, (start_line or 1) - 1)
+    end = begin + line_count if line_count is not None else len(lines)
+    return "\n".join(lines[begin:end])
+
+
 def format_as_json(data: Any) -> str:
     """Format data as pretty-printed JSON."""
     try:

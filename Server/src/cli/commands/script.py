@@ -6,7 +6,7 @@ import click
 from typing import Optional, Any
 
 from cli.utils.config import get_config
-from cli.utils.output import format_output, print_error, print_success
+from cli.utils.output import format_output, print_error, print_success, slice_lines
 from cli.utils.connection import run_command, handle_unity_errors
 from cli.utils.parsers import parse_json_list_or_exit
 from cli.utils.confirmation import confirm_destructive_action
@@ -120,7 +120,7 @@ def read(path: str, start_line: Optional[int], line_count: Optional[int]):
     if result.get("success") and result.get("data"):
         data = result.get("data", {})
         if isinstance(data, dict) and "contents" in data:
-            click.echo(data["contents"])
+            click.echo(slice_lines(data["contents"], start_line, line_count))
         else:
             click.echo(format_output(result, config.format))
     else:
