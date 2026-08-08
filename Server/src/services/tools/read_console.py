@@ -102,12 +102,19 @@ async def read_console(
     # (and can exceed the plugin command timeout when Unity has a large console).
     # To keep the tool responsive by default, we cap the default to a reasonable number of most-recent entries.
     # If a client truly wants everything, it can pass count="all" (or count="*") explicitly.
-    if isinstance(count, str) and count.strip().lower() in ("all", "*"):
+    wants_all = isinstance(count, str) and count.strip().lower() in ("all", "*")
+    if wants_all:
         count = None
     else:
         count = coerce_int(count)
 
-    if action == "get" and count is None:
+    # Cap the default to a responsive number of recent entries — but NOT when the
+    # caller explicitly asked for everything via count="all"/"*". Without the
+    # `not wants_all` guard this rewrote the "all" sentinel's None back to 10, so
+    # "give me the whole console" silently returned only the 10 newest entries
+    # (the C# handler and the null-preserving params_dict below already honor None
+    # as "no limit" — only this default-fill defeated it).
+    if action == "get" and count is None and not wants_all:
         count = 10
 
     # Prepare parameters for the C# handler
