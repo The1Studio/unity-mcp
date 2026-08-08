@@ -66,10 +66,22 @@ def is_reloading_rejection(resp: Any) -> bool:
 
     The command was never executed, so retrying is safe.
     """
-    if not isinstance(resp, dict) or resp.get("success"):
-        return False
-    data = resp.get("data") or {}
-    return data.get("reason") == "reloading" and resp.get("hint") == "retry"
+    # The real preflight rejection (UnityConnection.send_command) is an
+    # MCPResponse object with data=None and the reason only in its error MESSAGE
+    # ("Unity is reloading; please retry"), NOT a dict with data.reason. Match
+    # both shapes and route the reason through _extract_response_reason (which
+    # already handles MCPResponse + dict + the message fallback), so this
+    # predicate matches what production actually produces instead of a
+    # dict-with-data.reason shape nothing on this path emits.
+    if isinstance(resp, dict):
+        if resp.get("success"):
+            return False
+        hint = resp.get("hint")
+    else:
+        if getattr(resp, "success", None):
+            return False
+        hint = getattr(resp, "hint", None)
+    return hint == "retry" and _extract_response_reason(resp) == "reloading"
 
 
 def is_connection_lost_after_send(resp: Any) -> bool:
