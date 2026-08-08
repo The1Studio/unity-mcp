@@ -74,6 +74,14 @@ def format_as_text(data: Any, indent: int = 0) -> str:
                             f"{prefix}  [{i}] {_format_list_item(item)}")
             else:
                 lines.append(f"{prefix}{key}: {value}")
+        if not lines and "success" in data and data.get("message"):
+            # Success envelope with no payload: C# SuccessResponse declares
+            # `data` with NullValueHandling.Ignore, so `new SuccessResponse("...")`
+            # emits only {success, message}. Every field above was skipped as a
+            # meta field, leaving lines empty — surface the message instead of
+            # rendering a blank string. Mirrors the error branch, which already
+            # falls back to `message`.
+            return f"{prefix}✅ {data['message']}"
         return "\n".join(lines)
 
     if isinstance(data, list):
