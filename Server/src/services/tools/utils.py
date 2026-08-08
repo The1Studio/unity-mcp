@@ -289,6 +289,15 @@ def normalize_color(value: Any, output_range: str = "float") -> tuple[list[float
 
     def _to_output_range(components: list[float], from_hex: bool = False) -> list:
         """Convert color components to the requested output range."""
+        # Reject non-finite components (NaN / +-Infinity). Python's json.loads
+        # accepts `NaN`/`Infinity` literals, so a JSON-string color param can
+        # smuggle them in; the scale heuristics below use `c > 1`, which is
+        # always False for NaN, so a bad value would otherwise pass straight
+        # through to Unity as an invalid Color. Raise so the callers' existing
+        # `except (ValueError, TypeError)` surfaces the "must be numbers" error.
+        # Hex components are parsed from int() and are always finite.
+        if not from_hex and not all(math.isfinite(c) for c in components):
+            raise ValueError("color components must be finite numbers")
         if output_range == "int":
             if from_hex:
                 # Already 0-255 from hex parsing
