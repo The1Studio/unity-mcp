@@ -1171,9 +1171,14 @@ async def script_apply_edits(
             for e in edits or []:
                 op = (e.get("op") or e.get("operation") or e.get(
                     "type") or e.get("mode") or "").strip().lower()
-                # aliasing for text field
+                # aliasing for text field — must include "replacement" (the
+                # canonical regex_replace key, per the docstring and normalizer).
+                # Omitting it made a regex_replace that supplies only
+                # "replacement" produce newText="" here, so Unity DELETED the
+                # matched span instead of replacing it (while returning success).
+                # The mixed-batch converter already includes this alias.
                 text_field = e.get("text") or e.get(
-                    "insert") or e.get("content") or ""
+                    "insert") or e.get("content") or e.get("replacement") or ""
                 if op == "anchor_insert":
                     anchor = e.get("anchor") or ""
                     position = (e.get("position") or "after").lower()
