@@ -493,7 +493,14 @@ def _find_best_anchor_match(pattern: str, text: str, flags: int, prefer_last: bo
 
     if is_closing_brace_pattern and prefer_last:
         # Use heuristics to find the best closing brace match
-        return _find_best_closing_brace_match(matches, text)
+        best = _find_best_closing_brace_match(matches, text)
+        if best is not None:
+            return best
+        # The scorer found no real (non-string) '}' inside any match, so the '}'
+        # in the pattern was not a closing brace at all — e.g. a quantifier like
+        # `\s{4}` / `\w{2,}`. Returning its None discarded matches the regex
+        # genuinely produced (reported as anchor_not_found, or silently dropped a
+        # regex_replace). Fall through to the default instead.
 
     # Default behavior: use last match if prefer_last, otherwise first match
     return matches[-1] if prefer_last else matches[0]
