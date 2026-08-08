@@ -44,9 +44,14 @@ _BASE_NUDGE_INTERVAL_S = _parse_env_float("UNITY_MCP_NUDGE_BASE_INTERVAL_S", 1.0
 # Can be overridden via UNITY_MCP_NUDGE_MAX_INTERVAL_S environment variable
 _MAX_NUDGE_INTERVAL_S = _parse_env_float("UNITY_MCP_NUDGE_MAX_INTERVAL_S", 10.0)
 
-# Default duration to keep Unity focused during a nudge
+# Default duration to keep Unity focused during a nudge.
+# _BASE_FOCUS_DURATION_S is the UNSCALED baseline; the env override is scaled
+# relative to it below. Keep the two separate: if the env-resolved value is used
+# as the scale denominator, the ratio is always 1.0 when the env var is set, so
+# UNITY_MCP_NUDGE_DURATION_S is silently ignored.
 # Can be overridden via UNITY_MCP_NUDGE_DURATION_S environment variable
-_DEFAULT_FOCUS_DURATION_S = _parse_env_float("UNITY_MCP_NUDGE_DURATION_S", 3.0)
+_BASE_FOCUS_DURATION_S = 3.0
+_DEFAULT_FOCUS_DURATION_S = _parse_env_float("UNITY_MCP_NUDGE_DURATION_S", _BASE_FOCUS_DURATION_S)
 
 _last_nudge_time: float = 0.0
 _consecutive_nudges: int = 0
@@ -111,9 +116,9 @@ def _get_current_focus_duration() -> float:
     # Scale by ratio of configured to default duration (if UNITY_MCP_NUDGE_DURATION_S is set)
     scale = 1.0
     if os.environ.get("UNITY_MCP_NUDGE_DURATION_S") is not None:
-        configured_duration = _parse_env_float("UNITY_MCP_NUDGE_DURATION_S", _DEFAULT_FOCUS_DURATION_S)
-        if _DEFAULT_FOCUS_DURATION_S > 0:
-            scale = configured_duration / _DEFAULT_FOCUS_DURATION_S
+        configured_duration = _parse_env_float("UNITY_MCP_NUDGE_DURATION_S", _BASE_FOCUS_DURATION_S)
+        if _BASE_FOCUS_DURATION_S > 0:
+            scale = configured_duration / _BASE_FOCUS_DURATION_S
     duration = base_duration * scale
     if duration <= 0:
         return _DEFAULT_FOCUS_DURATION_S
