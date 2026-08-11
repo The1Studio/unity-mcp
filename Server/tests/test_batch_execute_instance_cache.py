@@ -64,8 +64,8 @@ async def test_batch_not_rejected_using_another_instances_limit(fake_editor_stat
     """A 50-command batch is valid on ProjectB (limit 100) even after ProjectA ran."""
     sent: list[dict] = []
 
-    async def _fake_send(send_fn, unity_instance, command_type, payload):
-        sent.append({"instance": unity_instance, "payload": payload})
+    async def _fake_send(send_fn, unity_instance, command_type, payload, **kwargs):
+        sent.append({"instance": unity_instance, "payload": payload, "kwargs": kwargs})
         return {"success": True, "data": {}}
 
     monkeypatch.setattr(batch_execute_module, "send_with_unity_instance", _fake_send)
@@ -79,3 +79,31 @@ async def test_batch_not_rejected_using_another_instances_limit(fake_editor_stat
 
     assert len(sent) == 2
     assert len(sent[1]["payload"]["commands"]) == 50
+
+
+@pytest.mark.asyncio
+async def test_batch_opts_out_of_connection_level_retry(fake_editor_state, monkeypatch):
+    """batch_execute must send retry_on_reload=False (issue #18).
+
+    The batch applies non-idempotent mutations sequentially with no completion
+    registry, so a connection-level replay re-runs every command that already
+    succeeded — a 4-command batch produced 16 nodes. The kwarg is the whole fix,
+    so assert it explicitly rather than trusting the call site.
+    """
+    sent: list[dict] = []
+
+    async def _fake_send(send_fn, unity_instance, command_type, payload, **kwargs):
+        sent.append({"command_type": command_type, "kwargs": kwargs})
+        return {"success": True, "data": {}}
+
+    monkeypatch.setattr(batch_execute_module, "send_with_unity_instance", _fake_send)
+
+    await batch_execute_module.batch_execute(
+        _ctx("ProjectA@aaaaaa"),
+        [{"tool": "manage_editor", "params": {"action": "get_state"}}],
+    )
+
+    assert len(sent) == 1
+    assert sent[0]["command_type"] == "batch_execute"
+    # Explicitly False, not merely absent: absent means the default (True) applies.
+    assert sent[0]["kwargs"].get("retry_on_reload") is False
