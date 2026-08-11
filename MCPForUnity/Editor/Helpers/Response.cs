@@ -25,6 +25,11 @@ namespace MCPForUnity.Editor.Helpers
         [JsonIgnore]
         public object data => Data;
 
+        // Mutable, opt-in: lets a caller flag a successful action that may not have had
+        // its intended effect (e.g. input simulated while the Game view lacks focus).
+        [JsonProperty("warning", NullValueHandling = NullValueHandling.Ignore)]
+        public string Warning { get; set; }
+
         public SuccessResponse(string message, object data = null)
         {
             Message = message;
