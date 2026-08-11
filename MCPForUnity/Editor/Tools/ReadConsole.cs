@@ -543,7 +543,14 @@ namespace MCPForUnity.Editor.Tools
                 for (int li = 1; li < messageLines.Length; li++)
                 {
                     string candidate = messageLines[li];
-                    if (candidate.IndexOf(": error ", StringComparison.OrdinalIgnoreCase) < 0)
+                    // Two shapes must both match. Path-prefixed diagnostics carry ": error "
+                    // (e.g. "Assets/A.cs(33,50): error CS0535: ..."), but csc FATAL errors are
+                    // emitted with NO path prefix at all — "error CS2001: Source file 'X.cs'
+                    // could not be found.", CS0006, CS1704. Those start the line with "error ",
+                    // so there is no preceding ": " and a ": error " scan alone skips them,
+                    // reproducing the content-free false-RED this hoist exists to prevent.
+                    if (!candidate.TrimStart().StartsWith("error ", StringComparison.OrdinalIgnoreCase)
+                        && candidate.IndexOf(": error ", StringComparison.OrdinalIgnoreCase) < 0)
                     {
                         continue;
                     }
