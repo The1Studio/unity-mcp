@@ -31,6 +31,10 @@ namespace MCPForUnity.Editor.Services
         public long StartedUnixMs { get; set; }
         public long? FinishedUnixMs { get; set; }
         public long LastUpdateUnixMs { get; set; }
+        // True when the job was started with a test_names/group_names/category_names/assembly_names
+        // filter. Combined with TotalTests == 0, this distinguishes "filter matched nothing" (a caller
+        // bug) from "project genuinely has zero tests" (TotalTests == 0 with FilterRequested == false).
+        public bool FilterRequested { get; set; }
         public int? TotalTests { get; set; }
         public int CompletedTests { get; set; }
         public string CurrentTestFullName { get; set; }
@@ -133,6 +137,7 @@ namespace MCPForUnity.Editor.Services
             public long started_unix_ms { get; set; }
             public long? finished_unix_ms { get; set; }
             public long last_update_unix_ms { get; set; }
+            public bool filter_requested { get; set; }
             public int? total_tests { get; set; }
             public int completed_tests { get; set; }
             public string current_test_full_name { get; set; }
@@ -196,6 +201,7 @@ namespace MCPForUnity.Editor.Services
                             StartedUnixMs = pj.started_unix_ms,
                             FinishedUnixMs = pj.finished_unix_ms,
                             LastUpdateUnixMs = pj.last_update_unix_ms,
+                            FilterRequested = pj.filter_requested,
                             TotalTests = pj.total_tests,
                             CompletedTests = pj.completed_tests,
                             CurrentTestFullName = pj.current_test_full_name,
@@ -270,6 +276,7 @@ namespace MCPForUnity.Editor.Services
                             started_unix_ms = j.StartedUnixMs,
                             finished_unix_ms = j.FinishedUnixMs,
                             last_update_unix_ms = j.LastUpdateUnixMs,
+                            filter_requested = j.FilterRequested,
                             total_tests = j.TotalTests,
                             completed_tests = j.CompletedTests,
                             current_test_full_name = j.CurrentTestFullName,
@@ -299,6 +306,19 @@ namespace MCPForUnity.Editor.Services
             }
         }
 
+        private static bool HasFilter(TestFilterOptions filterOptions)
+        {
+            if (filterOptions == null)
+            {
+                return false;
+            }
+
+            return (filterOptions.TestNames != null && filterOptions.TestNames.Length > 0)
+                || (filterOptions.GroupNames != null && filterOptions.GroupNames.Length > 0)
+                || (filterOptions.CategoryNames != null && filterOptions.CategoryNames.Length > 0)
+                || (filterOptions.AssemblyNames != null && filterOptions.AssemblyNames.Length > 0);
+        }
+
         public static string StartJob(TestMode mode, TestFilterOptions filterOptions = null, long initTimeoutMs = 0)
         {
             // Clamp to valid range: non-positive values mean "use default", cap at 10 minutes
@@ -317,6 +337,7 @@ namespace MCPForUnity.Editor.Services
                 StartedUnixMs = started,
                 FinishedUnixMs = null,
                 LastUpdateUnixMs = started,
+                FilterRequested = HasFilter(filterOptions),
                 TotalTests = null,
                 CompletedTests = 0,
                 CurrentTestFullName = null,
@@ -552,6 +573,11 @@ namespace MCPForUnity.Editor.Services
                 started_unix_ms = job.StartedUnixMs,
                 finished_unix_ms = job.FinishedUnixMs,
                 last_update_unix_ms = job.LastUpdateUnixMs,
+                // Lets callers detect "filter matched nothing" without re-deriving it from progress.total:
+                // a job started with a test_names/group_names/category_names/assembly_names filter whose
+                // discovered_tests is 0 ran nothing, even though NUnit reports that as a "Passed" result.
+                filter_requested = job.FilterRequested,
+                discovered_tests = job.TotalTests,
                 progress = new
                 {
                     completed = job.CompletedTests,

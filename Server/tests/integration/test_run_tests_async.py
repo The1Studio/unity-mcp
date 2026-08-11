@@ -114,3 +114,105 @@ async def test_get_test_job_forwards_job_id(monkeypatch):
     assert resp.success is True
     assert resp.data is not None
     assert resp.data.job_id == "job-1"
+
+
+def _zero_match_job_response(status="succeeded"):
+    return {
+        "success": True,
+        "data": {
+            "job_id": "job-zero",
+            "status": status,
+            "mode": "EditMode",
+            "filter_requested": True,
+            "discovered_tests": 0,
+            "progress": {"completed": 0, "total": 0},
+            "result": {
+                "mode": "EditMode",
+                "summary": {
+                    "total": 0,
+                    "passed": 0,
+                    "failed": 0,
+                    "skipped": 0,
+                    "durationSeconds": 0.01,
+                    "resultState": "Passed",
+                },
+            },
+        },
+    }
+
+
+@pytest.mark.asyncio
+async def test_get_test_job_rejects_zero_match_filter(monkeypatch):
+    """#37: a test_names/group_names/... filter that matches nothing must not report Passed."""
+    from services.tools.run_tests import get_test_job
+
+    async def fake_send_with_unity_instance(send_fn, unity_instance, command_type, params, **kwargs):
+        return _zero_match_job_response()
+
+    import services.tools.run_tests as mod
+    monkeypatch.setattr(
+        mod.unity_transport, "send_with_unity_instance", fake_send_with_unity_instance)
+
+    resp = await get_test_job(DummyContext(), job_id="job-zero")
+    assert resp.success is False
+    assert "0 tests" in resp.error
+    assert resp.data["discovered_tests"] == 0
+
+
+@pytest.mark.asyncio
+async def test_get_test_job_rejects_zero_match_filter_via_wait_timeout(monkeypatch):
+    """Same guard applies on the server-side polling path (wait_timeout)."""
+    from services.tools.run_tests import get_test_job
+
+    async def fake_send_with_unity_instance(send_fn, unity_instance, command_type, params, **kwargs):
+        return _zero_match_job_response()
+
+    import services.tools.run_tests as mod
+    monkeypatch.setattr(
+        mod.unity_transport, "send_with_unity_instance", fake_send_with_unity_instance)
+
+    resp = await get_test_job(DummyContext(), job_id="job-zero", wait_timeout=5)
+    assert resp.success is False
+    assert "0 tests" in resp.error
+
+
+@pytest.mark.asyncio
+async def test_get_test_job_allows_zero_match_when_no_filter_requested(monkeypatch):
+    """A genuinely empty suite (no filter applied) must still report success normally."""
+    from services.tools.run_tests import get_test_job
+
+    payload = _zero_match_job_response()
+    payload["data"]["filter_requested"] = False
+
+    async def fake_send_with_unity_instance(send_fn, unity_instance, command_type, params, **kwargs):
+        return payload
+
+    import services.tools.run_tests as mod
+    monkeypatch.setattr(
+        mod.unity_transport, "send_with_unity_instance", fake_send_with_unity_instance)
+
+    resp = await get_test_job(DummyContext(), job_id="job-zero")
+    assert resp.success is True
+    assert resp.data.discovered_tests == 0
+
+
+@pytest.mark.asyncio
+async def test_get_test_job_allows_filter_with_matched_tests(monkeypatch):
+    """A filter that matched real tests must not be affected by the zero-match guard."""
+    from services.tools.run_tests import get_test_job
+
+    payload = _zero_match_job_response()
+    payload["data"]["discovered_tests"] = 3
+    payload["data"]["result"]["summary"]["total"] = 3
+    payload["data"]["result"]["summary"]["passed"] = 3
+
+    async def fake_send_with_unity_instance(send_fn, unity_instance, command_type, params, **kwargs):
+        return payload
+
+    import services.tools.run_tests as mod
+    monkeypatch.setattr(
+        mod.unity_transport, "send_with_unity_instance", fake_send_with_unity_instance)
+
+    resp = await get_test_job(DummyContext(), job_id="job-zero")
+    assert resp.success is True
+    assert resp.data.discovered_tests == 3
