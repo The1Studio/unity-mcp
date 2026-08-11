@@ -12,7 +12,8 @@ namespace MCPForUnity.Editor.Tools.InputSimulation
 {
     /// <summary>
     /// Mouse + keyboard input simulation actions.
-    /// Dual backend: New Input System (InputState.Change) + Legacy (ExecuteEvents).
+    /// Dual backend: New Input System (InputState.Change for byte-aligned controls,
+    /// event-queued writes via WriteButton for bitfield controls) + Legacy (ExecuteEvents).
     /// </summary>
     internal static class InputSimulationActions
     {
@@ -31,11 +32,26 @@ namespace MCPForUnity.Editor.Tools.InputSimulation
         static int BtnIndex(string n) => n?.ToLowerInvariant() == "right" ? 1 : n?.ToLowerInvariant() == "middle" ? 2 : 0;
         static bool TryKey(string n, out Key k) => Enum.TryParse(n ?? "", true, out k);
         static void Move(Vector2 p) => InputState.Change(Mouse.current.position, p);
+
+        // Key/Button controls are bitfield-backed (packed sub-byte state) and cannot be
+        // written via InputState.Change — that overload only supports byte-aligned state
+        // memory and throws "Cannot change state of bitfield control ... using this method".
+        // The supported way to flip a bitfield control is to write the value into a fresh
+        // state event for the owning device, then queue that event (same pattern Unity's
+        // own OnScreenControl uses for on-screen buttons/keys).
+        static void WriteButton(UnityEngine.InputSystem.Controls.ButtonControl control, float value)
+        {
+            using (StateEvent.From(control.device, out var eventPtr))
+            {
+                control.WriteValueIntoEvent(value, eventPtr);
+                InputSystem.QueueEvent(eventPtr);
+            }
+        }
+
         static void Btn(int b, float v)
         {
-            if (b == 1)      InputState.Change(Mouse.current.rightButton,  v);
-            else if (b == 2) InputState.Change(Mouse.current.middleButton, v);
-            else             InputState.Change(Mouse.current.leftButton,   v);
+            var control = b == 1 ? Mouse.current.rightButton : b == 2 ? Mouse.current.middleButton : Mouse.current.leftButton;
+            WriteButton(control, v);
         }
         static void Flush(bool f) { if (f) InputSystem.Update(); }
         static void DoClick(Vector2 p, int b, bool f) { Move(p); Btn(b, 1f); Flush(f); Btn(b, 0f); Flush(f); }
@@ -83,9 +99,9 @@ namespace MCPForUnity.Editor.Tools.InputSimulation
             var (to, e2) = Resolve(p, "to_target");   if (e2 != null) return e2;
 #if UNITY_INPUT_SYSTEM
             bool fl = p.GetBool("flush", true);
-            Move(fr.Value); InputState.Change(Mouse.current.leftButton, 1f); Flush(fl);
+            Move(fr.Value); WriteButton(Mouse.current.leftButton, 1f); Flush(fl);
             Move(to.Value); Flush(fl);
-            InputState.Change(Mouse.current.leftButton, 0f); Flush(fl);
+            WriteButton(Mouse.current.leftButton, 0f); Flush(fl);
             return new SuccessResponse($"Dragged ({fr.Value.x:F0},{fr.Value.y:F0}) → ({to.Value.x:F0},{to.Value.y:F0}).",
                 new { from_x = fr.Value.x, from_y = fr.Value.y, to_x = to.Value.x, to_y = to.Value.y });
 #else
@@ -114,8 +130,8 @@ namespace MCPForUnity.Editor.Tools.InputSimulation
 #if UNITY_INPUT_SYSTEM
             if (!TryKey(r.Value, out var k)) return new ErrorResponse($"Unknown key '{r.Value}'. Use Key enum names (e.g. Space, A, Escape).");
             bool fl = p.GetBool("flush", true);
-            if (mode == "release") { InputState.Change(Keyboard.current[k], 0f); }
-            else { InputState.Change(Keyboard.current[k], 1f); Flush(fl); if (mode == "tap") InputState.Change(Keyboard.current[k], 0f); }
+            if (mode == "release") { WriteButton(Keyboard.current[k], 0f); }
+            else { WriteButton(Keyboard.current[k], 1f); Flush(fl); if (mode == "tap") WriteButton(Keyboard.current[k], 0f); }
             Flush(fl);
             return new SuccessResponse($"Key '{r.Value}' {mode}.", new { key = r.Value, mode });
 #else
@@ -130,10 +146,10 @@ namespace MCPForUnity.Editor.Tools.InputSimulation
 #if UNITY_INPUT_SYSTEM
             if (!TryKey(r.Value, out var k)) return new ErrorResponse($"Unknown key '{r.Value}'.");
             bool fl = p.GetBool("flush", true);
-            if (mods != null) foreach (var m in mods) if (TryKey(m, out var mk)) InputState.Change(Keyboard.current[mk], 1f);
-            InputState.Change(Keyboard.current[k], 1f); Flush(fl);
-            InputState.Change(Keyboard.current[k], 0f);
-            if (mods != null) foreach (var m in mods) if (TryKey(m, out var mk)) InputState.Change(Keyboard.current[mk], 0f);
+            if (mods != null) foreach (var m in mods) if (TryKey(m, out var mk)) WriteButton(Keyboard.current[mk], 1f);
+            WriteButton(Keyboard.current[k], 1f); Flush(fl);
+            WriteButton(Keyboard.current[k], 0f);
+            if (mods != null) foreach (var m in mods) if (TryKey(m, out var mk)) WriteButton(Keyboard.current[mk], 0f);
             Flush(fl);
             return new SuccessResponse($"Combo [{string.Join("+", mods ?? Array.Empty<string>())}]+{r.Value}.", new { key = r.Value, modifiers = mods });
 #else
