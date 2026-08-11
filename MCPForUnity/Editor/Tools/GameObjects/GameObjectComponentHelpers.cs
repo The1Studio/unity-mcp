@@ -361,15 +361,30 @@ namespace MCPForUnity.Editor.Tools.GameObjects
                     }
 
                     // A write-back is only needed when this hop's fetched value is a
-                    // VALUE TYPE (struct) — a reference-type hop mutates the live shared
+                    // VALUE TYPE (struct): a reference-type hop mutates the live shared
                     // object in place, so writing it back is unnecessary and, for a
                     // writable reference property (e.g. Renderer.material), would trigger
-                    // needless setter side effects. It must also be SKIPPED (not attempted)
-                    // when the member isn't writable, since PropertyInfo.SetValue throws on
-                    // a get-only property (Component.transform, Component.gameObject,
-                    // ParticleSystem.main/.emission/.shape, Collider.bounds, etc.) — those
-                    // are always reference-type hops in practice, but the CanWrite guard
-                    // keeps the two concerns (value-vs-reference, writable-vs-not) explicit.
+                    // needless setter side effects.
+                    //
+                    // BOTH conditions are load-bearing — do NOT drop the CanWrite guard as
+                    // "redundant". Several get-only members return STRUCTS, so hopIsValueType
+                    // is true for them and CanWrite is the only thing preventing an
+                    // ArgumentException ("Set Method not found") from PropertyInfo.SetValue:
+                    //   - ParticleSystem.main/.emission/.shape return MainModule/EmissionModule/
+                    //     ShapeModule — structs holding a ParticleSystem reference whose setters
+                    //     write through to the live system, so the leaf write has ALREADY
+                    //     persisted and skipping the write-back is correct.
+                    //   - Collider.bounds, Renderer.bounds (Bounds), Transform.lossyScale
+                    //     (Vector3), RectTransform.rect (Rect) return inert copies. A write
+                    //     through them cannot persist by any route (there is no setter), so it
+                    //     is dropped. Known trade-off: this reports success rather than the
+                    //     pre-fix loud error. There is no general way to distinguish a
+                    //     write-through proxy struct from an inert copy, and erroring on
+                    //     (hopIsValueType && !CanWrite) would re-break every ParticleSystem
+                    //     module path — which is far more common.
+                    //
+                    // Reference-type get-only hops (Component.transform, Component.gameObject)
+                    // are skipped by the hopIsValueType check alone.
                     bool hopIsValueType = currentObject.GetType().IsValueType;
                     if (propInfo != null)
                     {
