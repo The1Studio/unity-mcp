@@ -91,7 +91,7 @@ namespace MCPForUnityTests.Editor.Tools
                 }
             };
 
-            var result = ToJObject(ManageAsset.HandleCommand(createParams));
+            var result = ToJObject(ManageAsset.HandleCommand(createParams).GetAwaiter().GetResult());
             Assert.IsTrue(result.Value<bool>("success"), result.Value<string>("error"));
 
             var mat = AssetDatabase.LoadAssetAtPath<Material>(_matPath);
