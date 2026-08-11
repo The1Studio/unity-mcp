@@ -36,25 +36,37 @@ namespace MCPForUnity.Editor.Tools
 
             bool refreshTriggered = false;
             bool compileRequested = false;
+            string skipReason = null;
 
             try
             {
+                bool isForce = string.Equals(mode, "force", StringComparison.OrdinalIgnoreCase);
                 // Best-effort semantics: if_dirty currently behaves like force unless future dirty signals are added.
-                bool shouldRefresh = string.Equals(mode, "force", StringComparison.OrdinalIgnoreCase)
+                bool shouldRefresh = isForce
                                      || string.Equals(mode, "if_dirty", StringComparison.OrdinalIgnoreCase);
 
                 if (shouldRefresh)
                 {
-                    if (string.Equals(scope, "scripts", StringComparison.OrdinalIgnoreCase))
+                    bool isScriptsScope = string.Equals(scope, "scripts", StringComparison.OrdinalIgnoreCase);
+
+                    if (isScriptsScope && !isForce)
                     {
-                        // For scripts, requesting compilation is usually the meaningful action.
-                        // We avoid a heavyweight full refresh by default.
+                        // For scripts under the softer if_dirty mode, requesting compilation is usually
+                        // the meaningful action, so we avoid a heavyweight full refresh by default.
+                        // mode="force" bypasses this shortcut below — it must not silently no-op when
+                        // externally-created .cs files have no .meta and Unity's directory watcher never
+                        // flagged them (see issue #38).
+                        skipReason = "scripts_scope_if_dirty_skips_refresh_use_mode_force_to_import_new_files";
                     }
                     else
                     {
                         AssetDatabase.Refresh(ImportAssetOptions.ForceUpdate | ImportAssetOptions.ForceSynchronousImport);
                         refreshTriggered = true;
                     }
+                }
+                else
+                {
+                    skipReason = $"mode_{mode}_does_not_trigger_refresh";
                 }
 
                 if (string.Equals(compile, "request", StringComparison.OrdinalIgnoreCase))
@@ -70,6 +82,12 @@ namespace MCPForUnity.Editor.Tools
                     // completes before returning, preventing stalls when Unity is backgrounded.
                     AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
                     refreshTriggered = true;
+                    skipReason = null;
+                }
+
+                if (refreshTriggered)
+                {
+                    skipReason = null;
                 }
             }
             catch (Exception ex)
@@ -101,6 +119,7 @@ namespace MCPForUnity.Editor.Tools
                         refresh_triggered = refreshTriggered,
                         compile_requested = compileRequested,
                         resulting_state = "unknown",
+                        skip_reason = skipReason,
                     });
                 }
                 catch (Exception ex)
@@ -118,6 +137,7 @@ namespace MCPForUnity.Editor.Tools
                 refresh_triggered = refreshTriggered,
                 compile_requested = compileRequested,
                 resulting_state = resultingState,
+                skip_reason = skipReason,
                 hint = shouldWaitForReady
                     ? "Unity refresh completed; editor should be ready."
                     : "If Unity enters compilation/domain reload, poll editor_state until ready_for_tools is true."
