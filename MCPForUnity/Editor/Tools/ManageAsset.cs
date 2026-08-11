@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
 using UnityEditor;
 using UnityEngine;
@@ -44,7 +45,7 @@ namespace MCPForUnity.Editor.Tools
             "get_components",
         };
 
-        public static object HandleCommand(JObject @params)
+        public static async Task<object> HandleCommand(JObject @params)
         {
             string action = @params["action"]?.ToString()?.ToLowerInvariant();
             if (string.IsNullOrEmpty(action))
@@ -99,12 +100,12 @@ namespace MCPForUnity.Editor.Tools
                     case "rename":
                         return MoveOrRenameAsset(path, @params["destination"]?.ToString());
                     case "search":
-                        return SearchAssets(@params);
+                        return await SearchAssets(@params).ConfigureAwait(true);
                     case "get_info":
-                        return GetAssetInfo(
+                        return await GetAssetInfo(
                             path,
                             @params["generatePreview"]?.ToObject<bool>() ?? false
-                        );
+                        ).ConfigureAwait(true);
                     case "create_folder": // Added specific action for clarity
                         return CreateFolder(path);
                     case "get_components":
@@ -625,7 +626,7 @@ namespace MCPForUnity.Editor.Tools
             }
         }
 
-        private static object SearchAssets(JObject @params)
+        private static async Task<object> SearchAssets(JObject @params)
         {
             string searchPattern = @params["searchPattern"]?.ToString();
             string filterType = @params["filterType"]?.ToString();
@@ -706,7 +707,9 @@ namespace MCPForUnity.Editor.Tools
                     }
 
                     totalFound++; // Count matching assets before pagination
-                    results.Add(GetAssetData(assetPath, generatePreview));
+                    results.Add(generatePreview
+                        ? await GetAssetDataAsync(assetPath).ConfigureAwait(true)
+                        : GetAssetData(assetPath));
                 }
 
                 // Apply pagination
@@ -730,7 +733,7 @@ namespace MCPForUnity.Editor.Tools
             }
         }
 
-        private static object GetAssetInfo(string path, bool generatePreview)
+        private static async Task<object> GetAssetInfo(string path, bool generatePreview)
         {
             if (string.IsNullOrEmpty(path))
                 return new ErrorResponse("'path' is required for get_info.");
@@ -740,10 +743,10 @@ namespace MCPForUnity.Editor.Tools
 
             try
             {
-                return new SuccessResponse(
-                    "Asset info retrieved.",
-                    GetAssetData(fullPath, generatePreview)
-                );
+                object data = generatePreview
+                    ? await GetAssetDataAsync(fullPath).ConfigureAwait(true)
+                    : GetAssetData(fullPath);
+                return new SuccessResponse("Asset info retrieved.", data);
             }
             catch (Exception e)
             {
@@ -1028,24 +1031,44 @@ namespace MCPForUnity.Editor.Tools
 
         // --- Data Serialization ---
 
+        // Bounded wait for AssetPreview.GetAssetPreview to finish an in-flight generation (#36).
+        // Unity's own Asset Store Tools package (TestProjects/AssetStoreUploads/.../NativePreviewGenerator.cs)
+        // uses the same technique -- yielding across real EditorApplication.update ticks -- because preview
+        // generation for non-trivial types (prefabs/models) is driven by that same update loop and never
+        // advances while this call stack blocks it (e.g. via Thread.Sleep).
+        private const double PreviewLoadTimeoutSeconds = 3.0;
+
         /// <summary>
-        /// Creates a serializable representation of an asset.
+        /// Creates a serializable representation of an asset (no preview).
         /// </summary>
-        private static object GetAssetData(string path, bool generatePreview = false)
+        private static object GetAssetData(string path)
         {
             if (string.IsNullOrEmpty(path) || !AssetExists(path))
                 return null;
 
-            string guid = AssetDatabase.AssetPathToGUID(path);
+            UnityEngine.Object asset = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(path);
+            return BuildAssetDataRecord(path, asset, previewBase64: null, previewWidth: 0, previewHeight: 0);
+        }
+
+        /// <summary>
+        /// Creates a serializable representation of an asset, including a generated preview thumbnail.
+        /// Waits up to <see cref="PreviewLoadTimeoutSeconds"/> across editor ticks for Unity to finish
+        /// generating the preview before giving up.
+        /// </summary>
+        private static async Task<object> GetAssetDataAsync(string path)
+        {
+            if (string.IsNullOrEmpty(path) || !AssetExists(path))
+                return null;
+
             Type assetType = AssetDatabase.GetMainAssetTypeAtPath(path);
             UnityEngine.Object asset = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(path);
             string previewBase64 = null;
             int previewWidth = 0;
             int previewHeight = 0;
 
-            if (generatePreview && asset != null)
+            if (asset != null)
             {
-                Texture2D preview = AssetPreview.GetAssetPreview(asset);
+                var (preview, timedOut) = await WaitForAssetPreviewAsync(asset).ConfigureAwait(true);
 
                 if (preview != null)
                 {
@@ -1089,6 +1112,12 @@ namespace MCPForUnity.Editor.Tools
                         // Texture2D staticPreview = AssetPreview.GetMiniThumbnail(asset);
                     }
                 }
+                else if (timedOut)
+                {
+                    McpLog.Warn(
+                        $"Timed out after {PreviewLoadTimeoutSeconds:0.#}s waiting for asset preview for {path} (Type: {assetType?.Name}). Unity may still be generating it; retry get_info/search with generatePreview later."
+                    );
+                }
                 else
                 {
                     McpLog.Warn(
@@ -1096,6 +1125,68 @@ namespace MCPForUnity.Editor.Tools
                     );
                 }
             }
+
+            return BuildAssetDataRecord(path, asset, previewBase64, previewWidth, previewHeight);
+        }
+
+        /// <summary>
+        /// Polls <see cref="AssetPreview.GetAssetPreview"/> across editor ticks until a texture is
+        /// produced, Unity reports it is no longer loading one, or <see cref="PreviewLoadTimeoutSeconds"/>
+        /// elapses. Returns the last-seen preview (possibly null) and whether the wait timed out while
+        /// Unity was still reporting the preview as loading.
+        /// </summary>
+        private static async Task<(Texture2D preview, bool timedOut)> WaitForAssetPreviewAsync(UnityEngine.Object asset)
+        {
+            Texture2D preview = AssetPreview.GetAssetPreview(asset);
+            if (preview != null)
+            {
+                return (preview, false);
+            }
+
+            int instanceId = asset.GetInstanceIDCompat();
+            DateTime deadline = DateTime.UtcNow.AddSeconds(PreviewLoadTimeoutSeconds);
+
+            while (AssetPreview.IsLoadingAssetPreview(instanceId))
+            {
+                if (DateTime.UtcNow >= deadline)
+                {
+                    return (AssetPreview.GetAssetPreview(asset), true);
+                }
+
+                await WaitForNextEditorTickAsync().ConfigureAwait(true);
+
+                preview = AssetPreview.GetAssetPreview(asset);
+                if (preview != null)
+                {
+                    return (preview, false);
+                }
+            }
+
+            // Not (or no longer) loading, yet no preview was ever produced: unsupported type or a
+            // failed generation, not a timeout.
+            return (AssetPreview.GetAssetPreview(asset), false);
+        }
+
+        private static Task WaitForNextEditorTickAsync()
+        {
+            var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            void Tick()
+            {
+                EditorApplication.update -= Tick;
+                tcs.TrySetResult(true);
+            }
+
+            EditorApplication.update += Tick;
+            // Nudge Unity to pump once in case update is throttled (mirrors RefreshUnity.cs).
+            try { EditorApplication.QueuePlayerLoopUpdate(); } catch { }
+            return tcs.Task;
+        }
+
+        private static object BuildAssetDataRecord(string path, UnityEngine.Object asset, string previewBase64, int previewWidth, int previewHeight)
+        {
+            string guid = AssetDatabase.AssetPathToGUID(path);
+            Type assetType = AssetDatabase.GetMainAssetTypeAtPath(path);
 
             return new
             {

@@ -113,7 +113,7 @@ namespace MCPForUnityTests.Editor.Tools
                     ["_Glossiness"] = 0.25f
                 }
             };
-            var createRes = ToJObject(ManageAsset.HandleCommand(createParams));
+            var createRes = ToJObject(ManageAsset.HandleCommand(createParams).GetAwaiter().GetResult());
             Assert.IsTrue(createRes.Value<bool>("success"), createRes.ToString());
 
             // Modify with aliases and textures
@@ -130,7 +130,7 @@ namespace MCPForUnityTests.Editor.Tools
                     ["_OcclusionMap"] = _occlusionMapPath
                 }
             };
-            var modifyRes = ToJObject(ManageAsset.HandleCommand(modifyParams));
+            var modifyRes = ToJObject(ManageAsset.HandleCommand(modifyParams).GetAwaiter().GetResult());
             Assert.IsTrue(modifyRes.Value<bool>("success"), modifyRes.ToString());
 
             var mat = AssetDatabase.LoadAssetAtPath<Material>(_matPath);

@@ -85,7 +85,7 @@ namespace MCPForUnityTests.Editor.Tools
                 ["assetType"] = "Material",
                 ["properties"] = new JObject { ["shader"] = "Universal Render Pipeline/Lit", ["color"] = new JArray(0, 0, 1, 1) }
             };
-            var createMatRes = ManageAsset.HandleCommand(createMat);
+            var createMatRes = ManageAsset.HandleCommand(createMat).GetAwaiter().GetResult();
             var createMatObj = createMatRes as JObject ?? JObject.FromObject(createMatRes);
             Assert.IsTrue(createMatObj.Value<bool>("success"), createMatObj.ToString());
 
@@ -186,7 +186,7 @@ namespace MCPForUnityTests.Editor.Tools
                     ["assetType"] = "Material",
                     ["properties"] = "{\"shader\":\"Universal Render Pipeline/Lit\",\"color\":[1,0,0,1]}"
                 };
-                var createRaw = ManageAsset.HandleCommand(createParams);
+                var createRaw = ManageAsset.HandleCommand(createParams).GetAwaiter().GetResult();
                 var createResult = createRaw as JObject ?? JObject.FromObject(createRaw);
                 Assert.IsTrue(createResult.Value<bool>("success"), $"Test 1 failed: {createResult}");
                 var mat = AssetDatabase.LoadAssetAtPath<Material>(matPath);
@@ -205,7 +205,7 @@ namespace MCPForUnityTests.Editor.Tools
                     ["path"] = matPath,
                     ["properties"] = "{\"color\":[0,0.5,1,1],\"metallic\":0.6}"
                 };
-                var modifyRaw1 = ManageAsset.HandleCommand(modify1);
+                var modifyRaw1 = ManageAsset.HandleCommand(modify1).GetAwaiter().GetResult();
                 var modifyResult1 = modifyRaw1 as JObject ?? JObject.FromObject(modifyRaw1);
                 Assert.IsTrue(modifyResult1.Value<bool>("success"), $"Test 2 failed: {modifyResult1}");
                 mat = AssetDatabase.LoadAssetAtPath<Material>(matPath);
@@ -226,7 +226,7 @@ namespace MCPForUnityTests.Editor.Tools
                         ["float"] = new JObject { ["name"] = "_Metallic", ["value"] = 0.1 }
                     }
                 };
-                var modifyRaw2 = ManageAsset.HandleCommand(modify2);
+                var modifyRaw2 = ManageAsset.HandleCommand(modify2).GetAwaiter().GetResult();
                 var modifyResult2 = modifyRaw2 as JObject ?? JObject.FromObject(modifyRaw2);
                 Assert.IsTrue(modifyResult2.Value<bool>("success"), $"Test 3 failed: {modifyResult2}");
                 mat = AssetDatabase.LoadAssetAtPath<Material>(matPath);
@@ -239,7 +239,7 @@ namespace MCPForUnityTests.Editor.Tools
                     ["path"] = matPath,
                     ["properties"] = "{\"_BaseMap\":\"" + texPath + "\"}"
                 };
-                var modifyRaw3 = ManageAsset.HandleCommand(modify3);
+                var modifyRaw3 = ManageAsset.HandleCommand(modify3).GetAwaiter().GetResult();
                 var modifyResult3 = modifyRaw3 as JObject ?? JObject.FromObject(modifyRaw3);
                 Assert.IsTrue(modifyResult3.Value<bool>("success"), $"Test 4 failed: {modifyResult3}");
 
@@ -253,7 +253,7 @@ namespace MCPForUnityTests.Editor.Tools
                         ["texture"] = new JObject { ["name"] = "_MainTex", ["path"] = texPath }
                     }
                 };
-                var modifyRaw4 = ManageAsset.HandleCommand(modify4);
+                var modifyRaw4 = ManageAsset.HandleCommand(modify4).GetAwaiter().GetResult();
                 var modifyResult4 = modifyRaw4 as JObject ?? JObject.FromObject(modifyRaw4);
                 Assert.IsTrue(modifyResult4.Value<bool>("success"), $"Test 5 failed: {modifyResult4}");
 
@@ -293,7 +293,7 @@ namespace MCPForUnityTests.Editor.Tools
                         ["_BaseColor"] = new JArray(0.2, 0.8, 0.3, 1)
                     }
                 };
-                var modifyRaw5 = ManageAsset.HandleCommand(modify5);
+                var modifyRaw5 = ManageAsset.HandleCommand(modify5).GetAwaiter().GetResult();
                 var modifyResult5 = modifyRaw5 as JObject ?? JObject.FromObject(modifyRaw5);
                 Assert.IsTrue(modifyResult5.Value<bool>("success"), $"Test 7 failed: {modifyResult5}");
                 mat = AssetDatabase.LoadAssetAtPath<Material>(matPath);
@@ -312,7 +312,7 @@ namespace MCPForUnityTests.Editor.Tools
                     ["properties"] = "{\"invalid\": json, \"missing\": quotes}"
                 };
                 LogAssert.Expect(LogType.Warning, new Regex("(failed to parse)|(Could not parse 'properties' JSON string)", RegexOptions.IgnoreCase));
-                var invalidRaw = ManageAsset.HandleCommand(invalidJson);
+                var invalidRaw = ManageAsset.HandleCommand(invalidJson).GetAwaiter().GetResult();
                 var invalidResult = invalidRaw as JObject ?? JObject.FromObject(invalidRaw);
                 Assert.IsNotNull(invalidResult, "Test 8: Should return a result");
 
@@ -323,7 +323,7 @@ namespace MCPForUnityTests.Editor.Tools
                     ["path"] = matPath,
                     ["properties"] = "{\"shader\":\"Standard\",\"color\":[1,1,0,1]}"
                 };
-                var modifyRaw6 = ManageAsset.HandleCommand(modify6);
+                var modifyRaw6 = ManageAsset.HandleCommand(modify6).GetAwaiter().GetResult();
                 var modifyResult6 = modifyRaw6 as JObject ?? JObject.FromObject(modifyRaw6);
                 Assert.IsTrue(modifyResult6.Value<bool>("success"), $"Test 9 failed: {modifyResult6}");
                 mat = AssetDatabase.LoadAssetAtPath<Material>(matPath);
@@ -345,7 +345,7 @@ namespace MCPForUnityTests.Editor.Tools
                         ["albedo"] = texPath
                     }
                 };
-                var modifyRaw7 = ManageAsset.HandleCommand(modify7);
+                var modifyRaw7 = ManageAsset.HandleCommand(modify7).GetAwaiter().GetResult();
                 var modifyResult7 = modifyRaw7 as JObject ?? JObject.FromObject(modifyRaw7);
                 Assert.IsTrue(modifyResult7.Value<bool>("success"), $"Test 10 failed: {modifyResult7}");
                 mat = AssetDatabase.LoadAssetAtPath<Material>(matPath);
