@@ -40,25 +40,12 @@ namespace MCPForUnity.Editor.Tools
 
             try
             {
-                object result;
-                if (isGameFacingAction)
-                {
-                    // Force all device input to the Game view for the duration of the
-                    // simulated action, then restore whatever the user had configured.
-                    using (InputSimulationFocusGuard.ForceGameViewInput())
-                    {
-                        result = Dispatch(action, p);
-                    }
+                object result = Dispatch(action, p);
 
-                    // A "success" that never reached the game is a false positive — surface
-                    // it as a warning instead of silently reporting plain success.
-                    if (result is SuccessResponse success && !InputSimulationFocusGuard.IsGameViewFocused())
-                        success.Warning = InputSimulationFocusGuard.FocusWarning;
-                }
-                else
-                {
-                    result = Dispatch(action, p);
-                }
+                // A "success" that never reached the game is a false positive — surface
+                // it as a warning instead of silently reporting plain success.
+                if (isGameFacingAction && result is SuccessResponse success && !InputSimulationFocusGuard.IsGameViewFocused())
+                    success.Warning = InputSimulationFocusGuard.FocusWarning;
 
                 return result;
             }
