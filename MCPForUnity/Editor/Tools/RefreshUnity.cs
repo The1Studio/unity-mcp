@@ -60,7 +60,7 @@ namespace MCPForUnity.Editor.Tools
                     }
                     else
                     {
-                        AssetDatabase.Refresh(ImportAssetOptions.ForceUpdate | ImportAssetOptions.ForceSynchronousImport);
+                        AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
                         refreshTriggered = true;
                     }
                 }
@@ -82,7 +82,6 @@ namespace MCPForUnity.Editor.Tools
                     // completes before returning, preventing stalls when Unity is backgrounded.
                     AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
                     refreshTriggered = true;
-                    skipReason = null;
                 }
 
                 if (refreshTriggered)

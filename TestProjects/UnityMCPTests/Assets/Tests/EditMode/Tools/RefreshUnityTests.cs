@@ -16,8 +16,7 @@ namespace MCPForUnityTests.Editor.Tools
             var resultObj = MCPForUnity.Editor.Tools.RefreshUnity.HandleCommand(new JObject
             {
                 ["mode"] = "force",
-                ["scope"] = "scripts",
-                ["compile"] = "request"
+                ["scope"] = "scripts"
             }).GetAwaiter().GetResult();
 
             Assert.IsInstanceOf<SuccessResponse>(resultObj);
@@ -25,8 +24,7 @@ namespace MCPForUnityTests.Editor.Tools
             var data = JObject.FromObject(success.Data);
 
             Assert.IsTrue(data["refresh_triggered"]?.Value<bool>(), "mode=force must always trigger a refresh, even for scope=scripts");
-            Assert.IsTrue(data["compile_requested"]?.Value<bool>());
-            Assert.IsNull(data["skip_reason"]?.ToString());
+            Assert.AreEqual(JTokenType.Null, data["skip_reason"]?.Type);
         }
 
         [Test]
@@ -62,7 +60,7 @@ namespace MCPForUnityTests.Editor.Tools
             var data = JObject.FromObject(success.Data);
 
             Assert.IsTrue(data["refresh_triggered"]?.Value<bool>());
-            Assert.IsNull(data["skip_reason"]?.ToString());
+            Assert.AreEqual(JTokenType.Null, data["skip_reason"]?.Type);
         }
     }
 }
