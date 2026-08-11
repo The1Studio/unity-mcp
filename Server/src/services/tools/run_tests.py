@@ -134,6 +134,10 @@ class GetTestJobData(BaseModel):
     started_unix_ms: int | None = None
     finished_unix_ms: int | None = None
     last_update_unix_ms: int | None = None
+    # True when run_tests was called with a test_names/group_names/category_names/assembly_names filter.
+    filter_requested: bool | None = None
+    # Number of tests Unity's Test Runner actually discovered/selected for this run (post-filter).
+    discovered_tests: int | None = None
     progress: TestJobProgress | None = None
     error: str | None = None
     result: RunTestsResult | None = None
@@ -141,6 +145,46 @@ class GetTestJobData(BaseModel):
 
 class GetTestJobResponse(MCPResponse):
     data: GetTestJobData | None = None
+
+
+def _reject_zero_match_filter(response: dict[str, Any]) -> dict[str, Any]:
+    """Turn a "Passed" result with 0 discovered tests into an explicit error.
+
+    A test_names/group_names/category_names/assembly_names filter that matches no
+    tests still reports resultState "Passed" (NUnit has nothing to fail). Silently
+    returning that as success hides a caller bug (typo'd test name, stale filter) --
+    see #37. Only rewrite terminal jobs that were actually filtered; a genuinely
+    empty EditMode/PlayMode suite run without a filter is left alone.
+    """
+    if not isinstance(response, dict) or not response.get("success", True):
+        return response
+
+    data = response.get("data")
+    if not isinstance(data, dict):
+        return response
+
+    if data.get("status") not in ("succeeded", "failed"):
+        return response
+
+    if not data.get("filter_requested"):
+        return response
+
+    if (data.get("discovered_tests") or 0) != 0:
+        return response
+
+    summary = ((data.get("result") or {}).get("summary")) or {}
+    if summary.get("total", 0) != 0:
+        return response
+
+    return {
+        "success": False,
+        "error": (
+            "Test filter matched 0 tests. test_names/group_names/category_names/"
+            "assembly_names did not match any test Unity discovered for this run -- "
+            "check for typos or a stale filter."
+        ),
+        "data": data,
+    }
 
 
 @mcp_for_unity_tool(
@@ -278,6 +322,9 @@ async def get_test_job(
             data = response.get("data", {})
             status = data.get("status", "")
             if status in ("succeeded", "failed", "cancelled"):
+                response = _reject_zero_match_filter(response)
+                if not response.get("success", True):
+                    return MCPResponse(**response)
                 return GetTestJobResponse(**response)
 
             # Detect progress and reset exponential backoff
@@ -350,4 +397,7 @@ async def get_test_job(
             _background_tasks.add(task)
             task.add_done_callback(_background_tasks.discard)
 
+    response = _reject_zero_match_filter(response)
+    if not response.get("success", True):
+        return MCPResponse(**response)
     return GetTestJobResponse(**response)
