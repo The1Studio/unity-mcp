@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using MCPForUnity.Editor.Helpers; // For Response class
 using Newtonsoft.Json.Linq;
 using UnityEditor;
@@ -247,6 +248,37 @@ namespace MCPForUnity.Editor.Tools
             int resolvedCursor = Mathf.Max(0, cursor ?? 0);
             int pageEndExclusive = resolvedCursor + resolvedPageSize;
 
+            // Bee/Tundra build failures (e.g. compile errors in assemblies that the
+            // domain-reload pipeline never routes through the managed console — see
+            // MCPForUnity kit issue #53) are not console log entries. Synthesize them
+            // here so `read_console(types=["error"])` can never observe an empty error
+            // list while an assembly actually failed to build. Appended FIRST (before
+            // ordinary console entries) so paging/count never bury the highest-value
+            // diagnostic behind unrelated console noise.
+            if (types.Contains("error"))
+            {
+                try
+                {
+                    AppendBuildFailureEntries(
+                        formattedEntries,
+                        ref totalMatches,
+                        ref retrievedCount,
+                        usePaging,
+                        resolvedCursor,
+                        pageEndExclusive,
+                        count,
+                        filterText,
+                        format,
+                        includeStacktrace
+                    );
+                }
+                catch (Exception e)
+                {
+                    // Never let a build-log parsing failure break an ordinary read_console call.
+                    McpLog.Warn($"[ReadConsole] Failed to append Bee build-failure entries: {e.Message}");
+                }
+            }
+
             try
             {
                 // LogEntries requires calling Start/Stop around GetEntries/GetEntryInternal.
@@ -373,14 +405,17 @@ namespace MCPForUnity.Editor.Tools
                     }
                     else
                     {
-                        formattedEntries.Add(formattedEntry);
-                        retrievedCount++;
-
-                        // Apply count limit (after filtering)
+                        // Check the count limit BEFORE adding: with build failures now
+                        // prepended (see below), retrievedCount can already equal
+                        // count.Value when this loop starts, and an add-then-check order
+                        // would let exactly one extra entry through.
                         if (count.HasValue && retrievedCount >= count.Value)
                         {
                             break;
                         }
+
+                        formattedEntries.Add(formattedEntry);
+                        retrievedCount++;
                     }
                 }
             }
@@ -401,35 +436,6 @@ namespace MCPForUnity.Editor.Tools
                 {
                     McpLog.Error($"[ReadConsole] Failed to call EndGettingEntries: {e}");
                     // Don't return error here as we might have valid data, but log it.
-                }
-            }
-
-            // Bee/Tundra build failures (e.g. compile errors in assemblies that the
-            // domain-reload pipeline never routes through the managed console — see
-            // MCPForUnity kit issue #53) are not console log entries. Synthesize them
-            // here so `read_console(types=["error"])` can never observe an empty error
-            // list while an assembly actually failed to build.
-            if (types.Contains("error"))
-            {
-                try
-                {
-                    AppendBuildFailureEntries(
-                        formattedEntries,
-                        ref totalMatches,
-                        ref retrievedCount,
-                        usePaging,
-                        resolvedCursor,
-                        pageEndExclusive,
-                        count,
-                        filterText,
-                        format,
-                        includeStacktrace
-                    );
-                }
-                catch (Exception e)
-                {
-                    // Never let a build-log parsing failure break an ordinary read_console call.
-                    McpLog.Error($"[ReadConsole] Failed to append Bee build-failure entries: {e.Message}");
                 }
             }
 
@@ -462,11 +468,17 @@ namespace MCPForUnity.Editor.Tools
 
         // --- Bee/Tundra build-failure surfacing (kit issue #53) ---
 
-        // Bee/Tundra rewrites Library/Bee/tundra.log.json at the start of every build, so its
-        // mtime marks the most recent build attempt. Guard against resurrecting errors from a
-        // much older session (e.g. a stale file left behind hours ago) by ignoring the log
-        // once it falls outside this recency window.
-        private const int TundraLogStalenessMinutes = 15;
+        // Bee/Tundra truncates and rewrites Library/Bee/tundra.log.json at the start of every
+        // build — confirmed against real project logs, each containing exactly one
+        // {"msg":"init"...} line, always line 1 — so the file always describes exactly one
+        // build session: the most recent. Cross-session contamination cannot occur, so no
+        // staleness/mtime window is applied here. A prior version of this code deleted true
+        // positives with a 15-minute recency guard: a real project log with a live
+        // exitcode:1 failure sitting untouched for six days was reported as green.
+        private static readonly Regex CompilerErrorLineRegex = new Regex(
+            @"^(?<file>.+?)\((?<line>\d+)(?:,(?<col>\d+))?\)\s*:\s*error",
+            RegexOptions.Compiled
+        );
 
         private readonly struct BuildFailureEntry
         {
@@ -513,7 +525,42 @@ namespace MCPForUnity.Editor.Tools
                     new[] { '\n', '\r' },
                     StringSplitOptions.RemoveEmptyEntries
                 );
+
+                // Default to the "[Bee build failure] ... (exit code N):" header and the
+                // build-artifact output path — used only when no compiler diagnostic line is
+                // found in stdout below.
                 string messageOnly = messageLines.Length > 0 ? messageLines[0] : failure.Message;
+                string errorFile = failure.OutputFile;
+                int errorLine = 0;
+
+                // Promote the first real compiler diagnostic line (e.g.
+                // "Assets/Foo.cs(16,73): error CS0023: ...") from stdout into the primary
+                // message/file/line. The DEFAULT read_console() call shape is
+                // format="plain", includeStacktrace=false, so without this the caller only
+                // ever sees the header line — the actual diagnostic (lines 2..N) is dropped
+                // because it's only attached as stackTrace when includeStacktrace is true.
+                // That silently turned a real compile failure into a content-free false-RED.
+                for (int li = 1; li < messageLines.Length; li++)
+                {
+                    string candidate = messageLines[li];
+                    if (candidate.IndexOf(": error ", StringComparison.OrdinalIgnoreCase) < 0)
+                    {
+                        continue;
+                    }
+
+                    messageOnly = candidate.Trim();
+                    Match match = CompilerErrorLineRegex.Match(messageOnly);
+                    if (match.Success)
+                    {
+                        errorFile = match.Groups["file"].Value;
+                        if (int.TryParse(match.Groups["line"].Value, out int parsedLine))
+                        {
+                            errorLine = parsedLine;
+                        }
+                    }
+                    break;
+                }
+
                 string stackTrace =
                     includeStacktrace && messageLines.Length > 1
                         ? string.Join("\n", messageLines.Skip(1))
@@ -533,8 +580,8 @@ namespace MCPForUnity.Editor.Tools
                             type = LogType.Error.ToString(),
                             source = "BeeBuildLog", // distinguishes a synthesized build-log entry from a real console entry
                             message = messageOnly,
-                            file = failure.OutputFile,
-                            line = 0,
+                            file = errorFile,
+                            line = errorLine,
                             stackTrace = stackTrace,
                         };
                         break;
@@ -556,13 +603,15 @@ namespace MCPForUnity.Editor.Tools
                 }
                 else
                 {
-                    formattedEntries.Add(formattedEntry);
-                    retrievedCount++;
-
+                    // Check the count limit BEFORE adding — without this, reaching the
+                    // limit exactly on entry lets one extra entry through (add-then-check).
                     if (count.HasValue && retrievedCount >= count.Value)
                     {
                         break;
                     }
+
+                    formattedEntries.Add(formattedEntry);
+                    retrievedCount++;
                 }
             }
         }
@@ -585,17 +634,19 @@ namespace MCPForUnity.Editor.Tools
                     return failures;
                 }
 
-                DateTime lastWriteUtc = File.GetLastWriteTimeUtc(tundraLogPath);
-                if ((DateTime.UtcNow - lastWriteUtc).TotalMinutes > TundraLogStalenessMinutes)
-                {
-                    // Older than our recency window — treat as a leftover from a previous
-                    // session rather than resurrecting hours-old errors.
-                    return failures;
-                }
-
                 foreach (string line in File.ReadLines(tundraLogPath))
                 {
                     if (string.IsNullOrWhiteSpace(line))
+                    {
+                        continue;
+                    }
+
+                    // Cheap pre-filter before the JSON parse: real logs run tens of MB /
+                    // thousands of lines, and read_console's "types" defaults to include
+                    // "error" — so this runs on essentially every poll while an agent waits
+                    // on a domain reload. Skipping non-"noderesult" lines up front (init,
+                    // progress, etc.) avoids parsing the bulk of the file every call.
+                    if (line.IndexOf("\"msg\":\"noderesult\"", StringComparison.Ordinal) < 0)
                     {
                         continue;
                     }
@@ -640,7 +691,12 @@ namespace MCPForUnity.Editor.Tools
             }
             catch (Exception e)
             {
-                McpLog.Error(
+                // Warn, not Error: an Error here becomes a real console entry, and the most
+                // likely trigger (an IOException while Bee holds the log mid-build) fires
+                // exactly when an agent is polling read_console — each poll would log an
+                // error, become a console entry, and get returned by the next poll,
+                // self-amplifying.
+                McpLog.Warn(
                     $"[ReadConsole] Failed to parse Library/Bee/tundra.log.json for build failures: {e.Message}"
                 );
             }
