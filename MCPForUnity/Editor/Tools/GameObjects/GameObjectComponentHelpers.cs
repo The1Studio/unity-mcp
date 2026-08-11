@@ -360,15 +360,31 @@ namespace MCPForUnity.Editor.Tools.GameObjects
                         return false;
                     }
 
+                    // A write-back is only needed when this hop's fetched value is a
+                    // VALUE TYPE (struct) — a reference-type hop mutates the live shared
+                    // object in place, so writing it back is unnecessary and, for a
+                    // writable reference property (e.g. Renderer.material), would trigger
+                    // needless setter side effects. It must also be SKIPPED (not attempted)
+                    // when the member isn't writable, since PropertyInfo.SetValue throws on
+                    // a get-only property (Component.transform, Component.gameObject,
+                    // ParticleSystem.main/.emission/.shape, Collider.bounds, etc.) — those
+                    // are always reference-type hops in practice, but the CanWrite guard
+                    // keeps the two concerns (value-vs-reference, writable-vs-not) explicit.
+                    bool hopIsValueType = currentObject.GetType().IsValueType;
                     if (propInfo != null)
                     {
                         PropertyInfo capturedProp = propInfo;
-                        writebacks.Add((owner, newValue) => capturedProp.SetValue(owner, newValue));
+                        bool needsWriteback = hopIsValueType && capturedProp.CanWrite;
+                        writebacks.Add(needsWriteback
+                            ? (Action<object, object>)((owner, newValue) => capturedProp.SetValue(owner, newValue))
+                            : null);
                     }
                     else
                     {
                         FieldInfo capturedField = fieldInfo;
-                        writebacks.Add((owner, newValue) => capturedField.SetValue(owner, newValue));
+                        writebacks.Add(hopIsValueType
+                            ? (Action<object, object>)((owner, newValue) => capturedField.SetValue(owner, newValue))
+                            : null);
                     }
 
                     if (isArray)

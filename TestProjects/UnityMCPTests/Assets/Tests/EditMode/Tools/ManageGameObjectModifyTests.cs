@@ -550,6 +550,44 @@ namespace MCPForUnityTests.Editor.Tools
         }
 
         [Test]
+        public void Modify_ComponentProperties_DottedPathThroughReadOnlyProperty_Succeeds()
+        {
+            // Regression test: a dotted path can walk through a READ-ONLY intermediate
+            // property (Component.transform has no setter) before reaching a writable
+            // leaf (Transform.localScale). SetNestedProperty used to record a write-back
+            // for every intermediate hop unconditionally, so PropertyInfo.SetValue on the
+            // get-only "transform" hop threw ArgumentException ("Set Method not found") —
+            // the leaf write had already succeeded, but the cascade failure was reported
+            // as an overall failure (and, via GameObjectCreate's rollback, could destroy a
+            // freshly created object). The fix skips write-back for reference-type and
+            // non-writable hops instead of attempting them.
+            var go = CreateTestObject("ReadOnlyHopPropsObject");
+            go.AddComponent<BoxCollider>();
+
+            var p = new JObject
+            {
+                ["action"] = "modify",
+                ["target"] = go.name,
+                ["componentProperties"] = new JObject
+                {
+                    ["BoxCollider"] = new JObject
+                    {
+                        ["transform.localScale"] = new JObject { ["x"] = 2f, ["y"] = 3f, ["z"] = 4f }
+                    }
+                }
+            };
+
+            var result = ManageGameObject.HandleCommand(p);
+            var resultObj = result as JObject ?? JObject.FromObject(result);
+
+            Assert.IsTrue(resultObj.Value<bool>("success"), resultObj.ToString());
+            // Class default localScale on a freshly created GameObject is (1,1,1) —
+            // assert a value that differs from the default, per issue #42.
+            Assert.AreEqual(new Vector3(2f, 3f, 4f), go.transform.localScale,
+                "Dotted-path write through a read-only intermediate property (transform) must still apply the leaf value.");
+        }
+
+        [Test]
         public void Modify_ComponentProperties_UnwritablePropertyFails_DoesNotReportSuccess()
         {
             // Cross-cutting requirement from issues #19/#42: a property that could not be
