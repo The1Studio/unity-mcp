@@ -216,6 +216,63 @@ namespace MCPForUnityTests.Editor.Services
             }
         }
 
+        /// <summary>
+        /// Evicting a stale client must not put an error in the console. The evicted
+        /// handler is parked in a read when we close its socket, so it faults with
+        /// ObjectDisposedException — expected teardown, not a fault. While that reached
+        /// Debug.LogError, Unity's LogAssert failed whichever unrelated test happened to
+        /// be running, so every full-suite run produced a different bogus failure.
+        /// See The1Studio/unity-mcp#40.
+        ///
+        /// This covers the wiring (every deliberate close is routed through
+        /// CloseClientIntentionally); StdioBridgeBenignExceptionTests covers the
+        /// classification itself.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator EvictingStaleClient_DoesNotLogConsoleError()
+        {
+            if (!StdioBridgeHost.IsRunning)
+            {
+                Assert.Ignore("StdioBridgeHost is not running; skipping eviction-logging test.");
+                yield break;
+            }
+
+            int port = StdioBridgeHost.GetCurrentPort();
+
+            var client1 = new TcpClient();
+            try
+            {
+                Assert.IsTrue(client1.ConnectAsync("127.0.0.1", port).Wait(ConnectTimeoutMs),
+                    "First client connect timed out");
+                client1.ReceiveTimeout = ReadTimeoutMs;
+                string handshake1 = ReadLine(client1.GetStream(), ReadTimeoutMs);
+                Assert.That(handshake1, Does.Contain("FRAMING=1"), "First client should receive handshake");
+
+                // Second client connects — this evicts client1 and closes its socket.
+                using (var client2 = new TcpClient())
+                {
+                    Assert.IsTrue(client2.ConnectAsync("127.0.0.1", port).Wait(ConnectTimeoutMs),
+                        "Second client connect timed out");
+                    client2.ReceiveTimeout = ReadTimeoutMs;
+                    string handshake2 = ReadLine(client2.GetStream(), ReadTimeoutMs);
+                    Assert.That(handshake2, Does.Contain("FRAMING=1"), "Second client should receive handshake");
+
+                    client2.Close();
+                }
+
+                // The evicted handler faults on a threadpool continuation, so give it
+                // room to surface before asserting the console stayed clean.
+                for (int i = 0; i < 30; i++)
+                    yield return null;
+
+                LogAssert.NoUnexpectedReceived();
+            }
+            finally
+            {
+                try { client1.Close(); } catch { }
+            }
+        }
+
         #region Frame protocol helpers
 
         private static string ReadLine(NetworkStream stream, int timeoutMs)
