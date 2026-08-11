@@ -451,6 +451,167 @@ namespace MCPForUnityTests.Editor.Tools
         }
 
         #endregion
+
+        #region Component Properties — Silent-Drop Regression Tests (issue #42)
+
+        [Test]
+        public void Modify_ComponentProperties_FloatField_AppliesNonDefaultValue()
+        {
+            // Regression test for issue #42 Defect B: a float [SerializeField] silently
+            // reverted to the class default instead of the requested value. Class default
+            // is 1f (see PropertyWriteTestComponent) — assert a different value so a
+            // no-op write would be caught.
+            var go = CreateTestObject("FloatPropsObject");
+            go.AddComponent<TestNamespace.PropertyWriteTestComponent>();
+
+            var p = new JObject
+            {
+                ["action"] = "modify",
+                ["target"] = go.name,
+                ["componentProperties"] = new JObject
+                {
+                    ["PropertyWriteTestComponent"] = new JObject { ["_radius"] = 7.5f }
+                }
+            };
+
+            var result = ManageGameObject.HandleCommand(p);
+            var resultObj = result as JObject ?? JObject.FromObject(result);
+
+            Assert.IsTrue(resultObj.Value<bool>("success"), resultObj.ToString());
+            var comp = go.GetComponent<TestNamespace.PropertyWriteTestComponent>();
+            Assert.AreEqual(7.5f, comp.RadiusValue, 0.0001f,
+                "Radius should be the requested non-default value (7.5), not the class default (1).");
+        }
+
+        [Test]
+        public void Modify_ComponentProperties_LayerMaskField_AppliesLargeBitmaskNotZero()
+        {
+            // Regression test for issue #42 Defect A / Defect B: a LayerMask bit-pattern
+            // above int.MaxValue (4294965499 == unchecked((uint)-1797)) used to silently
+            // save as 0 while the call reported success. Class default is an empty mask
+            // (0) — assert a non-zero, non-default value.
+            var go = CreateTestObject("LayerMaskPropsObject");
+            go.AddComponent<TestNamespace.PropertyWriteTestComponent>();
+
+            var p = new JObject
+            {
+                ["action"] = "modify",
+                ["target"] = go.name,
+                ["componentProperties"] = new JObject
+                {
+                    ["PropertyWriteTestComponent"] = new JObject
+                    {
+                        ["_layerMask"] = new JObject { ["m_Bits"] = 4294965499L }
+                    }
+                }
+            };
+
+            var result = ManageGameObject.HandleCommand(p);
+            var resultObj = result as JObject ?? JObject.FromObject(result);
+
+            Assert.IsTrue(resultObj.Value<bool>("success"), resultObj.ToString());
+            var comp = go.GetComponent<TestNamespace.PropertyWriteTestComponent>();
+            Assert.AreEqual(unchecked((int)4294965499L), comp.LayerMaskValue.value,
+                "LayerMask should hold the requested bit-pattern, not silently save as 0.");
+            Assert.AreNotEqual(0, comp.LayerMaskValue.value, "LayerMask must not silently default to 0.");
+        }
+
+        [Test]
+        public void Modify_ComponentProperties_DottedLayerMaskPath_WritesBackThroughStructBoxing()
+        {
+            // Regression test for a struct-boxing write-loss in SetNestedProperty: a dotted
+            // path ("PublicLayerMask.value") walks through a value-type intermediate
+            // (LayerMask). Reflection GetValue() on that hop returns a BOXED COPY; without
+            // writing the mutated copy back into its parent, the original field is left
+            // untouched while the call still reports success.
+            var go = CreateTestObject("DottedLayerMaskPropsObject");
+            go.AddComponent<TestNamespace.PropertyWriteTestComponent>();
+
+            var p = new JObject
+            {
+                ["action"] = "modify",
+                ["target"] = go.name,
+                ["componentProperties"] = new JObject
+                {
+                    ["PropertyWriteTestComponent"] = new JObject
+                    {
+                        ["PublicLayerMask.value"] = 37
+                    }
+                }
+            };
+
+            var result = ManageGameObject.HandleCommand(p);
+            var resultObj = result as JObject ?? JObject.FromObject(result);
+
+            Assert.IsTrue(resultObj.Value<bool>("success"), resultObj.ToString());
+            var comp = go.GetComponent<TestNamespace.PropertyWriteTestComponent>();
+            Assert.AreEqual(37, comp.PublicLayerMask.value,
+                "Dotted-path write into a struct-typed intermediate field must persist on the real component, not a discarded boxed copy.");
+        }
+
+        [Test]
+        public void Modify_ComponentProperties_DottedPathThroughReadOnlyProperty_Succeeds()
+        {
+            // Regression test: a dotted path can walk through a READ-ONLY intermediate
+            // property (Component.transform has no setter) before reaching a writable
+            // leaf (Transform.localScale). SetNestedProperty used to record a write-back
+            // for every intermediate hop unconditionally, so PropertyInfo.SetValue on the
+            // get-only "transform" hop threw ArgumentException ("Set Method not found") —
+            // the leaf write had already succeeded, but the cascade failure was reported
+            // as an overall failure (and, via GameObjectCreate's rollback, could destroy a
+            // freshly created object). The fix skips write-back for reference-type and
+            // non-writable hops instead of attempting them.
+            var go = CreateTestObject("ReadOnlyHopPropsObject");
+            go.AddComponent<BoxCollider>();
+
+            var p = new JObject
+            {
+                ["action"] = "modify",
+                ["target"] = go.name,
+                ["componentProperties"] = new JObject
+                {
+                    ["BoxCollider"] = new JObject
+                    {
+                        ["transform.localScale"] = new JObject { ["x"] = 2f, ["y"] = 3f, ["z"] = 4f }
+                    }
+                }
+            };
+
+            var result = ManageGameObject.HandleCommand(p);
+            var resultObj = result as JObject ?? JObject.FromObject(result);
+
+            Assert.IsTrue(resultObj.Value<bool>("success"), resultObj.ToString());
+            // Class default localScale on a freshly created GameObject is (1,1,1) —
+            // assert a value that differs from the default, per issue #42.
+            Assert.AreEqual(new Vector3(2f, 3f, 4f), go.transform.localScale,
+                "Dotted-path write through a read-only intermediate property (transform) must still apply the leaf value.");
+        }
+
+        [Test]
+        public void Modify_ComponentProperties_UnwritablePropertyFails_DoesNotReportSuccess()
+        {
+            // Cross-cutting requirement from issues #19/#42: a property that could not be
+            // applied MUST NOT be reported as success.
+            var go = CreateTestObject("PropsFailureObject");
+            go.AddComponent<TestNamespace.PropertyWriteTestComponent>();
+
+            var p = new JObject
+            {
+                ["action"] = "modify",
+                ["target"] = go.name,
+                ["componentProperties"] = new JObject
+                {
+                    ["PropertyWriteTestComponent"] = new JObject { ["thisPropertyDoesNotExist"] = 123 }
+                }
+            };
+
+            var result = ManageGameObject.HandleCommand(p);
+            var resultObj = result as JObject ?? JObject.FromObject(result);
+
+            Assert.IsFalse(resultObj.Value<bool>("success"), "Applying an unknown property must report failure, not silent success.");
+        }
+
+        #endregion
     }
 }
 

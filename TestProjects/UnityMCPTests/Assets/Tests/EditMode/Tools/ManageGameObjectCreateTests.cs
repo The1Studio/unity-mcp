@@ -486,6 +486,77 @@ namespace MCPForUnityTests.Editor.Tools
         }
 
         #endregion
+
+        #region Component Properties Tests (issue #19)
+
+        [Test]
+        public void Create_WithComponentsToAddAndComponentProperties_AppliesNonDefaultValues()
+        {
+            // Regression test for issue #19: 'create' combined with BOTH 'componentsToAdd'
+            // AND 'componentProperties' for the just-added component in the same call used
+            // to silently ignore 'componentProperties' entirely while reporting success.
+            // Default BoxCollider values are isTrigger=false, size=(1,1,1) — assert against
+            // non-default requested values so a no-op write would be caught, not masked by
+            // a target value that happens to equal the class default.
+            var p = new JObject
+            {
+                ["action"] = "create",
+                ["name"] = "TestCreateWithProps",
+                ["componentsToAdd"] = new JArray { "BoxCollider" },
+                ["componentProperties"] = new JObject
+                {
+                    ["BoxCollider"] = new JObject
+                    {
+                        ["isTrigger"] = true,
+                        ["size"] = new JObject { ["x"] = 12, ["y"] = 8, ["z"] = 4 }
+                    }
+                }
+            };
+
+            var result = ManageGameObject.HandleCommand(p);
+            var resultObj = result as JObject ?? JObject.FromObject(result);
+
+            Assert.IsTrue(resultObj.Value<bool>("success"), resultObj.ToString());
+
+            var created = FindAndTrack("TestCreateWithProps");
+            Assert.IsNotNull(created, "GameObject should be created");
+
+            var collider = created.GetComponent<BoxCollider>();
+            Assert.IsNotNull(collider, "BoxCollider should have been added");
+            Assert.IsTrue(collider.isTrigger, "isTrigger should be the requested non-default value (true), not the class default (false)");
+            Assert.AreEqual(new Vector3(12, 8, 4), collider.size, "size should be the requested non-default value, not the class default (1,1,1)");
+        }
+
+        [Test]
+        public void Create_ComponentPropertiesForUnknownProperty_ReturnsErrorNotSuccess()
+        {
+            // Cross-cutting requirement from issues #19/#42: a property that could not be
+            // applied MUST NOT be reported as success.
+            var p = new JObject
+            {
+                ["action"] = "create",
+                ["name"] = "TestCreatePropsFailure",
+                ["componentsToAdd"] = new JArray { "BoxCollider" },
+                ["componentProperties"] = new JObject
+                {
+                    ["BoxCollider"] = new JObject
+                    {
+                        ["thisPropertyDoesNotExist"] = 123
+                    }
+                }
+            };
+
+            var result = ManageGameObject.HandleCommand(p);
+            var resultObj = result as JObject ?? JObject.FromObject(result);
+
+            Assert.IsFalse(resultObj.Value<bool>("success"), "Applying an unknown property must report failure, not silent success.");
+
+            // The create call rolled back — nothing should have been left in the scene.
+            var created = GameObject.Find("TestCreatePropsFailure");
+            Assert.IsNull(created, "GameObject should have been rolled back when component properties could not be applied.");
+        }
+
+        #endregion
     }
 }
 

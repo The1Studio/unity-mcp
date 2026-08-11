@@ -45,6 +45,122 @@ namespace MCPForUnity.Editor.Helpers
         }
 
         /// <summary>
+        /// Coerces a JToken to an integer value, reporting a failure instead of
+        /// silently returning a default when the token overflows Int32 or can't be
+        /// parsed. Use this (not <see cref="CoerceInt"/>) anywhere a write must not
+        /// report success while silently discarding an out-of-range value — e.g. a
+        /// LayerMask bit-pattern above int.MaxValue narrowing to 0 instead of erroring.
+        /// </summary>
+        /// <param name="token">The JSON token to coerce</param>
+        /// <param name="value">The coerced integer value on success</param>
+        /// <param name="error">Failure reason when the method returns false</param>
+        /// <returns>True if the token was successfully parsed as an Int32</returns>
+        public static bool TryCoerceInt(JToken token, out int value, out string error)
+        {
+            value = 0;
+            error = null;
+
+            if (token == null || token.Type == JTokenType.Null)
+            {
+                error = "Value is null.";
+                return false;
+            }
+
+            try
+            {
+                if (token.Type == JTokenType.Integer)
+                {
+                    // Newtonsoft may hold this as a long/BigInteger internally; go through
+                    // long first so an out-of-Int32-range value is a controlled overflow
+                    // check below rather than an opaque exception from Value<int>().
+                    long longVal = token.Value<long>();
+                    if (longVal < int.MinValue || longVal > int.MaxValue)
+                    {
+                        error = $"Integer value {longVal} does not fit in a 32-bit field (range {int.MinValue}..{int.MaxValue}).";
+                        return false;
+                    }
+                    value = (int)longVal;
+                    return true;
+                }
+
+                var s = token.ToString().Trim();
+                if (s.Length == 0)
+                {
+                    error = "Value is empty.";
+                    return false;
+                }
+
+                if (int.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out value))
+                    return true;
+
+                if (double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var d)
+                    && d >= int.MinValue && d <= int.MaxValue)
+                {
+                    value = (int)d;
+                    return true;
+                }
+
+                error = $"Could not parse '{s}' as an integer.";
+                return false;
+            }
+            catch (Exception ex)
+            {
+                error = $"Error parsing integer value: {ex.Message}";
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Coerces a JToken to a long value, reporting a failure instead of silently
+        /// returning a default when the token can't be parsed. See <see cref="TryCoerceInt"/>.
+        /// </summary>
+        public static bool TryCoerceLong(JToken token, out long value, out string error)
+        {
+            value = 0;
+            error = null;
+
+            if (token == null || token.Type == JTokenType.Null)
+            {
+                error = "Value is null.";
+                return false;
+            }
+
+            try
+            {
+                if (token.Type == JTokenType.Integer)
+                {
+                    value = token.Value<long>();
+                    return true;
+                }
+
+                var s = token.ToString().Trim();
+                if (s.Length == 0)
+                {
+                    error = "Value is empty.";
+                    return false;
+                }
+
+                if (long.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out value))
+                    return true;
+
+                if (double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var d)
+                    && d >= long.MinValue && d <= long.MaxValue)
+                {
+                    value = (long)d;
+                    return true;
+                }
+
+                error = $"Could not parse '{s}' as a long integer.";
+                return false;
+            }
+            catch (Exception ex)
+            {
+                error = $"Error parsing long value: {ex.Message}";
+                return false;
+            }
+        }
+
+        /// <summary>
         /// Coerces a JToken to a long value, handling strings and floats.
         /// </summary>
         public static long CoerceLong(JToken token, long defaultValue)

@@ -269,6 +269,21 @@ namespace MCPForUnity.Editor.Tools.GameObjects
                 }
             }
 
+            // Apply top-level 'componentProperties' (properties for components that already
+            // exist OR were just added above via 'componentsToAdd') AFTER all components
+            // exist on the GameObject. Previously this parameter was silently ignored by
+            // 'create' entirely — the tool reported success while the properties were never
+            // applied. See issue #19.
+            if (@params["componentProperties"] is JObject componentPropertiesObj)
+            {
+                var propsError = GameObjectComponentHelpers.ApplyComponentPropertiesInternal(newGo, componentPropertiesObj, out _);
+                if (propsError != null)
+                {
+                    UnityEngine.Object.DestroyImmediate(newGo);
+                    return propsError;
+                }
+            }
+
             // Save as Prefab ONLY if we *created* a new object AND saveAsPrefab is true
             GameObject finalInstance = newGo;
             if (createdNewObject && saveAsPrefab)

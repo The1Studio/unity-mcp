@@ -901,6 +901,46 @@ namespace MCPForUnityTests.Editor.Tools
         }
 
         [Test]
+        public void ModifyContents_ComponentProperties_LargeLayerMaskBitmask_DoesNotSilentlySaveZero()
+        {
+            // Regression test for issue #42 Defect A: a LayerMask bit-pattern above
+            // int.MaxValue (4294965499 == unchecked((uint)-1797)) used to silently save as
+            // 0 while modify_contents reported success. Class default for a fresh LayerMask
+            // is 0 — assert the actual non-zero, non-default requested value so a no-op
+            // write would be caught rather than masked by a target equal to the default.
+            string prefabPath = CreatePrefabWithComponents("CompPropLayerMask", typeof(TestNamespace.PropertyWriteTestComponent));
+
+            try
+            {
+                var result = ToJObject(ManagePrefabs.HandleCommand(new JObject
+                {
+                    ["action"] = "modify_contents",
+                    ["prefabPath"] = prefabPath,
+                    ["componentProperties"] = new JObject
+                    {
+                        ["PropertyWriteTestComponent"] = new JObject
+                        {
+                            ["_layerMask"] = new JObject { ["m_Bits"] = 4294965499L }
+                        }
+                    }
+                }));
+
+                Assert.IsTrue(result.Value<bool>("success"), $"Expected success but got: {result}");
+
+                GameObject reloaded = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
+                var comp = reloaded.GetComponent<TestNamespace.PropertyWriteTestComponent>();
+                Assert.IsNotNull(comp);
+                Assert.AreEqual(unchecked((int)4294965499L), comp.LayerMaskValue.value,
+                    "LayerMask should hold the requested bit-pattern, not silently save as 0.");
+                Assert.AreNotEqual(0, comp.LayerMaskValue.value, "LayerMask must not silently default to 0.");
+            }
+            finally
+            {
+                SafeDeleteAsset(prefabPath);
+            }
+        }
+
+        [Test]
         public void ModifyContents_ComponentProperties_SetsOnChildTarget()
         {
             // Create a prefab with a child that has a Rigidbody
