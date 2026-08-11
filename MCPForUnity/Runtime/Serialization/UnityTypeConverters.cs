@@ -266,6 +266,63 @@ namespace MCPForUnity.Runtime.Serialization
         }
     }
 
+    /// <summary>
+    /// Converter for LayerMask. LayerMask only exposes a public "value" member reflectively —
+    /// its Editor-only SerializedProperty child is named "m_Bits", which is not a real C#
+    /// member on the struct. Without this converter, Newtonsoft's default object binder
+    /// silently ignores an unmatched "m_Bits" key (MissingMemberHandling defaults to Ignore)
+    /// and returns a zeroed LayerMask instead of throwing — the caller then reports success
+    /// while the mask silently lands as 0. See issue #42 (Defect A / part of Defect B).
+    /// Accepts a plain integer/string, or an object with "value" or "m_Bits". The mask is
+    /// parsed as a 64-bit value first and narrowed via unchecked (two's-complement) cast,
+    /// so both the unsigned bit-pattern form (4294965499) and its signed equivalent (-1797)
+    /// resolve to the same, correct Int32 mask instead of overflowing into a swallowed default.
+    /// </summary>
+    public class LayerMaskConverter : JsonConverter<LayerMask>
+    {
+        public override void WriteJson(JsonWriter writer, LayerMask value, JsonSerializer serializer)
+        {
+            writer.WriteStartObject();
+            writer.WritePropertyName("value");
+            writer.WriteValue(value.value);
+            writer.WriteEndObject();
+        }
+
+        public override LayerMask ReadJson(JsonReader reader, Type objectType, LayerMask existingValue, bool hasExistingValue, JsonSerializer serializer)
+        {
+            JToken token = JToken.Load(reader);
+            long raw;
+
+            if (token.Type == JTokenType.Integer || token.Type == JTokenType.Float)
+            {
+                raw = token.Value<long>();
+            }
+            else if (token.Type == JTokenType.String && long.TryParse(token.ToString(), out long parsed))
+            {
+                raw = parsed;
+            }
+            else if (token is JObject jo)
+            {
+                JToken maskToken = jo["value"] ?? jo["m_Bits"] ?? jo["mask"];
+                if (maskToken == null)
+                {
+                    throw new JsonSerializationException(
+                        $"Cannot deserialize LayerMask from '{token}': expected 'value' or 'm_Bits'.");
+                }
+                raw = maskToken.Value<long>();
+            }
+            else
+            {
+                throw new JsonSerializationException($"Cannot deserialize LayerMask from {token.Type}: '{token}'");
+            }
+
+            // Narrow to Int32 via unchecked two's-complement cast so both the unsigned
+            // bit-pattern (0..4294967295) and signed (-2147483648..2147483647) input forms
+            // resolve to the identical mask instead of throwing/overflowing.
+            return new LayerMask { value = unchecked((int)raw) };
+        }
+    }
+
     // Converter for UnityEngine.Object references (GameObjects, Components, Materials, Textures, etc.)
     // Intentionally internal: this converter is meant for MCP-internal serialization only.
     // Leaving it public lets third-party Newtonsoft converter scanners (e.g. jillejr's

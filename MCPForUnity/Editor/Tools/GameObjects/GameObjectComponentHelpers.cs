@@ -215,6 +215,81 @@ namespace MCPForUnity.Editor.Tools.GameObjects
                 : new ErrorResponse($"One or more properties failed on '{componentTypeName}'.", new { errors = failures });
         }
 
+        /// <summary>
+        /// Applies a top-level "componentProperties" map ({ "ComponentType": { "prop": value, ... } })
+        /// to components already present on <paramref name="targetGo"/>, aggregating any per-property
+        /// failures into a single ErrorResponse instead of silently reporting success on a partial
+        /// or dropped write. Shared by GameObjectCreate (issue #19 — properties for a component added
+        /// in the same 'create' call were previously never applied at all) and GameObjectModify.
+        /// </summary>
+        /// <param name="modified">Set true if at least one property was applied successfully.</param>
+        /// <returns>An ErrorResponse if any property failed to apply, otherwise null.</returns>
+        internal static object ApplyComponentPropertiesInternal(GameObject targetGo, JObject componentPropertiesObj, out bool modified)
+        {
+            modified = false;
+            if (componentPropertiesObj == null)
+            {
+                return null;
+            }
+
+            var componentErrors = new List<object>();
+            foreach (var prop in componentPropertiesObj.Properties())
+            {
+                string compName = prop.Name;
+                if (prop.Value is not JObject propertiesToSet)
+                {
+                    continue;
+                }
+
+                var setResult = SetComponentPropertiesInternal(targetGo, compName, propertiesToSet);
+                if (setResult != null)
+                {
+                    componentErrors.Add(setResult);
+                }
+                else
+                {
+                    modified = true;
+                }
+            }
+
+            if (componentErrors.Count == 0)
+            {
+                return null;
+            }
+
+            var aggregatedErrors = new List<string>();
+            foreach (var errorObj in componentErrors)
+            {
+                try
+                {
+                    var dataProp = errorObj?.GetType().GetProperty("data");
+                    var dataVal = dataProp?.GetValue(errorObj);
+                    if (dataVal != null)
+                    {
+                        var errorsProp = dataVal.GetType().GetProperty("errors");
+                        var errorsEnum = errorsProp?.GetValue(dataVal) as System.Collections.IEnumerable;
+                        if (errorsEnum != null)
+                        {
+                            foreach (var item in errorsEnum)
+                            {
+                                var s = item?.ToString();
+                                if (!string.IsNullOrEmpty(s)) aggregatedErrors.Add(s);
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    McpLog.Warn($"[GameObjectComponentHelpers] Error aggregating component errors: {ex.Message}");
+                }
+            }
+
+            return new ErrorResponse(
+                $"One or more component property operations failed on '{targetGo.name}'.",
+                new { componentErrors = componentErrors, errors = aggregatedErrors }
+            );
+        }
+
         private static JsonSerializer InputSerializer => UnityJsonSerializer.Instance;
 
         private static bool SetNestedProperty(object target, string path, JToken value, JsonSerializer inputSerializer, out string error)
@@ -232,6 +307,17 @@ namespace MCPForUnity.Editor.Tools.GameObjects
                 object currentObject = target;
                 Type currentType = currentObject.GetType();
                 BindingFlags flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase;
+
+                // Reflection's GetValue() on a struct-typed member returns a BOXED COPY.
+                // If an intermediate hop in the path is a value type (LayerMask, Vector3,
+                // any [Serializable] struct field), mutating that copy's leaf member and
+                // stopping there leaves the ORIGINAL field on the component untouched while
+                // the call still reports success — a silent write loss. See issue #42
+                // Defect B. To fix it, we record a write-back delegate per hop and, after
+                // the leaf assignment succeeds, walk the chain back to the live component
+                // writing each mutated (possibly boxed) value into its parent.
+                var containers = new List<object> { currentObject };
+                var writebacks = new List<Action<object, object>>();
 
                 for (int i = 0; i < pathParts.Length - 1; i++)
                 {
@@ -266,11 +352,23 @@ namespace MCPForUnity.Editor.Tools.GameObjects
                         }
                     }
 
-                    currentObject = propInfo != null ? propInfo.GetValue(currentObject) : fieldInfo.GetValue(currentObject);
+                    object memberOwner = currentObject;
+                    currentObject = propInfo != null ? propInfo.GetValue(memberOwner) : fieldInfo.GetValue(memberOwner);
                     if (currentObject == null)
                     {
                         error = $"Property '{part}' is null in path '{path}', cannot access nested properties.";
                         return false;
+                    }
+
+                    if (propInfo != null)
+                    {
+                        PropertyInfo capturedProp = propInfo;
+                        writebacks.Add((owner, newValue) => capturedProp.SetValue(owner, newValue));
+                    }
+                    else
+                    {
+                        FieldInfo capturedField = fieldInfo;
+                        writebacks.Add((owner, newValue) => capturedField.SetValue(owner, newValue));
                     }
 
                     if (isArray)
@@ -310,13 +408,21 @@ namespace MCPForUnity.Editor.Tools.GameObjects
                             error = $"Property '{part}' is not an array or list in path '{path}', cannot access by index.";
                             return false;
                         }
+
+                        // Array/list elements are addressed independently of the member
+                        // write-back recorded above (which targets the array/list reference
+                        // itself, unaffected by indexing into it) — no per-element write-back
+                        // chain is tracked past this hop, matching prior behavior.
+                        writebacks[writebacks.Count - 1] = null;
                     }
 
+                    containers.Add(currentObject);
                     currentType = currentObject.GetType();
                 }
 
                 string finalPart = pathParts[pathParts.Length - 1];
 
+                bool leafSet;
                 if (currentObject is Material material && finalPart.StartsWith("_"))
                 {
                     if (!MaterialOps.TrySetShaderProperty(material, finalPart, value, inputSerializer))
@@ -324,50 +430,63 @@ namespace MCPForUnity.Editor.Tools.GameObjects
                         error = $"Failed to set shader property '{finalPart}' on material '{material.name}' in path '{path}'.";
                         return false;
                     }
-                    return true;
+                    leafSet = true;
                 }
-
-                PropertyInfo finalPropInfo = currentType.GetProperty(finalPart, flags);
-                if (finalPropInfo != null && finalPropInfo.CanWrite)
+                else
                 {
-                    object convertedValue = ConvertJTokenToType(value, finalPropInfo.PropertyType, inputSerializer);
-                    if (convertedValue != null || value.Type == JTokenType.Null)
+                    PropertyInfo finalPropInfo = currentType.GetProperty(finalPart, flags);
+                    if (finalPropInfo != null && finalPropInfo.CanWrite)
                     {
+                        object convertedValue = ConvertJTokenToType(value, finalPropInfo.PropertyType, inputSerializer);
+                        if (convertedValue == null && value.Type != JTokenType.Null)
+                        {
+                            error = $"Failed to convert value for '{finalPart}' to type '{finalPropInfo.PropertyType.Name}' in path '{path}'.";
+                            return false;
+                        }
                         finalPropInfo.SetValue(currentObject, convertedValue);
-                        return true;
+                        leafSet = true;
                     }
-                    error = $"Failed to convert value for '{finalPart}' to type '{finalPropInfo.PropertyType.Name}' in path '{path}'.";
-                    return false;
-                }
-
-                FieldInfo finalFieldInfo = currentType.GetField(finalPart, flags);
-                if (finalFieldInfo != null)
-                {
-                    object convertedValue = ConvertJTokenToType(value, finalFieldInfo.FieldType, inputSerializer);
-                    if (convertedValue != null || value.Type == JTokenType.Null)
+                    else
                     {
-                        finalFieldInfo.SetValue(currentObject, convertedValue);
-                        return true;
+                        FieldInfo finalFieldInfo = currentType.GetField(finalPart, flags)
+                            ?? ComponentOps.FindSerializedFieldInHierarchy(currentType, finalPart);
+                        if (finalFieldInfo != null)
+                        {
+                            object convertedValue = ConvertJTokenToType(value, finalFieldInfo.FieldType, inputSerializer);
+                            if (convertedValue == null && value.Type != JTokenType.Null)
+                            {
+                                error = $"Failed to convert value for '{finalPart}' to type '{finalFieldInfo.FieldType.Name}' in path '{path}'.";
+                                return false;
+                            }
+                            finalFieldInfo.SetValue(currentObject, convertedValue);
+                            leafSet = true;
+                        }
+                        else
+                        {
+                            error = $"Property or field '{finalPart}' not found on type '{currentType.Name}' in path '{path}'.";
+                            return false;
+                        }
                     }
-                    error = $"Failed to convert value for '{finalPart}' to type '{finalFieldInfo.FieldType.Name}' in path '{path}'.";
-                    return false;
                 }
 
-                // Try non-public [SerializeField] fields (nested paths need this too)
-                FieldInfo serializedField = ComponentOps.FindSerializedFieldInHierarchy(currentType, finalPart);
-                if (serializedField != null)
+                if (!leafSet)
+                    return false;
+
+                // Cascade the (possibly boxed) mutated value back through every
+                // struct-typed hop in the chain, ending at the live component field.
+                object updatedChild = currentObject;
+                for (int i = containers.Count - 1; i >= 1; i--)
                 {
-                    object convertedValue = ConvertJTokenToType(value, serializedField.FieldType, inputSerializer);
-                    if (convertedValue != null || value.Type == JTokenType.Null)
-                    {
-                        serializedField.SetValue(currentObject, convertedValue);
-                        return true;
-                    }
-                    error = $"Failed to convert value for '{finalPart}' to type '{serializedField.FieldType.Name}' in path '{path}'.";
-                    return false;
+                    var writeback = writebacks[i - 1];
+                    if (writeback == null)
+                        break; // array/list index boundary — element write-back not tracked.
+
+                    object owner = containers[i - 1];
+                    writeback(owner, updatedChild);
+                    updatedChild = owner;
                 }
 
-                error = $"Property or field '{finalPart}' not found on type '{currentType.Name}' in path '{path}'.";
+                return true;
             }
             catch (Exception ex)
             {

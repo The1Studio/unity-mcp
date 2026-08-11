@@ -274,6 +274,11 @@ namespace MCPForUnity.Editor.Helpers
                         return false;
                     }
                     fieldInfo.SetValue(component, convertedValue);
+                    if (!ReadbackMatches(fieldInfo.GetValue(component), convertedValue))
+                    {
+                        error = $"Field '{propertyName}' was set but did not persist the requested value (readback mismatch).";
+                        return false;
+                    }
                     return true;
                 }
                 catch (Exception ex)
@@ -303,6 +308,11 @@ namespace MCPForUnity.Editor.Helpers
                         return false;
                     }
                     fieldInfo.SetValue(component, convertedValue);
+                    if (!ReadbackMatches(fieldInfo.GetValue(component), convertedValue))
+                    {
+                        error = $"Serialized field '{propertyName}' was set but did not persist the requested value (readback mismatch).";
+                        return false;
+                    }
                     return true;
                 }
                 catch (Exception ex)
@@ -314,6 +324,22 @@ namespace MCPForUnity.Editor.Helpers
 
             error = $"Property or field '{propertyName}' not found on component '{type.Name}'.";
             return false;
+        }
+
+        /// <summary>
+        /// Confirms a raw field write actually stuck by comparing the post-write value
+        /// against what was requested. A CLR field set on a live reference-type instance
+        /// (a Component) cannot normally "silently fail" — but this catches cases where the
+        /// converted value itself was already wrong (e.g. a struct converter that ignored an
+        /// unrecognized key and produced a zeroed default) instead of trusting SetValue blindly.
+        /// Per issue #42's cross-cutting requirement: a property that could not be applied
+        /// must not be reported as success.
+        /// </summary>
+        private static bool ReadbackMatches(object actual, object expected)
+        {
+            if (expected == null)
+                return actual == null;
+            return expected.Equals(actual);
         }
 
         /// <summary>
@@ -575,17 +601,27 @@ namespace MCPForUnity.Editor.Helpers
                 switch (prop.propertyType)
                 {
                     case SerializedPropertyType.Integer:
-                        if (value == null || value.Type == JTokenType.Null
-                            || (value.Type != JTokenType.Integer && value.Type != JTokenType.Float
-                                && !long.TryParse(value.ToString(), out _)))
-                        {
-                            error = "Expected integer value.";
-                            return false;
-                        }
+                        // Use the checked coercers — never silently narrow an out-of-range
+                        // or unparsable value to a default (e.g. a LayerMask bit-pattern
+                        // above int.MaxValue must error, not save as 0). See issue #42.
                         if (prop.type == "long")
-                            prop.longValue = ParamCoercion.CoerceLong(value, 0);
+                        {
+                            if (!ParamCoercion.TryCoerceLong(value, out long longVal, out string longError))
+                            {
+                                error = longError ?? "Expected integer value.";
+                                return false;
+                            }
+                            prop.longValue = longVal;
+                        }
                         else
-                            prop.intValue = ParamCoercion.CoerceInt(value, 0);
+                        {
+                            if (!ParamCoercion.TryCoerceInt(value, out int intVal, out string intError))
+                            {
+                                error = intError ?? "Expected integer value.";
+                                return false;
+                            }
+                            prop.intValue = intVal;
+                        }
                         return true;
 
                     case SerializedPropertyType.Boolean:
