@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using MCPForUnity.Editor.Helpers; // For Response class
@@ -403,6 +404,35 @@ namespace MCPForUnity.Editor.Tools
                 }
             }
 
+            // Bee/Tundra build failures (e.g. compile errors in assemblies that the
+            // domain-reload pipeline never routes through the managed console — see
+            // MCPForUnity kit issue #53) are not console log entries. Synthesize them
+            // here so `read_console(types=["error"])` can never observe an empty error
+            // list while an assembly actually failed to build.
+            if (types.Contains("error"))
+            {
+                try
+                {
+                    AppendBuildFailureEntries(
+                        formattedEntries,
+                        ref totalMatches,
+                        ref retrievedCount,
+                        usePaging,
+                        resolvedCursor,
+                        pageEndExclusive,
+                        count,
+                        filterText,
+                        format,
+                        includeStacktrace
+                    );
+                }
+                catch (Exception e)
+                {
+                    // Never let a build-log parsing failure break an ordinary read_console call.
+                    McpLog.Error($"[ReadConsole] Failed to append Bee build-failure entries: {e.Message}");
+                }
+            }
+
             if (usePaging)
             {
                 bool truncated = totalMatches > pageEndExclusive;
@@ -428,6 +458,194 @@ namespace MCPForUnity.Editor.Tools
                 $"Retrieved {formattedEntries.Count} log entries.",
                 formattedEntries
             );
+        }
+
+        // --- Bee/Tundra build-failure surfacing (kit issue #53) ---
+
+        // Bee/Tundra rewrites Library/Bee/tundra.log.json at the start of every build, so its
+        // mtime marks the most recent build attempt. Guard against resurrecting errors from a
+        // much older session (e.g. a stale file left behind hours ago) by ignoring the log
+        // once it falls outside this recency window.
+        private const int TundraLogStalenessMinutes = 15;
+
+        private readonly struct BuildFailureEntry
+        {
+            public readonly string Message;
+            public readonly string OutputFile;
+
+            public BuildFailureEntry(string message, string outputFile)
+            {
+                Message = message;
+                OutputFile = outputFile;
+            }
+        }
+
+        /// <summary>
+        /// Parses Library/Bee/tundra.log.json for failed build nodes (non-zero exitcode) and
+        /// appends them to <paramref name="formattedEntries"/> using the same type/filterText/
+        /// count/paging semantics as the regular console-entry loop above. Never throws — a
+        /// missing, unreadable, or malformed log file simply yields no entries.
+        /// </summary>
+        private static void AppendBuildFailureEntries(
+            List<object> formattedEntries,
+            ref int totalMatches,
+            ref int retrievedCount,
+            bool usePaging,
+            int resolvedCursor,
+            int pageEndExclusive,
+            int? count,
+            string filterText,
+            string format,
+            bool includeStacktrace
+        )
+        {
+            foreach (BuildFailureEntry failure in GetTundraBuildFailures())
+            {
+                if (
+                    !string.IsNullOrEmpty(filterText)
+                    && failure.Message.IndexOf(filterText, StringComparison.OrdinalIgnoreCase) < 0
+                )
+                {
+                    continue;
+                }
+
+                string[] messageLines = failure.Message.Split(
+                    new[] { '\n', '\r' },
+                    StringSplitOptions.RemoveEmptyEntries
+                );
+                string messageOnly = messageLines.Length > 0 ? messageLines[0] : failure.Message;
+                string stackTrace =
+                    includeStacktrace && messageLines.Length > 1
+                        ? string.Join("\n", messageLines.Skip(1))
+                        : null;
+
+                object formattedEntry;
+                switch (format)
+                {
+                    case "plain":
+                        formattedEntry = messageOnly;
+                        break;
+                    case "json":
+                    case "detailed":
+                    default:
+                        formattedEntry = new
+                        {
+                            type = LogType.Error.ToString(),
+                            source = "BeeBuildLog", // distinguishes a synthesized build-log entry from a real console entry
+                            message = messageOnly,
+                            file = failure.OutputFile,
+                            line = 0,
+                            stackTrace = stackTrace,
+                        };
+                        break;
+                }
+
+                totalMatches++;
+
+                if (usePaging)
+                {
+                    if (totalMatches > resolvedCursor && totalMatches <= pageEndExclusive)
+                    {
+                        formattedEntries.Add(formattedEntry);
+                        retrievedCount++;
+                    }
+                    else if (totalMatches > pageEndExclusive)
+                    {
+                        break;
+                    }
+                }
+                else
+                {
+                    formattedEntries.Add(formattedEntry);
+                    retrievedCount++;
+
+                    if (count.HasValue && retrievedCount >= count.Value)
+                    {
+                        break;
+                    }
+                }
+            }
+        }
+
+        private static List<BuildFailureEntry> GetTundraBuildFailures()
+        {
+            var failures = new List<BuildFailureEntry>();
+
+            try
+            {
+                string projectRoot = Directory.GetParent(Application.dataPath)?.FullName;
+                if (string.IsNullOrEmpty(projectRoot))
+                {
+                    return failures;
+                }
+
+                string tundraLogPath = Path.Combine(projectRoot, "Library", "Bee", "tundra.log.json");
+                if (!File.Exists(tundraLogPath))
+                {
+                    return failures;
+                }
+
+                DateTime lastWriteUtc = File.GetLastWriteTimeUtc(tundraLogPath);
+                if ((DateTime.UtcNow - lastWriteUtc).TotalMinutes > TundraLogStalenessMinutes)
+                {
+                    // Older than our recency window — treat as a leftover from a previous
+                    // session rather than resurrecting hours-old errors.
+                    return failures;
+                }
+
+                foreach (string line in File.ReadLines(tundraLogPath))
+                {
+                    if (string.IsNullOrWhiteSpace(line))
+                    {
+                        continue;
+                    }
+
+                    JObject node;
+                    try
+                    {
+                        node = JObject.Parse(line);
+                    }
+                    catch (Exception)
+                    {
+                        // A partially-written/truncated line (e.g. build still in progress) —
+                        // skip it rather than failing the whole parse.
+                        continue;
+                    }
+
+                    if (node.Value<string>("msg") != "noderesult")
+                    {
+                        continue;
+                    }
+
+                    int? exitCode = node.Value<int?>("exitcode");
+                    if (!exitCode.HasValue || exitCode.Value == 0)
+                    {
+                        continue;
+                    }
+
+                    string stdout = node.Value<string>("stdout");
+                    string annotation = node.Value<string>("annotation");
+                    string outputFile = node.Value<string>("outputfile");
+
+                    string body = !string.IsNullOrWhiteSpace(stdout) ? stdout.Trim() : "(no output captured)";
+                    string label = !string.IsNullOrWhiteSpace(annotation) ? annotation : (outputFile ?? "unknown build node");
+
+                    failures.Add(
+                        new BuildFailureEntry(
+                            $"[Bee build failure] {label} (exit code {exitCode.Value}):\n{body}",
+                            outputFile
+                        )
+                    );
+                }
+            }
+            catch (Exception e)
+            {
+                McpLog.Error(
+                    $"[ReadConsole] Failed to parse Library/Bee/tundra.log.json for build failures: {e.Message}"
+                );
+            }
+
+            return failures;
         }
 
         // --- Internal Helpers ---
