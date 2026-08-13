@@ -70,6 +70,28 @@ namespace MCPForUnity.Runtime.Helpers
             return EditorUtility.InstanceIDToObject(instanceId);
 #endif
         }
+
+        /// <summary>
+        /// Returns whether Unity is still generating an asset preview for <paramref name="obj"/>.
+        ///   Pre-6.5 : AssetPreview.IsLoadingAssetPreview(int)
+        ///   6.5+    : AssetPreview.IsLoadingAssetPreview(EntityId) — the int overload is
+        ///             obsolete-as-error (CS0619) as of 6000.5.
+        /// Takes the Object directly (rather than a previously-computed int handle) to avoid
+        /// routing through the lossy int truncation in <see cref="GetInstanceIDCompat"/>.
+        /// </summary>
+        public static bool IsLoadingAssetPreviewCompat(this Object obj)
+        {
+            if (obj == null)
+            {
+                return false;
+            }
+
+#if UNITY_6000_5_OR_NEWER
+            return AssetPreview.IsLoadingAssetPreview(obj.GetEntityId());
+#else
+            return AssetPreview.IsLoadingAssetPreview(obj.GetInstanceID());
+#endif
+        }
 #endif
     }
 }
