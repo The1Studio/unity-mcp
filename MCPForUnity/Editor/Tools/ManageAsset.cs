@@ -1143,10 +1143,9 @@ namespace MCPForUnity.Editor.Tools
                 return (preview, false);
             }
 
-            int instanceId = asset.GetInstanceIDCompat();
             DateTime deadline = DateTime.UtcNow.AddSeconds(PreviewLoadTimeoutSeconds);
 
-            while (AssetPreview.IsLoadingAssetPreview(instanceId))
+            while (asset.IsLoadingAssetPreviewCompat())
             {
                 if (DateTime.UtcNow >= deadline)
                 {
