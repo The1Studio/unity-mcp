@@ -121,6 +121,7 @@ namespace MCPForUnity.Editor.Tools
         #endregion
 
         #region Volume Operations
+#if UNITY_RENDER_PIPELINES_CORE
 
         private static object ListVolumes(ToolParams p)
         {
@@ -290,6 +291,21 @@ namespace MCPForUnity.Editor.Tools
             return new ErrorResponse($"Override '{overrideTypeResult.Value}' not found on volume '{go.name}'.");
         }
 
+#else
+
+        private static object ListVolumes(ToolParams p) =>
+            VolumeSystemUnavailable("list_volumes");
+
+        private static object GetVolume(ToolParams p) =>
+            VolumeSystemUnavailable("get_volume");
+
+        private static object SetVolumeOverride(ToolParams p) =>
+            VolumeSystemUnavailable("set_volume_override");
+
+        private static object ToggleVolumeOverride(ToolParams p) =>
+            VolumeSystemUnavailable("toggle_volume_override");
+
+#endif
         #endregion
 
         #region Renderer Features & Post Processing
@@ -353,6 +369,7 @@ namespace MCPForUnity.Editor.Tools
             });
         }
 
+#if UNITY_RENDER_PIPELINES_CORE
         private static object ListPostProcessing()
         {
             var volumes = UnityEngine.Object.FindObjectsByType<Volume>(FindObjectsSortMode.InstanceID);
@@ -380,10 +397,25 @@ namespace MCPForUnity.Editor.Tools
             });
         }
 
+#else
+
+        private static object ListPostProcessing() =>
+            VolumeSystemUnavailable("list_post_processing");
+
+#endif
         #endregion
 
         #region Helpers
 
+        private static object VolumeSystemUnavailable(string action)
+        {
+            return new ErrorResponse(
+                $"Action '{action}' requires the Volume system from com.unity.render-pipelines.core, " +
+                "which is not installed in this project (Built-in Render Pipeline). " +
+                "Install an SRP (URP/HDRP) or com.unity.render-pipelines.core to use this action.");
+        }
+
+#if UNITY_RENDER_PIPELINES_CORE
         private static void SetVolumeParamValue(VolumeParameter param, string valueStr)
         {
             var paramType = param.GetType();
@@ -405,6 +437,7 @@ namespace MCPForUnity.Editor.Tools
             }
         }
 
+#endif
         #endregion
     }
 }
