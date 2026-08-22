@@ -193,6 +193,11 @@ async def refresh_unity(
                        "Whether to request compilation"] = "none",
     wait_for_ready: Annotated[bool,
                               "If true, wait until editor_state.advice.ready_for_tools is true"] = True,
+    allow_during_play: Annotated[bool,
+                                 "If false (default), refuse to refresh/compile while Play mode is "
+                                 "active -- on a DOTS project that forces a domain reload that "
+                                 "permanently disposes the ECS Default World for the rest of the Play "
+                                 "session. Pass true only if you understand and accept that."] = False,
 ) -> MCPResponse | dict[str, Any]:
     unity_instance = await get_unity_instance_from_context(ctx)
 
@@ -201,6 +206,7 @@ async def refresh_unity(
         "scope": scope,
         "compile": compile,
         "wait_for_ready": bool(wait_for_ready),
+        "allow_during_play": bool(allow_during_play),
     }
 
     recovered_from_disconnect = False
