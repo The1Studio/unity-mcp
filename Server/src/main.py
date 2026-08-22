@@ -10,6 +10,7 @@ from core.telemetry import record_milestone, record_telemetry, MilestoneType, Re
 from services.resources import register_all_resources
 from transport.plugin_registry import PluginRegistry
 from transport.plugin_hub import PluginHub
+from transport.instance_selection import select_sole_match_by_cwd
 from services.custom_tool_service import (
     CustomToolService,
     resolve_project_id_for_unity_instance,
@@ -367,6 +368,29 @@ def _normalize_instance_token(instance_token: str | None) -> tuple[str | None, s
     return None, instance_token
 
 
+def _select_default_session_id(sessions: dict[str, Any]) -> str | None:
+    """Pick which session to use when a CLI route got no explicit unity_instance.
+
+    With multiple Unity Editors connected, blindly taking the first entry in
+    ``sessions`` (dict insertion order) can silently route commands to the
+    wrong project -- the call still succeeds, just against a different Unity
+    instance than the caller is working in. Prefer the sole session whose
+    ``project_path`` contains this server process's cwd (the directory the
+    MCP client was launched from); fall back to "first available" on zero or
+    multiple cwd matches, preserving the previous behaviour in the ambiguous
+    case.
+    """
+    if not sessions:
+        return None
+    preferred = select_sole_match_by_cwd(
+        (session_id, details.project_path)
+        for session_id, details in sessions.items()
+    )
+    if preferred is not None:
+        return preferred
+    return next(iter(sessions.keys()))
+
+
 def create_mcp_server(project_scoped_tools: bool) -> FastMCP:
     mcp = FastMCP(
         name="mcp-for-unity-server",
@@ -453,16 +477,15 @@ def create_mcp_server(project_scoped_tools: bool) -> FastMCP:
                 # If no specific unity_instance requested, use first available session
                 # (Must be done before execute_custom_tool check so all command types benefit)
                 if not session_id:
-                    try:
-                        session_id = next(iter(sessions.sessions.keys()))
-                        session_details = sessions.sessions.get(session_id)
-                    except StopIteration:
-                        # No sessions available - sessions.sessions is empty
-                        # This should not happen since we checked at line 378, but handle gracefully
+                    session_id = _select_default_session_id(sessions.sessions)
+                    if session_id is None:
+                        # No sessions available - sessions.sessions is empty.
+                        # This should not happen since we checked above, but handle gracefully.
                         return JSONResponse({
                             "success": False,
                             "error": "No Unity instances connected. Make sure Unity is running with MCP plugin."
                         }, status_code=503)
+                    session_details = sessions.sessions.get(session_id)
 
                 # Custom tool execution - must be checked BEFORE the final PluginHub.send_command call
                 # This applies to both cases: with or without explicit unity_instance
@@ -574,8 +597,9 @@ def create_mcp_server(project_scoped_tools: bool) -> FastMCP:
                             status_code=404,
                         )
                 else:
-                    # No specific unity_instance requested: use first available session
-                    session_details = next(iter(sessions.sessions.values()))
+                    # No specific unity_instance requested: see _select_default_session_id.
+                    default_session_id = _select_default_session_id(sessions.sessions)
+                    session_details = sessions.sessions[default_session_id]
 
                 unity_instance_hint = unity_instance
                 if session_details and session_details.hash:

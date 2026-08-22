@@ -13,6 +13,7 @@ from fastmcp.server.middleware import Middleware, MiddlewareContext
 from core.config import config
 from services.registry import get_registered_tools
 from transport.plugin_hub import PluginHub
+from transport.instance_selection import select_sole_match_by_cwd
 
 logger = logging.getLogger("mcp-for-unity-server")
 # Separate logger that propagates to root -> stderr so diagnostics show in console
@@ -242,12 +243,16 @@ class UnityInstanceMiddleware(Middleware):
                     sessions_data = await PluginHub.get_sessions()
                     sessions = sessions_data.sessions or {}
                     ids: list[str] = []
+                    ids_with_path: list[tuple[str, str | None]] = []
                     for session_info in sessions.values():
                         project = getattr(
                             session_info, "project", None) or "Unknown"
                         hash_value = getattr(session_info, "hash", None)
                         if hash_value:
-                            ids.append(f"{project}@{hash_value}")
+                            instance_id = f"{project}@{hash_value}"
+                            ids.append(instance_id)
+                            ids_with_path.append(
+                                (instance_id, getattr(session_info, "project_path", None)))
                     if len(ids) == 1:
                         chosen = ids[0]
                         await self.set_active_instance(ctx, chosen)
@@ -257,6 +262,18 @@ class UnityInstanceMiddleware(Middleware):
                         )
                         return chosen
                     if len(ids) > 1:
+                        # Multiple instances connected: prefer the one whose project
+                        # directory contains this server process's cwd over leaving the
+                        # caller to guess -- but only when exactly one instance matches,
+                        # to avoid silently picking between two equally-plausible projects.
+                        cwd_match = select_sole_match_by_cwd(ids_with_path)
+                        if cwd_match is not None:
+                            await self.set_active_instance(ctx, cwd_match)
+                            logger.info(
+                                "Auto-selected Unity instance by cwd match among %d connected: %s",
+                                len(ids), cwd_match,
+                            )
+                            return cwd_match
                         logger.info(
                             "Multiple Unity instances found (%d). Pass unity_instance on any tool call "
                             "or call set_active_instance to choose one. Available: %s",

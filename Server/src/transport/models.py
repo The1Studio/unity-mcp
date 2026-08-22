@@ -62,6 +62,9 @@ class SessionDetails(BaseModel):
     hash: str
     unity_version: str
     connected_at: str
+    # Full path to the Unity project root, when known. Used to disambiguate
+    # which connected instance to auto-select when multiple are present.
+    project_path: str | None = None
 
 
 class SessionList(BaseModel):
