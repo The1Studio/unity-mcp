@@ -55,6 +55,18 @@ namespace MCPForUnity.Editor.Tools
                     {
                         if (!EditorApplication.isPlaying)
                         {
+                            // Mitigates issue #62: an unfocused editor with Player Settings
+                            // "Run In Background" disabled can silently stop advancing the
+                            // player loop while remaining fully MCP-responsive. Defaults on
+                            // because an unattended/unfocused editor is this fork's whole
+                            // premise; pass run_in_background=false to opt out (it writes
+                            // through to the tracked ProjectSettings.asset for the duration
+                            // of the Play session -- see RunInBackgroundPlayGuard for the
+                            // restore contract and its known editor-quit-mid-session gap).
+                            if (p.GetBool("run_in_background", true))
+                            {
+                                RunInBackgroundPlayGuard.OnEnteringPlayMode();
+                            }
                             EditorApplication.isPlaying = true;
                             return new SuccessResponse("Entered play mode.");
                         }
