@@ -216,3 +216,116 @@ async def test_get_test_job_allows_filter_with_matched_tests(monkeypatch):
     resp = await get_test_job(DummyContext(), job_id="job-zero")
     assert resp.success is True
     assert resp.data.discovered_tests == 3
+
+
+@pytest.mark.asyncio
+async def test_run_tests_rejects_empty_response(monkeypatch):
+    """#63: an empty dict (no "success" key at all) must not be handed straight to
+    RunTestsStartResponse -- .get("success", True) would default it to success and
+    detonate as an uncaught pydantic ValidationError on construction. The shared
+    _envelope_failure guard must catch the missing "success" key before that."""
+    from services.tools.run_tests import run_tests
+
+    async def fake_send_with_unity_instance(send_fn, unity_instance, command_type, params, **kwargs):
+        return {}
+
+    import services.tools.run_tests as mod
+    monkeypatch.setattr(
+        mod.unity_transport, "send_with_unity_instance", fake_send_with_unity_instance)
+
+    resp = await run_tests(DummyContext(), mode="EditMode")
+    assert resp.success is False
+    assert resp.error == "empty_response_from_unity"
+
+
+@pytest.mark.asyncio
+async def test_run_tests_rejects_response_missing_job_id(monkeypatch):
+    """#63: a "data" payload with no job_id must still fail cleanly, not construct a
+    RunTestsStartResponse the caller can never poll (get_test_job requires job_id)."""
+    from services.tools.run_tests import run_tests
+
+    async def fake_send_with_unity_instance(send_fn, unity_instance, command_type, params, **kwargs):
+        return {"success": True, "data": {"status": "running"}}
+
+    import services.tools.run_tests as mod
+    monkeypatch.setattr(
+        mod.unity_transport, "send_with_unity_instance", fake_send_with_unity_instance)
+
+    resp = await run_tests(DummyContext(), mode="EditMode")
+    assert resp.success is False
+    assert "job_id" in resp.error
+
+
+def _init_timeout_job_response(status="failed"):
+    """A job that never got past initialization: TestJobManager's init-timeout
+    auto-fail sets status/error but never sets TotalTests, so discovered_tests is
+    JSON null -- not 0."""
+    return {
+        "success": True,
+        "data": {
+            "job_id": "job-timeout",
+            "status": status,
+            "mode": "PlayMode",
+            "filter_requested": True,
+            "discovered_tests": None,
+            "progress": {"completed": 0, "total": None},
+            "error": "Test job failed to initialize (tests did not start within timeout)",
+            "result": None,
+        },
+    }
+
+
+@pytest.mark.asyncio
+async def test_get_test_job_preserves_init_timeout_error(monkeypatch):
+    """#70: an init-timeout auto-fail (discovered_tests=None) must surface its real
+    error, not get rewritten by the zero-match-filter guard into a misleading
+    "filter matched 0 tests" message -- the filter was never even evaluated."""
+    from services.tools.run_tests import get_test_job
+
+    async def fake_send_with_unity_instance(send_fn, unity_instance, command_type, params, **kwargs):
+        return _init_timeout_job_response()
+
+    import services.tools.run_tests as mod
+    monkeypatch.setattr(
+        mod.unity_transport, "send_with_unity_instance", fake_send_with_unity_instance)
+
+    resp = await get_test_job(DummyContext(), job_id="job-timeout")
+    assert resp.success is True
+    assert resp.data.status == "failed"
+    assert "did not start within timeout" in resp.data.error
+    assert "0 tests" not in (resp.data.error or "")
+
+
+@pytest.mark.asyncio
+async def test_get_test_job_rejects_empty_response(monkeypatch):
+    """#63: get_test_job's non-wait_timeout path shares the same _envelope_failure
+    guard as run_tests -- an empty {} must not reach GetTestJobResponse(**{})."""
+    from services.tools.run_tests import get_test_job
+
+    async def fake_send_with_unity_instance(send_fn, unity_instance, command_type, params, **kwargs):
+        return {}
+
+    import services.tools.run_tests as mod
+    monkeypatch.setattr(
+        mod.unity_transport, "send_with_unity_instance", fake_send_with_unity_instance)
+
+    resp = await get_test_job(DummyContext(), job_id="job-lost")
+    assert resp.success is False
+    assert resp.error == "empty_response_from_unity"
+
+
+@pytest.mark.asyncio
+async def test_get_test_job_rejects_empty_response_via_wait_timeout(monkeypatch):
+    """#63: same guard on the server-side polling path (wait_timeout)."""
+    from services.tools.run_tests import get_test_job
+
+    async def fake_send_with_unity_instance(send_fn, unity_instance, command_type, params, **kwargs):
+        return {}
+
+    import services.tools.run_tests as mod
+    monkeypatch.setattr(
+        mod.unity_transport, "send_with_unity_instance", fake_send_with_unity_instance)
+
+    resp = await get_test_job(DummyContext(), job_id="job-lost", wait_timeout=5)
+    assert resp.success is False
+    assert resp.error == "empty_response_from_unity"
