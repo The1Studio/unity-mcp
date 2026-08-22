@@ -147,6 +147,38 @@ class GetTestJobResponse(MCPResponse):
     data: GetTestJobData | None = None
 
 
+def _envelope_failure(response: Any) -> MCPResponse | None:
+    """Validate a raw Unity transport response before it's splatted into a strict
+    pydantic model (MCPResponse / RunTestsStartResponse / GetTestJobResponse all
+    require "success" with no default).
+
+    A non-dict response, or a dict missing "success" entirely (observed: Unity
+    returning an empty {} for a run that had actually started -- see #63), used
+    to sail past `.get("success", True)`'s permissive default and detonate as an
+    uncaught pydantic ValidationError instead of a clean MCPResponse(success=False).
+
+    Returns the MCPResponse to return immediately, or None when the envelope is
+    well-formed and the caller should proceed with its own response handling.
+    """
+    if not isinstance(response, dict):
+        return MCPResponse(success=False, error=str(response))
+    if "success" not in response:
+        return MCPResponse(
+            success=False,
+            error="empty_response_from_unity",
+            message=(
+                "Unity's response was missing or malformed. The underlying job may "
+                "still be running (e.g. a busy/reload race) -- check for an "
+                "in-progress job before retrying, rather than assuming it never started."
+            ),
+            data=response or None,
+            hint="retry",
+        )
+    if not response["success"]:
+        return MCPResponse(**response)
+    return None
+
+
 def _reject_zero_match_filter(response: dict[str, Any]) -> dict[str, Any]:
     """Turn a "Passed" result with 0 discovered tests into an explicit error.
 
@@ -169,7 +201,12 @@ def _reject_zero_match_filter(response: dict[str, Any]) -> dict[str, Any]:
     if not data.get("filter_requested"):
         return response
 
-    if (data.get("discovered_tests") or 0) != 0:
+    # discovered_tests is None (not 0) when the run never got past initialization --
+    # e.g. TestJobManager's init-timeout auto-fail, which sets data["status"] == "failed"
+    # without ever setting TotalTests. Collapsing that None to 0 here would misreport a
+    # genuine startup timeout as "filter matched 0 tests", masking the real cause.
+    discovered_tests = data.get("discovered_tests")
+    if discovered_tests is None or discovered_tests != 0:
         return response
 
     summary = ((data.get("result") or {}).get("summary")) or {}
@@ -257,11 +294,24 @@ async def run_tests(
         params,
     )
 
-    if isinstance(response, dict):
-        if not response.get("success", True):
-            return MCPResponse(**response)
-        return RunTestsStartResponse(**response)
-    return MCPResponse(success=False, error=str(response))
+    if (guard := _envelope_failure(response)) is not None:
+        return guard
+
+    # response["success"] is True and well-formed past this point, but the data
+    # payload can still be present-and-empty (e.g. {"success": true} with no
+    # "data"). get_test_job hard-requires job_id with no recovery path, so catch
+    # that here rather than let RunTestsStartResponse(**response) either raise on
+    # the missing required field or silently construct a job the caller can never
+    # poll for.
+    data = response.get("data")
+    if not isinstance(data, dict) or not data.get("job_id"):
+        return MCPResponse(
+            success=False,
+            error="Unity returned an incomplete run_tests response (missing job_id); "
+                  "the test run may not have started. Check the Unity console.",
+            data=response or None,
+        )
+    return RunTestsStartResponse(**response)
 
 
 @mcp_for_unity_tool(
@@ -312,11 +362,8 @@ async def get_test_job(
         while True:
             response = await _fetch_status()
 
-            if not isinstance(response, dict):
-                return MCPResponse(success=False, error=str(response))
-
-            if not response.get("success", True):
-                return MCPResponse(**response)
+            if (guard := _envelope_failure(response)) is not None:
+                return guard
 
             # Check if tests are done
             data = response.get("data", {})
@@ -370,10 +417,8 @@ async def get_test_job(
     
     # No wait_timeout - return immediately (original behavior)
     response = await _fetch_status()
-    if not isinstance(response, dict):
-        return MCPResponse(success=False, error=str(response))
-    if not response.get("success", True):
-        return MCPResponse(**response)
+    if (guard := _envelope_failure(response)) is not None:
+        return guard
 
     # Fire-and-forget nudge check: even without wait_timeout, clients may poll
     # externally. Check if Unity needs a nudge on every call so stalls get
