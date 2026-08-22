@@ -137,3 +137,105 @@ async def test_auto_select_handles_stdio_errors(monkeypatch):
 
     assert selected is None
     assert await middleware.get_active_instance(ctx) is None
+
+
+@pytest.mark.asyncio
+async def test_auto_selects_by_cwd_among_multiple_pluginhub_instances(monkeypatch, tmp_path):
+    """#66: with >1 instances connected, prefer the one whose project_path
+    contains this process's cwd instead of leaving the caller to guess."""
+    plugin_hub = types.ModuleType("transport.plugin_hub")
+
+    class PluginHub:
+        @classmethod
+        def is_configured(cls) -> bool:
+            return True
+
+        @classmethod
+        async def get_sessions(cls):
+            raise AssertionError("get_sessions should be stubbed in test")
+
+    plugin_hub.PluginHub = PluginHub
+    monkeypatch.setitem(sys.modules, "transport.plugin_hub", plugin_hub)
+    monkeypatch.delitem(sys.modules, "transport.unity_instance_middleware", raising=False)
+
+    from transport.unity_instance_middleware import UnityInstanceMiddleware, PluginHub as ImportedPluginHub
+    assert ImportedPluginHub is plugin_hub.PluginHub
+
+    monkeypatch.setattr(config, "transport_mode", "http")
+
+    project_a = tmp_path / "ProjectA"
+    project_b = tmp_path / "ProjectB"
+    project_a.mkdir()
+    project_b.mkdir()
+    monkeypatch.chdir(project_b)
+
+    middleware = UnityInstanceMiddleware()
+    ctx = DummyContext()
+    ctx.client_id = "client-1"
+
+    async def fake_get_sessions():
+        return SimpleNamespace(
+            sessions={
+                # Inserted first, so a plain "pick one" fallback would land here.
+                "session-a": SimpleNamespace(project="ProjectA", hash="aaaaaaaa", project_path=str(project_a)),
+                "session-b": SimpleNamespace(project="ProjectB", hash="bbbbbbbb", project_path=str(project_b)),
+            }
+        )
+
+    monkeypatch.setattr(plugin_hub.PluginHub, "get_sessions", fake_get_sessions)
+
+    selected = await middleware._maybe_autoselect_instance(ctx)
+
+    assert selected == "ProjectB@bbbbbbbb"
+    assert await middleware.get_active_instance(ctx) == "ProjectB@bbbbbbbb"
+
+
+@pytest.mark.asyncio
+async def test_no_autoselect_when_multiple_pluginhub_instances_dont_disambiguate(monkeypatch, tmp_path):
+    """Zero or ambiguous cwd matches must keep the prior "ask the caller" behaviour."""
+    plugin_hub = types.ModuleType("transport.plugin_hub")
+
+    class PluginHub:
+        @classmethod
+        def is_configured(cls) -> bool:
+            return True
+
+        @classmethod
+        async def get_sessions(cls):
+            raise AssertionError("get_sessions should be stubbed in test")
+
+    plugin_hub.PluginHub = PluginHub
+    monkeypatch.setitem(sys.modules, "transport.plugin_hub", plugin_hub)
+    monkeypatch.delitem(sys.modules, "transport.unity_instance_middleware", raising=False)
+
+    from transport.unity_instance_middleware import UnityInstanceMiddleware, PluginHub as ImportedPluginHub
+    assert ImportedPluginHub is plugin_hub.PluginHub
+
+    monkeypatch.setattr(config, "transport_mode", "http")
+
+    project_a = tmp_path / "ProjectA"
+    project_b = tmp_path / "ProjectB"
+    elsewhere = tmp_path / "elsewhere"
+    project_a.mkdir()
+    project_b.mkdir()
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+
+    middleware = UnityInstanceMiddleware()
+    ctx = DummyContext()
+    ctx.client_id = "client-1"
+
+    async def fake_get_sessions():
+        return SimpleNamespace(
+            sessions={
+                "session-a": SimpleNamespace(project="ProjectA", hash="aaaaaaaa", project_path=str(project_a)),
+                "session-b": SimpleNamespace(project="ProjectB", hash="bbbbbbbb", project_path=str(project_b)),
+            }
+        )
+
+    monkeypatch.setattr(plugin_hub.PluginHub, "get_sessions", fake_get_sessions)
+
+    selected = await middleware._maybe_autoselect_instance(ctx)
+
+    assert selected is None
+    assert await middleware.get_active_instance(ctx) is None
