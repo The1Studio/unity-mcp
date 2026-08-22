@@ -542,20 +542,44 @@ namespace MCPForUnity.Editor.Tools
                     return new ErrorResponse($"Field '{fieldName}' not found on component '{componentName}'.");
 
                 // Parse the value to the correct type
-                object parsedValue = Convert.ChangeType(fieldValue, field.FieldType, System.Globalization.CultureInfo.InvariantCulture);
+                object parsedValue = field.FieldType.IsEnum
+                    ? ParseEnumFieldValue(field.FieldType, fieldValue)
+                    : Convert.ChangeType(fieldValue, field.FieldType, System.Globalization.CultureInfo.InvariantCulture);
                 field.SetValue(obj, parsedValue);
 
-                // SetComponentBoxed not available in public API — use SetComponentObject via reflection
-                var setMethod = typeof(EntityManager).GetMethod("SetComponentObject",
-                    BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance,
-                    null, new[] { typeof(Entity), typeof(ComponentType), typeof(object) }, null);
-                if (setMethod != null)
+                if (!ct.Value.IsManagedComponent)
                 {
-                    setMethod.Invoke(em, new object[] { entity, ct.Value, obj });
+                    // Unmanaged IComponentData (struct) — SetComponentObject below asserts
+                    // componentType.IsManagedComponent internally (EntityDataAccess.SetComponentObject)
+                    // and throws ArgumentException for anything else. Write back through the
+                    // generic unmanaged EntityManager.SetComponentData<T> instead.
+                    var setDataMethod = typeof(EntityManager)
+                        .GetMethods(BindingFlags.Public | BindingFlags.Instance)
+                        .FirstOrDefault(m => m.Name == "SetComponentData"
+                            && m.IsGenericMethodDefinition
+                            && m.GetGenericArguments().Length == 1
+                            && m.GetParameters().Length == 2
+                            && m.GetParameters()[0].ParameterType == typeof(Entity));
+                    if (setDataMethod == null)
+                        return new ErrorResponse("SetComponentData is not available in this version of Unity Entities.");
+
+                    setDataMethod.MakeGenericMethod(type).Invoke(em, new object[] { entity, obj });
                 }
                 else
                 {
-                    return new ErrorResponse("SetComponent is not supported in this version of Unity Entities.");
+                    // Managed component (class-based IComponentData) — SetComponentBoxed is not
+                    // available in the public API, so use SetComponentObject via reflection.
+                    var setObjectMethod = typeof(EntityManager).GetMethod("SetComponentObject",
+                        BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance,
+                        null, new[] { typeof(Entity), typeof(ComponentType), typeof(object) }, null);
+                    if (setObjectMethod != null)
+                    {
+                        setObjectMethod.Invoke(em, new object[] { entity, ct.Value, obj });
+                    }
+                    else
+                    {
+                        return new ErrorResponse("SetComponent is not supported in this version of Unity Entities.");
+                    }
                 }
 
                 return new SuccessResponse(
@@ -570,7 +594,39 @@ namespace MCPForUnity.Editor.Tools
             }
             catch (Exception e)
             {
-                return new ErrorResponse($"Failed to set field: {e.Message}");
+                // Reflected MethodInfo.Invoke wraps the real failure in a TargetInvocationException;
+                // surface the InnerException so the caller sees the actual cause, not the wrapper.
+                var reported = e;
+                if (e is TargetInvocationException tie && tie.InnerException != null)
+                    reported = tie.InnerException;
+                return new ErrorResponse($"Failed to set field: {reported.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Parses a string value into an enum member of <paramref name="enumType"/>.
+        /// Accepts a numeric literal (honoring the enum's underlying integral type) or a
+        /// member name (case-insensitive, including comma-separated flag combinations).
+        /// </summary>
+        private static object ParseEnumFieldValue(Type enumType, string fieldValue)
+        {
+            var underlyingType = Enum.GetUnderlyingType(enumType);
+            if (long.TryParse(fieldValue, System.Globalization.NumberStyles.Integer,
+                    System.Globalization.CultureInfo.InvariantCulture, out var numeric))
+            {
+                var converted = Convert.ChangeType(numeric, underlyingType, System.Globalization.CultureInfo.InvariantCulture);
+                return Enum.ToObject(enumType, converted);
+            }
+
+            try
+            {
+                return Enum.Parse(enumType, fieldValue, ignoreCase: true);
+            }
+            catch (ArgumentException)
+            {
+                var names = string.Join(", ", Enum.GetNames(enumType));
+                throw new ArgumentException(
+                    $"Value '{fieldValue}' is not a valid member of enum '{enumType.Name}'. Valid values: {names}");
             }
         }
 
