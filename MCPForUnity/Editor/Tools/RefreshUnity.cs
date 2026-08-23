@@ -24,6 +24,7 @@ namespace MCPForUnity.Editor.Tools
             string scope = @params?["scope"]?.ToString() ?? "all";
             string compile = @params?["compile"]?.ToString() ?? "none";
             bool waitForReady = ParamCoercion.CoerceBool(@params?["wait_for_ready"], false);
+            bool allowDuringPlay = ParamCoercion.CoerceBool(@params?["allow_during_play"], false);
 
             if (TestRunStatus.IsRunning)
             {
@@ -31,6 +32,29 @@ namespace MCPForUnity.Editor.Tools
                 {
                     reason = "tests_running",
                     retry_after_ms = 5000
+                });
+            }
+
+            // A refresh/compile triggered while Play mode is live forces a domain reload.
+            // On a DOTS project that reload permanently disposes the ECS Default World for
+            // the rest of the Play session -- nothing recreates it until Play is stopped and
+            // re-entered (Unity.Entities only rebuilds it via a BeforeSceneLoad bootstrap,
+            // which does not re-fire mid-Play), and any SubScene-baked content goes with it.
+            // The managed/DI side restarts and keeps rendering, so the failure surfaces later
+            // as an unrelated-looking null-world exception. Refuse by default; an explicit
+            // allow_during_play=true opts back in for callers who understand the consequence.
+            // Deliberately NOT auto-recreating the World here -- a rebuilt World would carry
+            // no baked SubScene content, trading a loud failure for a silent, wrong one.
+            if (EditorApplication.isPlaying && !allowDuringPlay)
+            {
+                return new ErrorResponse("play_mode_active", new
+                {
+                    reason = "play_mode_active",
+                    message = "refresh_unity was refused because Play mode is active. Refreshing/compiling " +
+                        "during Play triggers a domain reload that permanently disposes the DOTS Default World " +
+                        "for the rest of this Play session (nothing recreates it until Play is stopped and " +
+                        "re-entered) and drops any SubScene-baked content. Stop Play mode first, or pass " +
+                        "allow_during_play=true if you understand and accept this.",
                 });
             }
 
