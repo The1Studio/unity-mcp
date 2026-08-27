@@ -132,15 +132,25 @@ namespace MCPForUnity.Editor.Tools
                     ["entity_version"] = entity.Version,
                 };
 
-                try
+                // Guard the read the same way the get_entity path does — the query above can
+                // hand back an entity whose component is no longer readable, and an unguarded
+                // throw flattens every cause into one opaque marker.
+                if (em.HasComponent<MaterialMeshInfo>(entity))
                 {
-                    var mmi = em.GetComponentData<MaterialMeshInfo>(entity);
-                    data["material_id"] = mmi.MaterialID.GetHashCode();
-                    data["mesh_id"]     = mmi.MeshID.GetHashCode();
+                    try
+                    {
+                        var mmi = em.GetComponentData<MaterialMeshInfo>(entity);
+                        data["material_id"] = mmi.MaterialID.GetHashCode();
+                        data["mesh_id"]     = mmi.MeshID.GetHashCode();
+                    }
+                    catch (Exception e)
+                    {
+                        data["material_mesh_info"] = $"<unreadable: {e.Message}>";
+                    }
                 }
-                catch
+                else
                 {
-                    data["material_mesh_info"] = "<unreadable>";
+                    data["material_mesh_info"] = "none";
                 }
 
                 if (em.HasComponent<RenderBounds>(entity))
@@ -221,7 +231,7 @@ namespace MCPForUnity.Editor.Tools
                     result["material_id"] = mmi.MaterialID.GetHashCode();
                     result["mesh_id"]     = mmi.MeshID.GetHashCode();
                 }
-                catch { result["material_mesh_info"] = "<unreadable>"; }
+                catch (Exception e) { result["material_mesh_info"] = $"<unreadable: {e.Message}>"; }
             }
             else
             {

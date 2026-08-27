@@ -34,7 +34,13 @@ from transport.legacy.unity_connection import async_send_command_with_retry
         "query_count (fast entity count without fetching data), "
         "inspect_bdp_tree (show BDP behavior tree state — active branch, running task, task statuses). "
         "Requires com.unity.entities package. Most actions work in Edit mode; "
-        "performance_snapshot and inspect_bdp_tree are most useful during Play mode."
+        "performance_snapshot and inspect_bdp_tree are most useful during Play mode. "
+        "Component names are resolved against every matching TypeManager registration: a type "
+        "registered more than once (duplicate assembly loads) makes a short name ambiguous. "
+        "query_entities/query_count union across all matching registrations and report them under "
+        "'resolved_types' with an 'ambiguous' flag; the entity-scoped actions (get_entity, "
+        "set_component, add_component, remove_component) resolve against the registration the "
+        "entity actually carries, and get_entity on a known entity_index is the authoritative read."
     ),
     annotations=ToolAnnotations(
         title="Manage DOTS",
