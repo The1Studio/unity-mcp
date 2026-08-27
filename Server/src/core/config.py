@@ -21,6 +21,12 @@ class ServerConfig:
     # HTTP transport behaviour
     http_remote_hosted: bool = False
 
+    # Auto-selection behaviour: when the sole connected Unity instance belongs to
+    # a project that shares no ancestry with the server's cwd, refuse to select it
+    # rather than silently driving the wrong Editor (#61). Set True to restore the
+    # legacy "select whatever is registered" behaviour.
+    allow_cross_project_autoselect: bool = False
+
     # API key authentication (required when http_remote_hosted=True)
     api_key_validation_url: str | None = None  # POST endpoint to validate keys
     api_key_login_url: str | None = None       # URL for users to get/manage keys
