@@ -78,3 +78,50 @@ def select_sole_match_by_cwd(
     if len(matches) == 1:
         return matches[0]
     return None
+
+
+class CrossProjectAutoSelectError(RuntimeError):
+    """Raised when the sole connected instance belongs to an unrelated project.
+
+    Auto-selecting in that situation is the #61 footgun: the call succeeds, it
+    is just answered by a Unity Editor the caller never meant to touch. Carrying
+    a dedicated type (rather than a bare ``ValueError``) keeps the refusal from
+    being swallowed by the broad "auto-select probe failed" handlers around the
+    discovery calls, which deliberately degrade to "no instance" on transport
+    errors.
+    """
+
+
+def is_project_unrelated_to_cwd(project_path: str | None, cwd: str | None = None) -> bool:
+    """Report whether ``project_path`` provably shares no ancestry with ``cwd``.
+
+    "Related" is deliberately wider than :func:`select_sole_match_by_cwd`'s
+    containment test: a client is routinely launched from a monorepo root that
+    *contains* the Unity project, so an ancestor cwd counts as related too. Only
+    genuinely disjoint paths -- neither one an ancestor of the other -- are
+    reported unrelated.
+
+    Returns ``False`` whenever the answer cannot be established (missing or
+    unresolvable ``project_path``, unreadable cwd), so an unknown path never
+    blocks a selection that the previous behaviour would have made.
+    """
+    root = normalize_project_root(project_path)
+    if root is None:
+        return False
+    if cwd is None:
+        try:
+            cwd = os.getcwd()
+        except OSError:
+            return False
+    try:
+        cwd = os.path.realpath(cwd)
+    except OSError:
+        return False
+
+    if cwd == root:
+        return False
+    if cwd.startswith(root + os.sep):
+        return False  # cwd sits inside the project
+    if root.startswith(cwd + os.sep):
+        return False  # the project sits inside cwd (monorepo / parent-dir launch)
+    return True

@@ -828,6 +828,11 @@ Examples:
         or os.environ.get("UNITY_MCP_HTTP_REMOTE_HOSTED", "").lower() in ("true", "1", "yes", "on")
     )
 
+    config.allow_cross_project_autoselect = (
+        os.environ.get("UNITY_MCP_ALLOW_CROSS_PROJECT_AUTOSELECT", "").lower()
+        in ("true", "1", "yes", "on")
+    )
+
     # API key authentication configuration
     config.api_key_validation_url = (
         args.api_key_validation_url

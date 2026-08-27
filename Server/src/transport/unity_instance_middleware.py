@@ -6,6 +6,7 @@ into the request-scoped state, allowing tools to access it via ctx.get_state("un
 """
 from threading import RLock
 import logging
+import os
 import time
 
 from fastmcp.server.middleware import Middleware, MiddlewareContext
@@ -13,7 +14,12 @@ from fastmcp.server.middleware import Middleware, MiddlewareContext
 from core.config import config
 from services.registry import get_registered_tools
 from transport.plugin_hub import PluginHub
-from transport.instance_selection import select_sole_match_by_cwd
+from transport.instance_selection import (
+    CrossProjectAutoSelectError,
+    is_project_unrelated_to_cwd,
+    normalize_project_root,
+    select_sole_match_by_cwd,
+)
 
 logger = logging.getLogger("mcp-for-unity-server")
 # Separate logger that propagates to root -> stderr so diagnostics show in console
@@ -225,6 +231,33 @@ class UnityInstanceMiddleware(Middleware):
             "Read mcpforunity://instances for current sessions."
         )
 
+    @staticmethod
+    def _reject_cross_project_autoselect(
+        instance_id: str, project_path: str | None
+    ) -> None:
+        """Refuse to auto-select the sole instance when it is another project's.
+
+        A single registered instance used to be selected unconditionally, so a
+        project whose own Editor bridge never came up had its tool calls answered
+        by whatever unrelated Editor happened to be listening -- successfully, and
+        with no warning (#61). Fail loudly instead, naming both paths so the caller
+        can tell at a glance which Editor is missing.
+        """
+        if config.allow_cross_project_autoselect:
+            return
+        if not is_project_unrelated_to_cwd(project_path):
+            return
+        raise CrossProjectAutoSelectError(
+            f"Refusing to auto-select '{instance_id}': it is the only connected "
+            f"Unity instance, but its project ({normalize_project_root(project_path)}) "
+            f"is unrelated to this session's working directory ({os.getcwd()}). "
+            "The Editor for this project is most likely not running or its bridge "
+            "failed to start. Pass unity_instance (or call set_active_instance) to "
+            "target it deliberately, read mcpforunity://instances for current "
+            "sessions, or set UNITY_MCP_ALLOW_CROSS_PROJECT_AUTOSELECT=1 to restore "
+            "the previous behaviour."
+        )
+
     async def _maybe_autoselect_instance(self, ctx) -> str | None:
         """
         Auto-select the sole Unity instance when no active instance is set.
@@ -255,6 +288,8 @@ class UnityInstanceMiddleware(Middleware):
                                 (instance_id, getattr(session_info, "project_path", None)))
                     if len(ids) == 1:
                         chosen = ids[0]
+                        self._reject_cross_project_autoselect(
+                            chosen, ids_with_path[0][1])
                         await self.set_active_instance(ctx, chosen)
                         logger.info(
                             "Auto-selected sole Unity instance via PluginHub: %s",
@@ -286,7 +321,7 @@ class UnityInstanceMiddleware(Middleware):
                         exc_info=True,
                     )
                 except Exception as exc:
-                    if isinstance(exc, (SystemExit, KeyboardInterrupt)):
+                    if isinstance(exc, (SystemExit, KeyboardInterrupt, CrossProjectAutoSelectError)):
                         raise
                     logger.debug(
                         "PluginHub auto-select probe failed with unexpected error (%s); falling back to stdio",
@@ -301,10 +336,16 @@ class UnityInstanceMiddleware(Middleware):
 
                     pool = get_unity_connection_pool()
                     instances = pool.discover_all_instances(force_refresh=True)
-                    ids = [getattr(inst, "id", None) for inst in instances]
-                    ids = [inst_id for inst_id in ids if inst_id]
+                    ids_with_path = [
+                        (getattr(inst, "id", None), getattr(inst, "path", None))
+                        for inst in instances
+                    ]
+                    ids_with_path = [pair for pair in ids_with_path if pair[0]]
+                    ids = [inst_id for inst_id, _ in ids_with_path]
                     if len(ids) == 1:
                         chosen = ids[0]
+                        self._reject_cross_project_autoselect(
+                            chosen, ids_with_path[0][1])
                         await self.set_active_instance(ctx, chosen)
                         logger.info(
                             "Auto-selected sole Unity instance via stdio discovery: %s",
@@ -324,7 +365,7 @@ class UnityInstanceMiddleware(Middleware):
                         exc_info=True,
                     )
                 except Exception as exc:
-                    if isinstance(exc, (SystemExit, KeyboardInterrupt)):
+                    if isinstance(exc, (SystemExit, KeyboardInterrupt, CrossProjectAutoSelectError)):
                         raise
                     logger.debug(
                         "Stdio auto-select probe failed with unexpected error (%s)",
@@ -332,7 +373,7 @@ class UnityInstanceMiddleware(Middleware):
                         exc_info=True,
                     )
         except Exception as exc:
-            if isinstance(exc, (SystemExit, KeyboardInterrupt)):
+            if isinstance(exc, (SystemExit, KeyboardInterrupt, CrossProjectAutoSelectError)):
                 raise
             logger.debug(
                 "Auto-select path encountered an unexpected error (%s)",
