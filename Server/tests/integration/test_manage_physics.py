@@ -66,7 +66,7 @@ async def test_raycast_all_params(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_overlap_sphere_params(monkeypatch):
-    """overlap_sphere sends center, radius, layer_mask."""
+    """overlap with shape=sphere sends position, size, layer_mask."""
     captured = {}
     monkeypatch.setattr(
         physics_mod, "async_send_command_with_retry",
@@ -74,18 +74,20 @@ async def test_overlap_sphere_params(monkeypatch):
     )
 
     resp = await physics_mod.manage_physics(
-        ctx=DummyContext(), action="overlap_sphere",
-        center="0,0,0", radius=10.0, layer_mask=-1,
+        ctx=DummyContext(), action="overlap",
+        shape="sphere", position=[0.0, 0.0, 0.0], size=10.0, layer_mask="-1",
     )
 
     assert resp["success"] is True
-    assert captured["params"]["center"] == "0,0,0"
-    assert captured["params"]["radius"] == 10.0
+    assert captured["params"]["action"] == "overlap"
+    assert captured["params"]["shape"] == "sphere"
+    assert captured["params"]["position"] == [0.0, 0.0, 0.0]
+    assert captured["params"]["size"] == 10.0
 
 
 @pytest.mark.asyncio
 async def test_overlap_box_params(monkeypatch):
-    """overlap_box sends center, half_extents."""
+    """overlap with shape=box sends position and half-extent size."""
     captured = {}
     monkeypatch.setattr(
         physics_mod, "async_send_command_with_retry",
@@ -93,17 +95,18 @@ async def test_overlap_box_params(monkeypatch):
     )
 
     resp = await physics_mod.manage_physics(
-        ctx=DummyContext(), action="overlap_box",
-        center="0,0,0", half_extents="5,5,5",
+        ctx=DummyContext(), action="overlap",
+        shape="box", position=[0.0, 0.0, 0.0], size=[5.0, 5.0, 5.0],
     )
 
     assert resp["success"] is True
-    assert captured["params"]["half_extents"] == "5,5,5"
+    assert captured["params"]["shape"] == "box"
+    assert captured["params"]["size"] == [5.0, 5.0, 5.0]
 
 
 @pytest.mark.asyncio
-async def test_list_rigidbodies(monkeypatch):
-    """list_rigidbodies sends page_size."""
+async def test_validate_pagination_params(monkeypatch):
+    """validate sends page_size and cursor."""
     captured = {}
     monkeypatch.setattr(
         physics_mod, "async_send_command_with_retry",
@@ -111,11 +114,12 @@ async def test_list_rigidbodies(monkeypatch):
     )
 
     resp = await physics_mod.manage_physics(
-        ctx=DummyContext(), action="list_rigidbodies", page_size=20,
+        ctx=DummyContext(), action="validate", page_size=20, cursor=40,
     )
 
     assert resp["success"] is True
     assert captured["params"]["page_size"] == 20
+    assert captured["params"]["cursor"] == 40
 
 
 @pytest.mark.asyncio
@@ -139,8 +143,8 @@ async def test_get_rigidbody(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_set_rigidbody(monkeypatch):
-    """set_rigidbody sends target and properties."""
+async def test_configure_rigidbody(monkeypatch):
+    """configure_rigidbody sends target and properties."""
     captured = {}
     monkeypatch.setattr(
         physics_mod, "async_send_command_with_retry",
@@ -148,17 +152,18 @@ async def test_set_rigidbody(monkeypatch):
     )
 
     resp = await physics_mod.manage_physics(
-        ctx=DummyContext(), action="set_rigidbody",
-        target="Player", properties='{"mass": 5.0}',
+        ctx=DummyContext(), action="configure_rigidbody",
+        target="Player", properties={"mass": 5.0},
     )
 
     assert resp["success"] is True
-    assert captured["params"]["properties"] == '{"mass": 5.0}'
+    assert captured["params"]["action"] == "configure_rigidbody"
+    assert captured["params"]["properties"] == {"mass": 5.0}
 
 
 @pytest.mark.asyncio
-async def test_get_physics_settings(monkeypatch):
-    """get_physics_settings routes correctly with no extra params."""
+async def test_get_settings(monkeypatch):
+    """get_settings routes correctly with no extra params."""
     captured = {}
     monkeypatch.setattr(
         physics_mod, "async_send_command_with_retry",
@@ -166,7 +171,7 @@ async def test_get_physics_settings(monkeypatch):
     )
 
     resp = await physics_mod.manage_physics(
-        ctx=DummyContext(), action="get_physics_settings",
+        ctx=DummyContext(), action="get_settings",
     )
 
     assert resp["success"] is True
@@ -183,7 +188,7 @@ async def test_none_params_stripped(monkeypatch):
     )
 
     await physics_mod.manage_physics(
-        ctx=DummyContext(), action="list_colliders",
+        ctx=DummyContext(), action="ping",
     )
 
     assert set(captured["params"].keys()) == {"action"}

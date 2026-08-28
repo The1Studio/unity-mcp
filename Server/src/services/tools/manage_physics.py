@@ -256,7 +256,10 @@ async def manage_physics(
         if val is not None:
             params_dict[key] = val
 
-    result = await send_with_unity_instance(
-        async_send_command_with_retry, unity_instance, "manage_physics", params_dict
-    )
+    try:
+        result = await send_with_unity_instance(
+            async_send_command_with_retry, unity_instance, "manage_physics", params_dict
+        )
+    except Exception as e:
+        return {"success": False, "message": f"Python error managing physics: {str(e)}"}
     return result if isinstance(result, dict) else {"success": False, "message": str(result)}
