@@ -11,6 +11,7 @@ from mcp.types import ToolAnnotations
 from services.registry import mcp_for_unity_tool
 from services.tools import get_unity_instance_from_context
 from services.tools.utils import parse_json_payload, coerce_int, normalize_properties
+from services.tools.preview_integrity import verify_preview_payloads
 from transport.unity_transport import send_with_unity_instance
 from transport.legacy.unity_connection import async_send_command_with_retry
 from services.tools.preflight import preflight
@@ -115,5 +116,16 @@ async def manage_asset(
 
     # Use centralized async retry helper with instance routing
     result = await send_with_unity_instance(async_send_command_with_retry, unity_instance, "manage_asset", params_dict, loop=loop)
+    if not isinstance(result, dict):
+        return {"success": False, "message": str(result)}
+
+    # A preview that survived encoding but not transport must surface as an explicit
+    # error, never as a corrupt image the caller cannot tell apart from a good one.
+    preview_errors = verify_preview_payloads(result.get("data"))
+    if preview_errors:
+        result["preview_integrity_errors"] = preview_errors
+        for error in preview_errors:
+            await ctx.info(f"manage_asset: dropped a corrupt preview payload — {error}")
+
     # Return the result obtained from Unity
-    return result if isinstance(result, dict) else {"success": False, "message": str(result)}
+    return result
