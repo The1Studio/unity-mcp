@@ -650,6 +650,92 @@ namespace MCPForUnity.Editor.Helpers
                     case SerializedPropertyType.Enum:
                         return SetEnum(prop, value, out error);
 
+                    // Vector/struct leaves. Mirrors the switch in ManageScriptableObject
+                    // (TrySetSerializedProperty) so the two write paths accept the same value
+                    // forms — both the array [x, y] and the object {"x": 0, "y": 0} shape that
+                    // VectorParsing handles. Without these, a RectTransform's m_AnchorMin /
+                    // m_AnchorMax / m_SizeDelta / m_Pivot (all SerializedPropertyType.Vector2)
+                    // fell through to the default and were rejected outright. See issue #79.
+                    case SerializedPropertyType.Vector2:
+                        var v2 = VectorParsing.ParseVector2(value);
+                        if (v2 == null)
+                        {
+                            error = "Expected Vector2 (array or object).";
+                            return false;
+                        }
+                        prop.vector2Value = v2.Value;
+                        return true;
+
+                    case SerializedPropertyType.Vector3:
+                        var v3 = VectorParsing.ParseVector3(value);
+                        if (v3 == null)
+                        {
+                            error = "Expected Vector3 (array or object).";
+                            return false;
+                        }
+                        prop.vector3Value = v3.Value;
+                        return true;
+
+                    case SerializedPropertyType.Vector4:
+                        var v4 = VectorParsing.ParseVector4(value);
+                        if (v4 == null)
+                        {
+                            error = "Expected Vector4 (array or object).";
+                            return false;
+                        }
+                        prop.vector4Value = v4.Value;
+                        return true;
+
+                    case SerializedPropertyType.Quaternion:
+                        var quat = VectorParsing.ParseQuaternion(value);
+                        if (quat == null)
+                        {
+                            error = "Expected Quaternion (array [x,y,z] euler, [x,y,z,w], or object).";
+                            return false;
+                        }
+                        prop.quaternionValue = quat.Value;
+                        return true;
+
+                    case SerializedPropertyType.Color:
+                        var col = VectorParsing.ParseColor(value);
+                        if (col == null)
+                        {
+                            error = "Expected Color (array or object).";
+                            return false;
+                        }
+                        prop.colorValue = col.Value;
+                        return true;
+
+                    case SerializedPropertyType.Rect:
+                        var rect = VectorParsing.ParseRect(value);
+                        if (rect == null)
+                        {
+                            error = "Expected Rect (array [x,y,width,height] or object).";
+                            return false;
+                        }
+                        prop.rectValue = rect.Value;
+                        return true;
+
+                    case SerializedPropertyType.Bounds:
+                        var bounds = VectorParsing.ParseBounds(value);
+                        if (bounds == null)
+                        {
+                            error = "Expected Bounds (object with center and size).";
+                            return false;
+                        }
+                        prop.boundsValue = bounds.Value;
+                        return true;
+
+                    case SerializedPropertyType.AnimationCurve:
+                        var curve = VectorParsing.ParseAnimationCurve(value);
+                        if (curve == null)
+                        {
+                            error = "Expected AnimationCurve (object with 'keys' or array of keyframes).";
+                            return false;
+                        }
+                        prop.animationCurveValue = curve;
+                        return true;
+
                     default:
                         error = $"Unsupported SerializedPropertyType: {prop.propertyType} at '{prop.propertyPath}'.";
                         return false;
