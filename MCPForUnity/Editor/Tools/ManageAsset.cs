@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
 using UnityEditor;
@@ -1065,6 +1066,8 @@ namespace MCPForUnity.Editor.Tools
             string previewBase64 = null;
             int previewWidth = 0;
             int previewHeight = 0;
+            int previewByteLength = 0;
+            string previewSha256 = null;
 
             if (asset != null)
             {
@@ -1094,6 +1097,8 @@ namespace MCPForUnity.Editor.Tools
                                 previewBase64 = Convert.ToBase64String(pngData);
                                 previewWidth = readablePreview.width;
                                 previewHeight = readablePreview.height;
+                                previewByteLength = pngData.Length;
+                                previewSha256 = ComputeSha256Hex(pngData);
                             }
                         }
                         finally
@@ -1126,7 +1131,8 @@ namespace MCPForUnity.Editor.Tools
                 }
             }
 
-            return BuildAssetDataRecord(path, asset, previewBase64, previewWidth, previewHeight);
+            return BuildAssetDataRecord(
+                path, asset, previewBase64, previewWidth, previewHeight, previewByteLength, previewSha256);
         }
 
         /// <summary>
@@ -1182,7 +1188,23 @@ namespace MCPForUnity.Editor.Tools
             return tcs.Task;
         }
 
-        private static object BuildAssetDataRecord(string path, UnityEngine.Object asset, string previewBase64, int previewWidth, int previewHeight)
+        /// <summary>
+        /// Lowercase hex SHA-256 of the raw PNG bytes, reported alongside the base64 so the
+        /// receiving side can verify what actually arrived (issue #36).
+        /// </summary>
+        private static string ComputeSha256Hex(byte[] data)
+        {
+            using var sha = SHA256.Create();
+            byte[] hash = sha.ComputeHash(data);
+            var sb = new System.Text.StringBuilder(hash.Length * 2);
+            foreach (byte b in hash)
+                sb.Append(b.ToString("x2", CultureInfo.InvariantCulture));
+            return sb.ToString();
+        }
+
+        private static object BuildAssetDataRecord(
+            string path, UnityEngine.Object asset, string previewBase64, int previewWidth, int previewHeight,
+            int previewByteLength = 0, string previewSha256 = null)
         {
             string guid = AssetDatabase.AssetPathToGUID(path);
             Type assetType = AssetDatabase.GetMainAssetTypeAtPath(path);
@@ -1204,6 +1226,11 @@ namespace MCPForUnity.Editor.Tools
                 previewBase64 = previewBase64, // PNG data as Base64 string
                 previewWidth = previewWidth,
                 previewHeight = previewHeight,
+                // Identity of the PNG bytes as they left the editor, so the receiving side can
+                // tell a transport-mangled payload from one that was already wrong when encoded.
+                // Issue #36 kept both layers as live suspects because nothing measured either.
+                previewByteLength = previewByteLength,
+                previewSha256 = previewSha256,
                 // TODO: Add more metadata? Importer settings? Dependencies?
             };
         }
