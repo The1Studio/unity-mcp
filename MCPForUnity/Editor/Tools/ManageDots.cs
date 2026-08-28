@@ -105,42 +105,55 @@ namespace MCPForUnity.Editor.Tools
                 .Where(t => !string.IsNullOrEmpty(t))
                 .ToArray();
 
-            var componentTypes = new List<ComponentType>();
-            foreach (string typeName in typeNames)
-            {
-                var resolvedType = ResolveComponentType(typeName);
-                if (resolvedType == null)
-                    return new ErrorResponse($"Component type '{typeName}' not found. Check spelling or ensure the assembly is loaded.");
-                componentTypes.Add(resolvedType.Value);
-            }
+            if (!TryBuildQuerySignatures(typeNames, out var signatures, out var ambiguity, out string resolveError))
+                return new ErrorResponse(resolveError);
 
             var em = world.EntityManager;
             // Ad-hoc queries from outside a system have no tracked dependencies,
             // so CalculateEntityCount() can't sync jobs automatically — complete them first.
             em.CompleteAllTrackedJobs();
-            using var query = em.CreateEntityQuery(componentTypes.ToArray());
-            int totalCount = query.CalculateEntityCount();
 
             int pageSize = p.GetInt("page_size") ?? 20;
             pageSize = Math.Clamp(pageSize, 1, 100);
 
-            var entities = query.ToEntityArray(Allocator.Temp);
-            int sampleCount = Math.Min(pageSize, entities.Length);
-
+            int totalCount = 0;
             var samples = new List<object>();
-            for (int i = 0; i < sampleCount; i++)
-            {
-                samples.Add(SerializeEntityBrief(em, entities[i]));
-            }
-            entities.Dispose();
 
-            return new SuccessResponse($"Found {totalCount} entities matching [{string.Join(", ", typeNames)}].", new Dictionary<string, object>
+            // Every matching registration is queried; the entity sets are disjoint, so counts sum.
+            foreach (var signature in signatures)
+            {
+                using var query = em.CreateEntityQuery(signature);
+                totalCount += query.CalculateEntityCount();
+
+                if (samples.Count >= pageSize)
+                    continue;
+
+                var entities = query.ToEntityArray(Allocator.Temp);
+                for (int i = 0; i < entities.Length && samples.Count < pageSize; i++)
+                {
+                    samples.Add(SerializeEntityBrief(em, entities[i]));
+                }
+                entities.Dispose();
+            }
+
+            var payload = new Dictionary<string, object>
             {
                 ["total_count"]     = totalCount,
                 ["page_size"]       = pageSize,
                 ["component_types"] = typeNames,
                 ["entities"]        = samples
-            });
+            };
+            if (ambiguity != null)
+            {
+                payload["ambiguous_type_names"] = ambiguity;
+                payload["queried_signature_count"] = signatures.Count;
+            }
+
+            string message = $"Found {totalCount} entities matching [{string.Join(", ", typeNames)}].";
+            if (ambiguity != null)
+                message += $" {ambiguity.Count} name(s) matched multiple registered type indices; all were queried — see ambiguous_type_names.";
+
+            return new SuccessResponse(message, payload);
         }
 
         private static object GetEntity(ToolParams p)
@@ -713,28 +726,36 @@ namespace MCPForUnity.Editor.Tools
                 .Where(t => !string.IsNullOrEmpty(t))
                 .ToArray();
 
-            var componentTypes = new List<ComponentType>();
-            foreach (string typeName in typeNames)
-            {
-                var resolvedType = ResolveComponentType(typeName);
-                if (resolvedType == null)
-                    return new ErrorResponse($"Component type '{typeName}' not found.");
-                componentTypes.Add(resolvedType.Value);
-            }
+            if (!TryBuildQuerySignatures(typeNames, out var signatures, out var ambiguity, out string resolveError))
+                return new ErrorResponse(resolveError);
 
             var em = world.EntityManager;
             em.CompleteAllTrackedJobs();
-            using var query = em.CreateEntityQuery(componentTypes.ToArray());
-            int count = query.CalculateEntityCount();
 
-            return new SuccessResponse(
-                $"{count} entities match [{string.Join(", ", typeNames)}] in world '{world.Name}'.",
-                new Dictionary<string, object>
-                {
-                    ["count"]           = count,
-                    ["component_types"] = typeNames,
-                    ["world"]           = world.Name
-                });
+            int count = 0;
+            foreach (var signature in signatures)
+            {
+                using var query = em.CreateEntityQuery(signature);
+                count += query.CalculateEntityCount();
+            }
+
+            var payload = new Dictionary<string, object>
+            {
+                ["count"]           = count,
+                ["component_types"] = typeNames,
+                ["world"]           = world.Name
+            };
+            if (ambiguity != null)
+            {
+                payload["ambiguous_type_names"] = ambiguity;
+                payload["queried_signature_count"] = signatures.Count;
+            }
+
+            string message = $"{count} entities match [{string.Join(", ", typeNames)}] in world '{world.Name}'.";
+            if (ambiguity != null)
+                message += $" {ambiguity.Count} name(s) matched multiple registered type indices; all were queried — see ambiguous_type_names.";
+
+            return new SuccessResponse(message, payload);
         }
 
         #endregion
@@ -885,27 +906,130 @@ namespace MCPForUnity.Editor.Tools
         }
 
         /// <summary>
-        /// Resolves a component type name to a ComponentType by searching all loaded assemblies.
+        /// Resolves a component type name to ALL matching registered ComponentTypes.
         /// Supports short names ("LocalTransform") and full names ("Unity.Transforms.LocalTransform").
+        ///
+        /// A name can match more than one registration: TypeManager can hold several entries for
+        /// what looks like one type (duplicate registrations across assemblies), and a short name
+        /// can match several distinct namespaced types. Returning only the first match binds
+        /// whichever registration TypeManager happens to enumerate first — which need not be the
+        /// one the live World's chunks use — and a query against the wrong one silently reports
+        /// 0 entities for a perfectly healthy world (issue #80).
+        ///
+        /// An exact full-name match, where one exists, wins over suffix matches, so
+        /// "Unity.Transforms.LocalTransform" is never widened by an unrelated "…Foo.LocalTransform".
         /// </summary>
-        private static ComponentType? ResolveComponentType(string typeName)
+        private static List<ComponentType> ResolveComponentTypes(string typeName)
         {
-            // First, try iterating all registered ECS types via TypeManager
+            var exact = new List<ComponentType>();
+            var suffix = new List<ComponentType>();
+            var seen = new HashSet<int>();
+
             int typeCount = TypeManager.GetTypeCount();
             for (int i = 1; i < typeCount; i++) // Start at 1; index 0 is Entity itself
             {
                 var typeInfo = TypeManager.GetTypeInfo(i);
                 string debugName = typeInfo.DebugTypeName.ToString();
 
-                // Match by short name or full name
-                if (string.Equals(debugName, typeName, StringComparison.OrdinalIgnoreCase) ||
-                    debugName.EndsWith("." + typeName, StringComparison.OrdinalIgnoreCase))
+                bool isExact = string.Equals(debugName, typeName, StringComparison.OrdinalIgnoreCase);
+                bool isSuffix = !isExact
+                    && debugName.EndsWith("." + typeName, StringComparison.OrdinalIgnoreCase);
+
+                if (!isExact && !isSuffix)
+                    continue;
+
+                // Must use typeInfo.TypeIndex (includes type flags) not the raw loop index
+                var ct = ComponentType.FromTypeIndex(typeInfo.TypeIndex);
+                if (!seen.Add(ct.TypeIndex.Value))
+                    continue;
+
+                (isExact ? exact : suffix).Add(ct);
+            }
+
+            return exact.Count > 0 ? exact : suffix;
+        }
+
+        /// <summary>
+        /// Single-registration resolution, for call sites that act on one component (add, remove,
+        /// set, create-archetype) where every matching registration denotes the same struct.
+        /// Prefers an exact full-name match; see <see cref="ResolveComponentTypes"/>.
+        /// </summary>
+        private static ComponentType? ResolveComponentType(string typeName)
+        {
+            var matches = ResolveComponentTypes(typeName);
+            return matches.Count > 0 ? matches[0] : (ComponentType?)null;
+        }
+
+        /// <summary>
+        /// Resolves every requested component name, then expands the per-name candidate lists into
+        /// the set of concrete query signatures that must be run.
+        ///
+        /// A component appears in an entity's archetype under exactly one type index, so the
+        /// entity sets produced by two different signatures are disjoint — counts can be summed
+        /// and entity arrays concatenated without deduplication.
+        /// </summary>
+        private static bool TryBuildQuerySignatures(
+            string[] typeNames,
+            out List<ComponentType[]> signatures,
+            out Dictionary<string, object> ambiguity,
+            out string error)
+        {
+            signatures = null;
+            ambiguity = null;
+            error = null;
+
+            var perName = new List<List<ComponentType>>();
+            foreach (string typeName in typeNames)
+            {
+                var matches = ResolveComponentTypes(typeName);
+                if (matches.Count == 0)
                 {
-                    // Must use typeInfo.TypeIndex (includes type flags) not the raw loop index
-                    return ComponentType.FromTypeIndex(typeInfo.TypeIndex);
+                    error = $"Component type '{typeName}' not found. Check spelling or ensure the assembly is loaded.";
+                    return false;
+                }
+
+                if (matches.Count > 1)
+                {
+                    ambiguity ??= new Dictionary<string, object>();
+                    ambiguity[typeName] = matches.Select(m => m.TypeIndex.Value).ToArray();
+                }
+
+                perName.Add(matches);
+            }
+
+            // Cartesian product across the per-name candidate lists. Bounded, so a pathological
+            // registration set cannot turn one query into thousands.
+            const int maxSignatures = 64;
+            long projected = 1;
+            foreach (var candidates in perName)
+            {
+                projected *= candidates.Count;
+                if (projected > maxSignatures)
+                {
+                    error = $"Component names [{string.Join(", ", typeNames)}] resolve to more than "
+                          + $"{maxSignatures} distinct type-index combinations. Disambiguate with "
+                          + "fully-qualified type names, or inspect a known entity with get_entity.";
+                    return false;
                 }
             }
-            return null;
+
+            signatures = new List<ComponentType[]> { new ComponentType[typeNames.Length] };
+            for (int i = 0; i < perName.Count; i++)
+            {
+                var expanded = new List<ComponentType[]>(signatures.Count * perName[i].Count);
+                foreach (var partial in signatures)
+                {
+                    foreach (var candidate in perName[i])
+                    {
+                        var next = (ComponentType[])partial.Clone();
+                        next[i] = candidate;
+                        expanded.Add(next);
+                    }
+                }
+                signatures = expanded;
+            }
+
+            return true;
         }
 
         private static ComponentSystemBase FindSystem(World world, string systemName)
@@ -1020,7 +1144,12 @@ namespace MCPForUnity.Editor.Tools
                 {
                     ["name"]          = typeName,
                     ["category"]      = typeInfo.Category.ToString(),
-                    ["size_bytes"]    = typeInfo.SizeInChunk,
+                    // SizeInChunk is structurally 0 for ISharedComponentData — shared components
+                    // live outside the chunk — so reporting it as a byte size reads as "empty"
+                    // for a perfectly healthy component. Say so explicitly instead (issue #80).
+                    ["size_bytes"]    = typeInfo.Category == TypeManager.TypeCategory.ISharedComponentData
+                                            ? (object)"n/a (shared component, stored outside the chunk)"
+                                            : typeInfo.SizeInChunk,
                     ["is_zero_sized"] = typeInfo.IsZeroSized
                 };
 
@@ -1068,62 +1197,122 @@ namespace MCPForUnity.Editor.Tools
 
         private static void ReadComponentFields(EntityManager em, Entity entity, ComponentType ct, Dictionary<string, object> data)
         {
-            try
-            {
-                var type = ct.GetManagedType();
-                if (type == null) return;
-
-                var obj = em.Debug.GetComponentBoxed(entity, ct);
-                if (obj == null) return;
-
-                var fields = new Dictionary<string, object>();
-                foreach (var field in type.GetFields(BindingFlags.Public | BindingFlags.Instance))
-                {
-                    try
-                    {
-                        fields[field.Name] = field.GetValue(obj)?.ToString() ?? "null";
-                    }
-                    catch
-                    {
-                        fields[field.Name] = "<unreadable>";
-                    }
-                }
-                data["fields"] = fields;
-            }
-            catch
-            {
-                // Some components can't be boxed safely
-            }
+            ReadMembersInto(em, entity, ct, data, includeProperties: false);
         }
 
         private static void ReadSharedComponentFields(EntityManager em, Entity entity, ComponentType ct, Dictionary<string, object> data)
         {
+            // Shared components routinely expose their contents as PROPERTIES over private
+            // fields — RenderMeshArray's MaterialReferences / MeshReferences / Materials /
+            // Meshes are the canonical case. A field-only enumeration yields nothing and
+            // serializes as {}, which is indistinguishable from a genuinely empty component
+            // (issue #80). Read properties as well.
+            ReadMembersInto(em, entity, ct, data, includeProperties: true);
+        }
+
+        /// <summary>
+        /// Boxes a component and reflects its public fields (and optionally its public
+        /// properties) into data["fields"]. A failure is always reported explicitly — an empty
+        /// or missing "fields" entry must never be the only signal that a read failed.
+        /// </summary>
+        private static void ReadMembersInto(
+            EntityManager em, Entity entity, ComponentType ct,
+            Dictionary<string, object> data, bool includeProperties)
+        {
             try
             {
                 var type = ct.GetManagedType();
-                if (type == null) return;
+                if (type == null)
+                {
+                    data["fields"] = "<unreadable: no managed type for this component>";
+                    return;
+                }
 
                 var obj = em.Debug.GetComponentBoxed(entity, ct);
-                if (obj == null) return;
+                if (obj == null)
+                {
+                    data["fields"] = "<unreadable: component boxed to null>";
+                    return;
+                }
 
-                var fields = new Dictionary<string, object>();
+                var members = new Dictionary<string, object>();
+
                 foreach (var field in type.GetFields(BindingFlags.Public | BindingFlags.Instance))
                 {
                     try
                     {
-                        fields[field.Name] = field.GetValue(obj)?.ToString() ?? "null";
+                        members[field.Name] = DescribeMemberValue(field.GetValue(obj));
                     }
-                    catch
+                    catch (Exception ex)
                     {
-                        fields[field.Name] = "<unreadable>";
+                        members[field.Name] = $"<unreadable: {ex.Message}>";
                     }
                 }
-                data["fields"] = fields;
+
+                if (includeProperties)
+                {
+                    foreach (var prop in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+                    {
+                        // Indexers need arguments; a write-only property has nothing to read.
+                        if (!prop.CanRead || prop.GetIndexParameters().Length > 0)
+                            continue;
+                        if (members.ContainsKey(prop.Name))
+                            continue;
+
+                        try
+                        {
+                            members[prop.Name] = DescribeMemberValue(prop.GetValue(obj));
+                        }
+                        catch (Exception ex)
+                        {
+                            members[prop.Name] = $"<unreadable: {ex.Message}>";
+                        }
+                    }
+                }
+
+                data["fields"] = members;
             }
-            catch
+            catch (Exception ex)
             {
-                // Shared components may not be readable
+                // Previously swallowed silently, so a genuine read failure was reported as an
+                // empty component. Always leave a marker instead (issue #80).
+                data["fields"] = $"<unreadable: {ex.Message}>";
             }
+        }
+
+        /// <summary>
+        /// Renders a reflected member value. Collections report their length and element
+        /// identities rather than a bare type name, so an array-backed member (e.g.
+        /// RenderMeshArray's material/mesh references) is legible instead of opaque.
+        /// </summary>
+        private static object DescribeMemberValue(object value)
+        {
+            const int maxListed = 8;
+
+            if (value == null) return "null";
+            if (value is string str) return str;
+
+            if (value is System.Collections.IEnumerable enumerable)
+            {
+                var names = new List<string>();
+                int count = 0;
+                foreach (var item in enumerable)
+                {
+                    count++;
+                    if (names.Count < maxListed)
+                    {
+                        var asObject = item as UnityEngine.Object;
+                        names.Add(asObject != null ? asObject.name : (item?.ToString() ?? "null"));
+                    }
+                }
+
+                string listed = string.Join(", ", names);
+                if (count > names.Count)
+                    listed += $", ... (+{count - names.Count} more)";
+                return $"[{count}] {listed}";
+            }
+
+            return value.ToString();
         }
 
         private static void ReadBufferElements(EntityManager em, Entity entity, ComponentType ct, TypeManager.TypeInfo typeInfo, Dictionary<string, object> data)
