@@ -41,7 +41,7 @@ CAMERA CONTROL:
 - list_cameras: List all cameras with status
 
 CAPTURE:
-- screenshot: Capture a screenshot. By default (no camera specified) uses ScreenCapture API, which captures all render layers including Screen Space - Overlay UI canvases. Specifying a camera uses direct camera rendering, which EXCLUDES Screen Space - Overlay canvases (use only when you need a specific viewpoint without UI). Supports include_image=true for inline base64 PNG, batch='surround' for 6-angle contact sheet, batch='orbit' for configurable grid, view_target/view_position for positioned capture, and capture_source='scene_view' to capture the active Unity Scene View viewport.
+- screenshot: Capture a screenshot. By default (no camera specified) uses ScreenCapture API, which captures all render layers including Screen Space - Overlay UI canvases. Specifying a camera uses direct camera rendering, which EXCLUDES Screen Space - Overlay canvases (use only when you need a specific viewpoint without UI). Supports include_image=true for inline base64 PNG, batch='surround' for 6-angle contact sheet, batch='orbit' for configurable grid, view_target/view_position for positioned capture, capture_source='scene_view' to capture the active Unity Scene View viewport, and capture_source='screen' to capture the full Game View including OnGUI/IMGUI overlays.
 - screenshot_multiview: Shorthand for screenshot with batch='surround' and include_image=true.
 
 ## Parameters
@@ -57,7 +57,7 @@ CAPTURE:
 | `camera` | `str \| None` | — | Camera to capture from (name, path, or instance ID). Omit to use ScreenCapture API (captures all layers including Screen Space Overlay UI). Specify only when you need a particular camera viewpoint; note that Screen Space - Overlay canvases will NOT appear in camera-rendered captures. |
 | `include_image` | `bool \| str \| None` | — | If true, return screenshot as inline base64 PNG. Default false. |
 | `max_resolution` | `int \| str \| None` | — | Max resolution (longest edge px) for inline image. Default 640. |
-| `capture_source` | `Literal['game_view', 'scene_view'] \| None` | — | Screenshot source. 'game_view' (default) captures the game/camera path; 'scene_view' captures the active Unity Scene View viewport. |
+| `capture_source` | `Literal['game_view', 'scene_view', 'screen'] \| None` | — | Screenshot source. 'game_view' (default) captures the game/camera path; 'scene_view' captures the active Unity Scene View viewport; 'screen' captures the full Game View including OnGUI/IMGUI overlays (requires Screen Capture module). |
 | `batch` | `str \| None` | — | Batch capture mode: 'surround' (6 angles) or 'orbit' (configurable grid). |
 | `view_target` | `str \| int \| list[float] \| None` | — | Target to focus on. GameObject name/path/ID or [x,y,z]. For game_view: aims camera at target. For scene_view: frames the Scene View on the target. |
 | `view_position` | `list[float] \| str \| None` | — | World position [x,y,z] to place camera for positioned capture. |
