@@ -132,15 +132,25 @@ namespace MCPForUnity.Editor.Tools
                     ["entity_version"] = entity.Version,
                 };
 
-                try
+                // Mirror the get_entity path: guard the read with HasComponent first, and if it
+                // still throws, say WHY. A bare "<unreadable>" made a genuine failure look
+                // identical to an absent component (issue #80).
+                if (em.HasComponent<MaterialMeshInfo>(entity))
                 {
-                    var mmi = em.GetComponentData<MaterialMeshInfo>(entity);
-                    data["material_id"] = mmi.MaterialID.GetHashCode();
-                    data["mesh_id"]     = mmi.MeshID.GetHashCode();
+                    try
+                    {
+                        var mmi = em.GetComponentData<MaterialMeshInfo>(entity);
+                        data["material_id"] = mmi.MaterialID.GetHashCode();
+                        data["mesh_id"]     = mmi.MeshID.GetHashCode();
+                    }
+                    catch (Exception ex)
+                    {
+                        data["material_mesh_info"] = $"<unreadable: {ex.Message}>";
+                    }
                 }
-                catch
+                else
                 {
-                    data["material_mesh_info"] = "<unreadable>";
+                    data["material_mesh_info"] = "none";
                 }
 
                 if (em.HasComponent<RenderBounds>(entity))
@@ -221,7 +231,7 @@ namespace MCPForUnity.Editor.Tools
                     result["material_id"] = mmi.MaterialID.GetHashCode();
                     result["mesh_id"]     = mmi.MeshID.GetHashCode();
                 }
-                catch { result["material_mesh_info"] = "<unreadable>"; }
+                catch (Exception ex) { result["material_mesh_info"] = $"<unreadable: {ex.Message}>"; }
             }
             else
             {
