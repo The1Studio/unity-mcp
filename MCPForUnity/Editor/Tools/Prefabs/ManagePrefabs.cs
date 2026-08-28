@@ -593,8 +593,11 @@ namespace MCPForUnity.Editor.Tools.Prefabs
         #region Headless Prefab Editing
 
         /// <summary>
-        /// Modifies a prefab's contents directly without opening the prefab stage.
+        /// Modifies a prefab's contents without opening the prefab stage itself.
         /// This is ideal for automated/agentic workflows as it avoids UI, dirty flags, and dialogs.
+        /// If a prefab stage is ALREADY open on the same asset, the modifications are applied to
+        /// that stage's contents root rather than to a second isolated copy — otherwise the
+        /// stage's later save would silently overwrite them (issue #77).
         /// </summary>
         private static object ModifyContents(JObject @params)
         {
@@ -610,8 +613,20 @@ namespace MCPForUnity.Editor.Tools.Prefabs
                 return new ErrorResponse($"Invalid prefab path '{prefabPath}'. Path traversal sequences are not allowed.");
             }
 
-            // Load prefab contents in isolated context (no UI)
-            GameObject prefabContents = PrefabUtility.LoadPrefabContents(sanitizedPath);
+            // If a prefab stage is already open on this same asset, that stage's in-memory copy
+            // is authoritative: whatever it holds gets written over the file when it is saved or
+            // closed. Loading a second isolated copy here and saving it would be silently undone
+            // by that later write — the data loss reported in issue #77. Edit the stage's own
+            // root instead, so exactly one in-memory copy of the asset ever exists.
+            PrefabStage openStage = PrefabStageUtility.GetCurrentPrefabStage();
+            bool editingOpenStage = openStage != null
+                && openStage.prefabContentsRoot != null
+                && string.Equals(openStage.assetPath, sanitizedPath, StringComparison.OrdinalIgnoreCase);
+
+            GameObject prefabContents = editingOpenStage
+                ? openStage.prefabContentsRoot
+                : PrefabUtility.LoadPrefabContents(sanitizedPath);
+
             if (prefabContents == null)
             {
                 return new ErrorResponse($"Failed to load prefab contents from '{sanitizedPath}'.");
@@ -645,23 +660,36 @@ namespace MCPForUnity.Editor.Tools.Prefabs
                         {
                             prefabPath = sanitizedPath,
                             targetName = targetGo.name,
-                            modified = false
+                            modified = false,
+                            editedOpenPrefabStage = editingOpenStage
                         }
                     );
                 }
 
-                // Save the prefab
-                bool success;
-                PrefabUtility.SaveAsPrefabAsset(prefabContents, sanitizedPath, out success);
-
-                if (!success)
+                // Save the prefab. When editing the open stage, route through TrySavePrefabStage
+                // so the stage's dirty flag is cleared too — otherwise a later close would treat
+                // the stage as unsaved and could write a stale copy back over what we just saved.
+                if (editingOpenStage)
                 {
-                    return new ErrorResponse($"Failed to save prefab asset at '{sanitizedPath}'.");
+                    if (!TrySavePrefabStage(openStage, out _, out string stageSaveError))
+                    {
+                        return new ErrorResponse(stageSaveError);
+                    }
+                }
+                else
+                {
+                    bool success;
+                    PrefabUtility.SaveAsPrefabAsset(prefabContents, sanitizedPath, out success);
+
+                    if (!success)
+                    {
+                        return new ErrorResponse($"Failed to save prefab asset at '{sanitizedPath}'.");
+                    }
+
+                    AssetDatabase.Refresh();
                 }
 
-                AssetDatabase.Refresh();
-
-                McpLog.Info($"[ManagePrefabs] Successfully modified and saved prefab '{sanitizedPath}' (headless).");
+                McpLog.Info($"[ManagePrefabs] Successfully modified and saved prefab '{sanitizedPath}' ({(editingOpenStage ? "open prefab stage" : "headless")}).");
 
                 return new SuccessResponse(
                     $"Prefab '{sanitizedPath}' modified and saved successfully.",
@@ -670,6 +698,7 @@ namespace MCPForUnity.Editor.Tools.Prefabs
                         prefabPath = sanitizedPath,
                         targetName = targetGo.name,
                         modified = modifyResult.modified,
+                        editedOpenPrefabStage = editingOpenStage,
                         transform = new
                         {
                             position = new { x = targetGo.transform.localPosition.x, y = targetGo.transform.localPosition.y, z = targetGo.transform.localPosition.z },
@@ -682,8 +711,12 @@ namespace MCPForUnity.Editor.Tools.Prefabs
             }
             finally
             {
-                // Always unload prefab contents to free memory
-                PrefabUtility.UnloadPrefabContents(prefabContents);
+                // Only unload contents we loaded ourselves. The open stage's root belongs to the
+                // stage; unloading it would tear down the editor's live prefab stage.
+                if (!editingOpenStage)
+                {
+                    PrefabUtility.UnloadPrefabContents(prefabContents);
+                }
             }
         }
 
@@ -1324,14 +1357,23 @@ namespace MCPForUnity.Editor.Tools.Prefabs
                     return new ErrorResponse($"Failed to open prefab stage for '{sanitizedPath}'. PrefabStageUtility.OpenPrefab did not enter the requested prefab stage.");
                 }
 
+                // An already-open stage is NOT re-read from disk by OpenPrefab. If it carries
+                // unsaved edits, its in-memory copy differs from the file and will overwrite the
+                // file on the next save or close. Surface that instead of letting the caller
+                // assume it is looking at what is on disk (issue #77).
+                bool isDirty = prefabStage.scene.isDirty;
+
                 return new SuccessResponse(
-                    $"Opened prefab stage for '{sanitizedPath}'.",
+                    isDirty
+                        ? $"Opened prefab stage for '{sanitizedPath}'. The stage has unsaved in-memory changes that will overwrite the file when saved or closed."
+                        : $"Opened prefab stage for '{sanitizedPath}'.",
                     new
                     {
                         prefabPath = sanitizedPath,
                         openedPrefabPath = prefabStage.assetPath,
                         rootName = prefabStage.prefabContentsRoot.name,
-                        enteredPrefabStage = enteredStage
+                        enteredPrefabStage = enteredStage,
+                        isDirty
                     }
                 );
             }
@@ -1383,8 +1425,16 @@ namespace MCPForUnity.Editor.Tools.Prefabs
                 }
 
                 string prefabPath = prefabStage.assetPath;
+                // Report whether unsaved in-memory edits existed at close time. Without save_before_close
+                // those edits are discarded rather than written, and the caller has no other way to
+                // tell that from a clean close (issue #77).
+                bool wasDirty = prefabStage.scene.isDirty;
                 StageUtility.GoToMainStage();
-                return new SuccessResponse($"Exited prefab stage for '{prefabPath}'.", new { prefabPath });
+                return new SuccessResponse(
+                    wasDirty && !saveBeforeClose
+                        ? $"Exited prefab stage for '{prefabPath}'. Unsaved in-memory changes were discarded; pass save_before_close to keep them."
+                        : $"Exited prefab stage for '{prefabPath}'.",
+                    new { prefabPath, wasDirty, savedBeforeClose = saveBeforeClose });
             }
             catch (Exception e)
             {
