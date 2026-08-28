@@ -22,6 +22,7 @@ Request a Unity asset database refresh and optionally a script compilation. Can 
 | `scope` | `Literal['assets', 'scripts', 'all']` | — | Refresh scope |
 | `compile` | `Literal['none', 'request']` | — | Whether to request compilation |
 | `wait_for_ready` | `bool` | — | If true, wait until editor_state.advice.ready_for_tools is true |
+| `allow_during_play` | `bool` | — | If false (default), refuse to refresh/compile while Play mode is active -- on a DOTS project that forces a domain reload that permanently disposes the ECS Default World for the rest of the Play session. Pass true only if you understand and accept that. |
 
 ## Returns
 
