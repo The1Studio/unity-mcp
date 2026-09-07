@@ -1,5 +1,6 @@
 using System;
 using MCPForUnity.Editor.Helpers;
+using MCPForUnity.Runtime.Helpers;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
 using UnityEngine.UI;
@@ -113,12 +114,11 @@ namespace MCPForUnity.Editor.Tools.InputSimulation
                 go = GameObject.Find(path);
             else if (!string.IsNullOrEmpty(instanceId) && int.TryParse(instanceId, out int id))
             {
-                // Unity 6 deprecated InstanceIDToObject(int) in favor of EntityIdToObject
-                // (CS0618 in 6.0-6.4, promoted to CS0619/error in 6000.5). EntityIdToObject
-                // accepts int via an implicit conversion, so no pragma is needed. Preserved
-                // here for the 'instance_id' JSON contract. See ManageTerrain.cs/ManageMesh.cs
-                // for the same idiom.
-                go = UnityEditor.EditorUtility.EntityIdToObject(id) as GameObject;
+                // EditorUtility.EntityIdToObject only exists on Unity 6000.3+ (CS0117 on
+                // 6000.0-6000.2), and InstanceIDToObject(int) is obsolete-as-error on 6000.5+.
+                // UnityObjectIdCompat.InstanceIDToObjectCompat version-gates all three cases.
+                // Preserved here for the 'instance_id' JSON contract.
+                go = UnityObjectIdCompat.InstanceIDToObjectCompat(id) as GameObject;
             }
             else if (!string.IsNullOrEmpty(name))
                 go = GameObject.Find(name);

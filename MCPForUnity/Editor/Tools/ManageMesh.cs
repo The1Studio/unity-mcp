@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using MCPForUnity.Editor.Helpers;
+using MCPForUnity.Runtime.Helpers;
 using Newtonsoft.Json.Linq;
 using UnityEditor;
 using UnityEngine;
@@ -229,7 +230,7 @@ namespace MCPForUnity.Editor.Tools
 
             GameObject go = null;
             if (int.TryParse(target, out int id))
-                go = EditorUtility.EntityIdToObject(id) as GameObject;
+                go = UnityObjectIdCompat.InstanceIDToObjectCompat(id) as GameObject;
             if (go == null)
                 go = GameObject.Find(target);
             if (go == null) return (null, $"GameObject not found: '{target}'");
