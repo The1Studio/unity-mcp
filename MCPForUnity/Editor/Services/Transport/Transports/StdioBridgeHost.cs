@@ -537,7 +537,7 @@ namespace MCPForUnity.Editor.Services.Transport.Transports
                     try
                     {
                         var ep = client.Client?.RemoteEndPoint?.ToString() ?? "unknown";
-                        McpLog.Info($"Client connected {ep} (active clients: {clientCount})");
+                        McpLog.Info($"Client connected {ep} (active clients: {clientCount})", always: false);
                     }
                     catch { }
                     try
@@ -737,7 +737,7 @@ namespace MCPForUnity.Editor.Services.Transport.Transports
                     }
                     int remaining;
                     lock (clientsLock) { remaining = activeClients.Count; }
-                    McpLog.Info($"Client handler exited (remaining clients: {remaining})");
+                    McpLog.Info($"Client handler exited (remaining clients: {remaining})", always: false);
                 }
             }
         }
