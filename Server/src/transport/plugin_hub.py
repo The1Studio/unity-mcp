@@ -98,6 +98,13 @@ class PluginHub(WebSocketEndpoint):
     PING_INTERVAL = 10
     # Max time (seconds) to wait for pong before considering connection dead
     PING_TIMEOUT = 20
+    # Registry stale-session sweep (issue #109). The threshold is 6x PING_TIMEOUT so
+    # the per-session ping loop always gets first refusal on a dead connection and
+    # this only catches orphans the ping loop could not reach (never started, or its
+    # task died). The interval is a fraction of the threshold so eviction is prompt
+    # once a session is genuinely past it.
+    STALE_SWEEP_INTERVAL = 60
+    STALE_SWEEP_TIMEOUT = 120
     # Timeout (seconds) for fast-fail commands like ping/read_console/get_editor_state.
     # Keep short so MCP clients aren't blocked during Unity compilation/reload/unfocused throttling.
     FAST_FAIL_TIMEOUT = 2.0
@@ -121,6 +128,9 @@ class PluginHub(WebSocketEndpoint):
     _last_pong: ClassVar[dict[str, float]] = {}
     # session_id -> ping task
     _ping_tasks: ClassVar[dict[str, asyncio.Task]] = {}
+    # Periodic registry sweep for sessions no liveness signal has reached in
+    # STALE_SWEEP_TIMEOUT seconds. See _stale_sweep_loop.
+    _sweep_task: ClassVar[asyncio.Task | None] = None
 
     @classmethod
     def configure(
@@ -137,6 +147,23 @@ class PluginHub(WebSocketEndpoint):
         # Start tracking MCP client sessions for tool-change notifications
         if mcp is not None:
             _install_session_tracking()
+        cls._start_stale_sweep()
+
+    @classmethod
+    def _start_stale_sweep(cls) -> None:
+        """Start the registry-level stale-session sweep (idempotent)."""
+        existing = cls._sweep_task
+        if existing is not None and not existing.done():
+            return
+        try:
+            cls._sweep_task = asyncio.get_running_loop().create_task(
+                cls._stale_sweep_loop()
+            )
+        except RuntimeError:
+            # No running loop (configure() called from sync context) — the sweep
+            # is an optimisation, so degrade rather than fail configuration.
+            logger.debug("No running loop; stale-session sweep not started")
+            cls._sweep_task = None
 
     @classmethod
     def is_configured(cls) -> bool:
@@ -660,6 +687,70 @@ class PluginHub(WebSocketEndpoint):
             if lock is not None:
                 async with lock:
                     cls._last_pong[session_id] = time.monotonic()
+
+    @classmethod
+    async def _stale_sweep_loop(cls) -> None:
+        """Periodically evict registry sessions that stopped signalling (issue #109).
+
+        ``_ping_loop`` is per-session and cannot cover every orphan: it starts only
+        once that session has registered, it needs PING_TIMEOUT to elapse, and if
+        the task itself dies (a domain reload cancels it) nothing replaces it — the
+        session then sits in the registry forever, so ``get_sessions()`` reports a
+        ghost instance and routing keeps resolving to a dead WebSocket.
+
+        This loop is the net underneath that: it starts once with the hub, survives
+        individual session churn, and evicts on ``connected_at`` staleness. The
+        threshold is deliberately several times PING_TIMEOUT so a session the ping
+        loop is about to reap is not raced by this one — the ping loop gets first
+        refusal, and this catches only what it could not reach.
+        """
+        logger.debug("[Sweep] Starting stale-session sweep loop")
+        try:
+            while True:
+                await asyncio.sleep(cls.STALE_SWEEP_INTERVAL)
+                registry = cls._registry
+                if registry is None:
+                    break
+                try:
+                    evicted = await registry.cleanup_stale(cls.STALE_SWEEP_TIMEOUT)
+                except Exception as sweep_ex:
+                    # One failed sweep must not kill the loop: the state it guards
+                    # accumulates over days, so a transient error is recoverable
+                    # while a dead loop is not.
+                    logger.warning(f"[Sweep] Stale-session sweep failed: {sweep_ex}")
+                    continue
+                if not evicted:
+                    continue
+                logger.warning(
+                    f"[Sweep] Evicted {len(evicted)} stale plugin session(s) "
+                    f"unseen for >{cls.STALE_SWEEP_TIMEOUT}s: {evicted}"
+                )
+                lock = cls._lock
+                if lock is None:
+                    break
+                async with lock:
+                    for session_id in evicted:
+                        cls._connections.pop(session_id, None)
+                        cls._last_pong.pop(session_id, None)
+                        ping_task = cls._ping_tasks.pop(session_id, None)
+                        if ping_task and not ping_task.done():
+                            ping_task.cancel()
+                        for command_id, entry in list(cls._pending.items()):
+                            if entry.get("session_id") != session_id:
+                                continue
+                            future = entry.get("future")
+                            if future and not future.done():
+                                future.set_exception(
+                                    PluginDisconnectedError(
+                                        f"Unity plugin session {session_id} evicted as stale "
+                                        f"(no liveness signal for >{cls.STALE_SWEEP_TIMEOUT}s)"
+                                    )
+                                )
+                            cls._pending.pop(command_id, None)
+        except asyncio.CancelledError:
+            logger.debug("[Sweep] Stale-session sweep loop cancelled")
+        except Exception as ex:
+            logger.error(f"[Sweep] Stale-session sweep loop died: {ex}")
 
     @classmethod
     async def _ping_loop(cls, session_id: str, websocket: WebSocket) -> None:
