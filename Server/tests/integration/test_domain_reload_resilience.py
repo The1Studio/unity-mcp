@@ -219,6 +219,126 @@ async def test_read_console_during_simulated_reload(monkeypatch):
 
 
 @pytest.mark.asyncio
+@pytest.mark.asyncio
+async def test_resolve_session_id_retries_when_ambiguity_clears_during_wait(monkeypatch):
+    """A momentary second instance during a reconnect must not be read as lasting.
+
+    Issue #107: the ambiguity guard used to run *before* the loop's re-fetch (and
+    before any wait), so a second instance that existed only at the moment of the
+    snapshot made ``_resolve_session_id`` raise immediately.  The wait this loop
+    exists to perform -- the one that lets a transient blip resolve -- never ran.
+    """
+    from transport.plugin_hub import PluginHub, InstanceSelectionRequiredError
+    from transport.plugin_registry import PluginRegistry, PluginSession
+
+    def _session(sid: str, project_hash: str) -> PluginSession:
+        now = datetime.now()
+        return PluginSession(
+            session_id=sid,
+            project_name=project_hash,
+            project_hash=project_hash,
+            unity_version="2022.3.0f1",
+            registered_at=now,
+            connected_at=now,
+        )
+
+    class _BlipRegistry(PluginRegistry):
+        """Two instances on the first query, one from then on."""
+
+        def __init__(self) -> None:
+            super().__init__()
+            self.queries = 0
+
+        async def list_sessions(self, user_id=None):
+            self.queries += 1
+            if self.queries == 1:
+                return {"s-A": _session("s-A", "hash-A"), "s-B": _session("s-B", "hash-B")}
+            return {"s-A": _session("s-A", "hash-A")}
+
+        async def get_session_id_by_hash(self, project_hash, user_id=None):
+            return None
+
+    registry = _BlipRegistry()
+
+    original_registry = PluginHub._registry
+    original_lock = PluginHub._lock
+    PluginHub._registry = registry
+    PluginHub._lock = asyncio.Lock()
+    monkeypatch.setenv("UNITY_MCP_SESSION_RESOLVE_MAX_WAIT_S", "5.0")
+    monkeypatch.setattr(
+        "transport.plugin_hub.config.reload_retry_ms", 10, raising=False)
+
+    try:
+        session_id = await PluginHub._resolve_session_id(unity_instance=None)
+
+        assert session_id == "s-A"
+        # The loop must have actually waited and re-queried the registry; the
+        # raising variant stops at the snapshot and never performs a second query.
+        assert registry.queries >= 2
+    finally:
+        PluginHub._registry = original_registry
+        PluginHub._lock = original_lock
+
+
+@pytest.mark.asyncio
+async def test_resolve_session_id_still_rejects_ambiguity_that_persists(monkeypatch):
+    """Companion to the blip test: a durable ambiguity must still be refused.
+
+    Without this, deleting the ambiguity guard outright would pass the test above
+    while silently changing auto-selection behaviour for genuinely ambiguous
+    callers.
+    """
+    from transport.plugin_hub import PluginHub, InstanceSelectionRequiredError
+    from transport.plugin_registry import PluginRegistry, PluginSession
+
+    def _session(sid: str, project_hash: str) -> PluginSession:
+        now = datetime.now()
+        return PluginSession(
+            session_id=sid,
+            project_name=project_hash,
+            project_hash=project_hash,
+            unity_version="2022.3.0f1",
+            registered_at=now,
+            connected_at=now,
+        )
+
+    class _TwoInstanceRegistry(PluginRegistry):
+        def __init__(self) -> None:
+            super().__init__()
+            self.queries = 0
+
+        async def list_sessions(self, user_id=None):
+            self.queries += 1
+            return {"s-A": _session("s-A", "hash-A"), "s-B": _session("s-B", "hash-B")}
+
+        async def get_session_id_by_hash(self, project_hash, user_id=None):
+            return None
+
+    registry = _TwoInstanceRegistry()
+
+    original_registry = PluginHub._registry
+    original_lock = PluginHub._lock
+    PluginHub._registry = registry
+    PluginHub._lock = asyncio.Lock()
+    monkeypatch.setenv("UNITY_MCP_SESSION_RESOLVE_MAX_WAIT_S", "5.0")
+    monkeypatch.setattr(
+        "transport.plugin_hub.config.reload_retry_ms", 10, raising=False)
+
+    try:
+        started = asyncio.get_running_loop().time()
+        with pytest.raises(InstanceSelectionRequiredError, match="Multiple Unity instances"):
+            await PluginHub._resolve_session_id(unity_instance=None)
+        elapsed = asyncio.get_running_loop().time() - started
+
+        # Refused promptly rather than burning the full reconnect budget on an
+        # ambiguity that a timeout can never resolve.
+        assert elapsed < 4.0
+    finally:
+        PluginHub._registry = original_registry
+        PluginHub._lock = original_lock
+
+
+@pytest.mark.asyncio
 async def test_plugin_hub_respects_unity_instance_preference():
     """Test that _resolve_session_id prefers a specific Unity instance if requested."""
     from transport.plugin_hub import PluginHub, InstanceSelectionRequiredError

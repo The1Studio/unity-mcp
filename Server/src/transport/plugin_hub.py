@@ -822,6 +822,30 @@ class PluginHub(WebSocketEndpoint):
     # ------------------------------------------------------------------
     # Session resolution helpers
     # ------------------------------------------------------------------
+    @staticmethod
+    def _raise_if_ambiguous_selection(
+        session_id: str | None,
+        session_count: int,
+        explicit_required: bool,
+        target_hash: str | None,
+    ) -> None:
+        """Reject a resolution that requires an explicit instance choice.
+
+        Must be called with the snapshot returned by the *same* ``_try_once()``
+        call that produced ``session_id``.  Every guard here reads that snapshot,
+        so guarding an older one lets the decision be invalidated between the
+        check and the point where ``session_id`` is actually used -- an instance
+        is free to connect or disconnect while the caller is suspended (issue
+        #107).
+        """
+        if session_id is not None or target_hash:
+            return
+        if session_count > 1:
+            raise InstanceSelectionRequiredError(
+                InstanceSelectionRequiredError._MULTIPLE_INSTANCES)
+        if explicit_required and session_count > 0:
+            raise InstanceSelectionRequiredError()
+
     @classmethod
     async def _resolve_session_id(
         cls,
@@ -909,6 +933,9 @@ class PluginHub(WebSocketEndpoint):
             return None, count, explicit_required
 
         session_id, session_count, explicit_required = await _try_once()
+        # A session exists but the caller must name one explicitly: no amount of
+        # waiting can resolve this (_try_once always returns no session while
+        # explicit_required is set), so surface it now rather than after the wait.
         if session_id is None and explicit_required and not target_hash and session_count > 0:
             raise InstanceSelectionRequiredError()
         deadline = time.monotonic() + max_wait_s
@@ -917,11 +944,6 @@ class PluginHub(WebSocketEndpoint):
         # If there is no active plugin yet (e.g., Unity starting up or reloading),
         # wait politely for a session to appear before surfacing an error.
         while session_id is None and time.monotonic() < deadline:
-            if not target_hash and session_count > 1:
-                raise InstanceSelectionRequiredError(
-                    InstanceSelectionRequiredError._MULTIPLE_INSTANCES)
-            if session_id is None and explicit_required and not target_hash and session_count > 0:
-                raise InstanceSelectionRequiredError()
             if wait_started is None:
                 wait_started = time.monotonic()
                 logger.debug(
@@ -930,7 +952,13 @@ class PluginHub(WebSocketEndpoint):
                     max_wait_s,
                 )
             await asyncio.sleep(sleep_seconds)
+            # Re-fetch first, then guard. Guarding before the re-fetch reads the
+            # pre-wait snapshot: a momentary second instance (a reconnect during a
+            # domain reload) would be reported as lasting ambiguity, and the wait
+            # this loop exists to perform would never run (issue #107).
             session_id, session_count, explicit_required = await _try_once()
+            cls._raise_if_ambiguous_selection(
+                session_id, session_count, explicit_required, target_hash)
 
         if session_id is not None and wait_started is not None:
             logger.debug(
@@ -938,12 +966,11 @@ class PluginHub(WebSocketEndpoint):
                 time.monotonic() - wait_started,
                 unity_instance or "default",
             )
-        if session_id is None and not target_hash and session_count > 1:
-            raise InstanceSelectionRequiredError(
-                InstanceSelectionRequiredError._MULTIPLE_INSTANCES)
 
-        if session_id is None and explicit_required and not target_hash and session_count > 0:
-            raise InstanceSelectionRequiredError()
+        # Re-check against the newest snapshot so no exit path can return a
+        # session the guards would have rejected, nor reject one they resolved.
+        cls._raise_if_ambiguous_selection(
+            session_id, session_count, explicit_required, target_hash)
 
         if session_id is None:
             logger.warning(
