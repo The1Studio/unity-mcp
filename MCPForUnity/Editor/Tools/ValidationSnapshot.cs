@@ -137,13 +137,24 @@ namespace MCPForUnity.Editor.Tools
 
             var anomalies = new List<string>();
 
-            // Entity deltas
+            // Entity deltas. An unreadable count must not be coerced to 0 — that would turn a
+            // failed read into a confident delta and, below, into a bogus "no units spawned".
+            bool entityCountsReadable = EntityCountSummary.IsTotalReadable(a["entities"])
+                                     && EntityCountSummary.IsTotalReadable(b["entities"]);
+
             int totalA = GetNestedInt(a, "entities", "total") ?? 0;
             int totalB = GetNestedInt(b, "entities", "total") ?? 0;
             int aliveA = GetNestedInt(a, "entities", "alive") ?? 0;
             int aliveB = GetNestedInt(b, "entities", "alive") ?? 0;
             int deadA = GetNestedInt(a, "entities", "dead") ?? 0;
             int deadB = GetNestedInt(b, "entities", "dead") ?? 0;
+
+            if (!entityCountsReadable)
+            {
+                anomalies.Add("Entity counts unreadable in snapshot_a and/or snapshot_b "
+                            + "(required component types did not resolve). Entity deltas were "
+                            + "skipped rather than computed from a missing count.");
+            }
 
             // HP mean delta
             float hpMeanA = GetNestedFloat(a, "health", "mean") ?? 0f;
@@ -208,10 +219,15 @@ namespace MCPForUnity.Editor.Tools
             if (consoleErrorsB > 0)
                 anomalies.Add($"{consoleErrorsB} console error(s) in snapshot_b.");
 
-            if (aliveB == 0 && deadB == 0)
-                anomalies.Add("No alive or dead entities in snapshot_b (no units spawned?).");
-            else if (movementRatio < 0.01f && aliveB > 0)
-                anomalies.Add("Zero movement detected among alive entities.");
+            // Only meaningful when the counts were actually read; otherwise aliveB/deadB are
+            // placeholders and this would assert "no units spawned" on an unreadable world.
+            if (entityCountsReadable)
+            {
+                if (aliveB == 0 && deadB == 0)
+                    anomalies.Add("No alive or dead entities in snapshot_b (no units spawned?).");
+                else if (movementRatio < 0.01f && aliveB > 0)
+                    anomalies.Add("Zero movement detected among alive entities.");
+            }
 
             var nanBoundsB = b["nan_bounds"]?["nan_count"]?.Value<int>() ?? 0;
             if (nanBoundsB > 0)
@@ -219,8 +235,9 @@ namespace MCPForUnity.Editor.Tools
 
             return new SuccessResponse("Snapshot comparison complete.", new Dictionary<string, object>
             {
-                ["entity_delta"] = totalB - totalA,
-                ["dead_delta"] = deadB - deadA,
+                ["entity_delta"] = entityCountsReadable ? totalB - totalA : (object)null,
+                ["dead_delta"] = entityCountsReadable ? deadB - deadA : (object)null,
+                ["entity_counts_readable"] = entityCountsReadable,
                 ["hp_mean_delta"] = Math.Round(hpMeanB - hpMeanA, 2),
                 ["movement_ratio"] = Math.Round(movementRatio, 3),
                 ["position_deltas"] = positionDeltas,
@@ -306,6 +323,14 @@ namespace MCPForUnity.Editor.Tools
             var deadTagType = ResolveComponentType("DOTSCore.DeadTag");
             var teamIdType = ResolveComponentType("DOTSCore.TeamId");
 
+            // The counts below come from a component lookup that can fail to resolve. When it
+            // does, the world may still hold live entities — reporting 0 would be a false
+            // negative of exactly the kind the zero-entity-bake guard exists to catch. Track
+            // the misses and let EntityCountSummary mark the counts unreadable instead.
+            var unresolved = new List<string>();
+            if (healthType == null) unresolved.Add("DOTSCombat.Health");
+            if (deadTagType == null) unresolved.Add("DOTSCore.DeadTag");
+
             int totalWithHealth = 0;
             int aliveCount = 0;
             int deadCount = 0;
@@ -346,20 +371,27 @@ namespace MCPForUnity.Editor.Tools
                 entities.Dispose();
             }
 
-            var result = new Dictionary<string, object>
+            // World-wide count, independent of the component lookup above. Lets a caller
+            // tell "no entities in the world" from "entities exist but the per-component
+            // counts could not be read".
+            int? worldTotal = null;
+            try
             {
-                ["total"] = totalWithHealth,
-                ["alive"] = aliveCount,
-                ["dead"] = deadCount,
-            };
-
-            if (teamCounts.Count > 0)
-            {
-                var teams = new Dictionary<string, int>();
-                foreach (var kvp in teamCounts)
-                    teams[$"team_{kvp.Key}"] = kvp.Value;
-                result["by_team"] = teams;
+                worldTotal = em.UniversalQuery.CalculateEntityCount();
             }
+            catch
+            {
+                // Count stays null; the unreadable path already says so explicitly.
+            }
+
+            var result = EntityCountSummary.Build(
+                readable: unresolved.Count == 0,
+                total: totalWithHealth,
+                alive: aliveCount,
+                dead: deadCount,
+                teams: teamCounts,
+                unresolvedComponentNames: unresolved,
+                worldTotal: worldTotal);
 
             return result;
         }
