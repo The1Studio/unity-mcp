@@ -132,6 +132,45 @@ class PluginRegistry:
                         if mapped == session_id:
                             del self._user_hash_to_session[composite_key]
 
+    async def cleanup_stale(self, max_age_seconds: float) -> list[str]:
+        """Evict sessions whose last liveness signal is older than ``max_age_seconds``.
+
+        A Unity plugin that dies without sending a WebSocket close frame (process
+        crash, network drop, OS sleep) never reaches :meth:`unregister`, so its
+        session stays in ``_sessions`` forever: ``get_sessions()`` reports a ghost
+        instance and :meth:`get_session_id_by_hash` still resolves a routing target
+        whose WebSocket is dead.
+
+        ``PluginHub._ping_loop`` normally catches this, but it is per-session and has
+        escape hatches — it starts only once that session registers, it needs
+        PING_TIMEOUT to elapse, and it dies with its task (e.g. across a domain
+        reload) without a fallback. This sweep is the registry-level net underneath
+        it.
+
+        Liveness is ``connected_at``, which :meth:`touch` advances on every heartbeat
+        (including the plugin's own pongs), so a healthy-but-idle session is never
+        evicted — only one that has genuinely stopped signalling.
+
+        Returns the evicted session ids so the caller can log or tear down the
+        matching transports.
+        """
+        if max_age_seconds <= 0:
+            raise ValueError("max_age_seconds must be positive")
+
+        now = datetime.now(timezone.utc)
+        # Snapshot under the lock, unregister outside it: unregister() re-acquires
+        # the same non-reentrant asyncio.Lock, so calling it inside would deadlock.
+        async with self._lock:
+            stale_ids = [
+                session_id
+                for session_id, session in self._sessions.items()
+                if (now - session.connected_at).total_seconds() > max_age_seconds
+            ]
+
+        for session_id in stale_ids:
+            await self.unregister(session_id)
+        return stale_ids
+
     async def register_tools_for_session(self, session_id: str, tools: list[ToolDefinitionModel]) -> None:
         """Register tools for a specific session."""
         async with self._lock:

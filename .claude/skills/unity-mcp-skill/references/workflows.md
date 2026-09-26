@@ -1936,7 +1936,7 @@ unity_docs(action="get_doc", class_name="NavMeshAgent", member_name="SetDestinat
 Use `unity_docs` `lookup` action to search multiple APIs in a single call:
 
 ```python
-# Search ScriptReference + Manual + package docs in parallel
+# Search ScriptReference + Manual in parallel (+ package docs if package/pkg_version provided)
 unity_docs(action="lookup", queries="Physics.Raycast,NavMeshAgent,Light2D")
 
 # Include package docs in the search
