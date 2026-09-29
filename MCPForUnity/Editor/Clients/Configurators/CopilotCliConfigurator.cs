@@ -5,8 +5,12 @@ using MCPForUnity.Editor.Models;
 
 namespace MCPForUnity.Editor.Clients.Configurators
 {
+
+    /// <summary>Configures the GitHub Copilot CLI through <c>~/.copilot/mcp-config.json</c>.</summary>
     public class CopilotCliConfigurator : JsonFileMcpConfigurator
     {
+
+        /// <summary>Creates the GitHub Copilot CLI client definition with its config path.</summary>
         public CopilotCliConfigurator() : base(new McpClient
         {
             name = "GitHub Copilot CLI",

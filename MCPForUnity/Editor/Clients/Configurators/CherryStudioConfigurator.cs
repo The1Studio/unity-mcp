@@ -8,10 +8,14 @@ using UnityEditor;
 
 namespace MCPForUnity.Editor.Clients.Configurators
 {
+
+    /// <summary>Configures Cherry Studio; its config path is not a plain MCP settings file, so auto-configure is disabled and the user is shown manual steps instead.</summary>
     public class CherryStudioConfigurator : JsonFileMcpConfigurator
     {
+        /// <summary>Stable display name of the client, reused for the configurator's identity.</summary>
         public const string ClientName = "Cherry Studio";
 
+        /// <summary>Creates the Cherry Studio client definition with its per-OS config directory; auto-configure is disabled by the class.</summary>
         public CherryStudioConfigurator() : base(new McpClient
         {
             name = ClientName,

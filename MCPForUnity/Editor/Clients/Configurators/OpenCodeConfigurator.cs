@@ -12,6 +12,8 @@ namespace MCPForUnity.Editor.Clients.Configurators
     /// Configurator for OpenCode (opencode.ai) - a Go-based terminal AI coding assistant.
     /// OpenCode uses ~/.config/opencode/opencode.json with a custom "mcp" format.
     /// </summary>
+
+    /// <summary>Configures OpenCode, whose config path is resolved at runtime and whose MCP entries follow its own schema rather than the shared <c>mcpServers</c> shape.</summary>
     public class OpenCodeConfigurator : McpClientConfiguratorBase
     {
         private const string ServerName = "unityMCP";
@@ -19,6 +21,7 @@ namespace MCPForUnity.Editor.Clients.Configurators
         private const string RemoteType = "remote";
         private const string LocalType = "local";
 
+        /// <summary>Creates the OpenCode client definition, resolving its config path from the current platform.</summary>
         public OpenCodeConfigurator() : base(new McpClient
         {
             name = "OpenCode",

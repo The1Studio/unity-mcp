@@ -14,8 +14,12 @@ namespace MCPForUnity.Editor.Clients.Configurators
     /// mcp_config.json layout. The two apps coexist on the same machine, so we expose them
     /// as separate clients rather than trying to autodetect which one to write to.
     /// </summary>
+
+    /// <summary>Configures Antigravity IDE, which keeps its MCP settings in <c>~/.gemini/antigravity-ide/mcp_config.json</c>, separate from the Antigravity 2.0 agent.</summary>
     public class AntigravityIdeConfigurator : JsonFileMcpConfigurator
     {
+
+        /// <summary>Creates the Antigravity IDE client definition with its config path and the default Unity server fields.</summary>
         public AntigravityIdeConfigurator() : base(new McpClient
         {
             name = "Antigravity IDE",

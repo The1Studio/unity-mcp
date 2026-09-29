@@ -5,8 +5,12 @@ using MCPForUnity.Editor.Models;
 
 namespace MCPForUnity.Editor.Clients.Configurators
 {
+
+    /// <summary>Configures Cursor's global MCP server list at <c>~/.cursor/mcp.json</c>.</summary>
     public class CursorConfigurator : JsonFileMcpConfigurator
     {
+
+        /// <summary>Creates the Cursor client definition with its config path.</summary>
         public CursorConfigurator() : base(new McpClient
         {
             name = "Cursor",

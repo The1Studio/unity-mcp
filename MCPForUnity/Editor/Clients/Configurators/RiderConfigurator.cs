@@ -5,8 +5,12 @@ using MCPForUnity.Editor.Models;
 
 namespace MCPForUnity.Editor.Clients.Configurators
 {
+
+    /// <summary>Configures the GitHub Copilot plugin in Rider through the plugin's <c>intellij/mcp.json</c>.</summary>
     public class RiderConfigurator : JsonFileMcpConfigurator
     {
+
+        /// <summary>Creates the Rider GitHub Copilot client definition with its per-OS config path.</summary>
         public RiderConfigurator() : base(new McpClient
         {
             name = "Rider GitHub Copilot",

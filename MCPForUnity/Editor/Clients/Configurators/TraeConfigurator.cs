@@ -5,8 +5,12 @@ using MCPForUnity.Editor.Models;
 
 namespace MCPForUnity.Editor.Clients.Configurators
 {
+
+    /// <summary>Configures Trae through its per-user <c>mcp.json</c>.</summary>
     public class TraeConfigurator : JsonFileMcpConfigurator
     {
+
+        /// <summary>Creates the Trae client definition with its per-OS config path.</summary>
         public TraeConfigurator() : base(new McpClient
         {
             name = "Trae",

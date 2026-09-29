@@ -14,6 +14,8 @@ namespace MCPForUnity.Editor.Clients
     {
         private static List<IMcpClientConfigurator> cached;
 
+        /// <summary>All discovered configurators, built once from the <c>TypeCache</c> scan and cached for the session.</summary>
+        /// <value>Read-only list of one configurator instance per discovered client type.</value>
         public static IReadOnlyList<IMcpClientConfigurator> All
         {
             get

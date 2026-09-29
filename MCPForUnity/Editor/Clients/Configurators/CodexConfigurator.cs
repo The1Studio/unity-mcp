@@ -5,8 +5,12 @@ using MCPForUnity.Editor.Models;
 
 namespace MCPForUnity.Editor.Clients.Configurators
 {
+
+    /// <summary>Configures Codex through <c>~/.codex/config.toml</c>; the settings file is TOML rather than JSON, and the configurator can also install the Unity MCP skill.</summary>
     public class CodexConfigurator : CodexMcpConfigurator
     {
+
+        /// <summary>Creates the Codex client definition with its <c>config.toml</c> path.</summary>
         public CodexConfigurator() : base(new McpClient
         {
             name = "Codex",

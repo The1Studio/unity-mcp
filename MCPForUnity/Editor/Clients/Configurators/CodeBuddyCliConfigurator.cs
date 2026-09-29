@@ -8,8 +8,12 @@ namespace MCPForUnity.Editor.Clients.Configurators
     /// <summary>
     /// Configures the CodeBuddy CLI (~/.codebuddy.json) MCP settings.
     /// </summary>
+
+    /// <summary>Configures CodeBuddy CLI through its per-user <c>~/.codebuddy.json</c> settings file.</summary>
     public class CodeBuddyCliConfigurator : JsonFileMcpConfigurator
     {
+
+        /// <summary>Creates the CodeBuddy CLI client definition with its config path.</summary>
         public CodeBuddyCliConfigurator() : base(new McpClient
         {
             name = "CodeBuddy CLI",

@@ -15,6 +15,8 @@ namespace MCPForUnity.Editor.Clients.Configurators
     /// Configurator for OpenClaw via the openclaw-mcp-bridge plugin.
     /// OpenClaw stores config at ~/.openclaw/openclaw.json.
     /// </summary>
+
+    /// <summary>Configures OpenClaw, whose config path is computed at runtime and whose MCP entry schema differs from the JSON-file clients, so status checks and writes are overridden.</summary>
     public class OpenClawConfigurator : McpClientConfiguratorBase
     {
         private const string PluginName = "openclaw-mcp-bridge";
@@ -23,6 +25,7 @@ namespace MCPForUnity.Editor.Clients.Configurators
         private const string StdioTransportName = "stdio";
         private const string StdioUrl = "stdio://local";
 
+        /// <summary>Creates the OpenClaw client definition, resolving its config path from the current platform.</summary>
         public OpenClawConfigurator() : base(new McpClient
         {
             name = "OpenClaw",

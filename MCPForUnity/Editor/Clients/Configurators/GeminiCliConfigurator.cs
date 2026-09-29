@@ -7,8 +7,12 @@ using UnityEditor;
 
 namespace MCPForUnity.Editor.Clients.Configurators
 {
+
+    /// <summary>Configures Gemini CLI through <c>~/.gemini/settings.json</c>.</summary>
     public class GeminiCliConfigurator : JsonFileMcpConfigurator
     {
+
+        /// <summary>Creates the Gemini CLI client definition with its <c>settings.json</c> path.</summary>
         public GeminiCliConfigurator() : base(new McpClient
         {
             name = "Gemini CLI",

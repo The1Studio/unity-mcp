@@ -5,8 +5,12 @@ using MCPForUnity.Editor.Models;
 
 namespace MCPForUnity.Editor.Clients.Configurators
 {
+
+    /// <summary>Configures the Cline VS Code extension through its <c>cline_mcp_settings.json</c>, pre-approving tools with an empty auto-approve list.</summary>
     public class ClineConfigurator : JsonFileMcpConfigurator
     {
+
+        /// <summary>Creates the Cline client definition with its per-OS config path and the default capped auto-approve field.</summary>
         public ClineConfigurator() : base(new McpClient
         {
             name = "Cline",

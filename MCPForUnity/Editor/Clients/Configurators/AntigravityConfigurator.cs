@@ -8,6 +8,8 @@ using UnityEditor;
 
 namespace MCPForUnity.Editor.Clients.Configurators
 {
+
+    /// <summary>Configures Antigravity 2.0, whose MCP settings live in <c>~/.gemini/config/mcp_config.json</c> after a migration away from the shared Gemini directory; also overrides installation detection because that config directory appears only once Antigravity has been launched.</summary>
     public class AntigravityConfigurator : JsonFileMcpConfigurator
     {
         // Antigravity 2.x migrated its MCP config from ~/.gemini/antigravity/mcp_config.json
@@ -16,6 +18,8 @@ namespace MCPForUnity.Editor.Clients.Configurators
         // marker in the new location and renames the previous folder to `antigravity-backup`.
         // The old path is no longer read by Antigravity at all, so writing there silently
         // fails to register UnityMCP on every modern install.
+
+        /// <summary>Creates the Antigravity 2.0 client definition with its post-migration config path, the <c>serverUrl</c> HTTP property, and <c>disabled: false</c> as the default Unity field.</summary>
         public AntigravityConfigurator() : base(new McpClient
         {
             name = "Antigravity 2.0",

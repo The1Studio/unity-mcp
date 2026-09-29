@@ -16,8 +16,11 @@ namespace MCPForUnity.Editor.Clients
     /// <summary>Shared base class for MCP configurators.</summary>
     public abstract class McpClientConfiguratorBase : IMcpClientConfigurator
     {
+        /// <summary>Client definition (paths, transport flags, status) this configurator reads and writes.</summary>
         protected readonly McpClient client;
 
+        /// <summary>Binds the configurator to the client definition it configures.</summary>
+        /// <param name="client">Client definition carrying the config paths and transport capabilities.</param>
         protected McpClientConfiguratorBase(McpClient client)
         {
             this.client = client;
@@ -53,6 +56,8 @@ namespace MCPForUnity.Editor.Clients
         public abstract string GetManualSnippet();
         public abstract IList<string> GetInstallationSteps();
 
+        /// <summary>Resolves the <c>uvx</c> executable path, throwing when it is unset so the caller surfaces an actionable error instead of writing a broken entry.</summary>
+        /// <returns>Resolved path to the <c>uvx</c> executable.</returns>
         protected string GetUvxPathOrError()
         {
             string uvx = MCPServiceLocator.Paths.GetUvxPath();
@@ -63,6 +68,8 @@ namespace MCPForUnity.Editor.Clients
             return uvx;
         }
 
+        /// <summary>Selects the config path for the current operating system.</summary>
+        /// <returns>The Windows, macOS, or Linux config path for this client.</returns>
         protected string CurrentOsPath()
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
@@ -72,6 +79,9 @@ namespace MCPForUnity.Editor.Clients
             return client.linuxConfigPath;
         }
 
+        /// <summary>Checks whether the parent directory of a config path exists, the default signal that a client is installed.</summary>
+        /// <param name="configPath">Full path to the client config file.</param>
+        /// <returns><c>true</c> when the containing directory exists; <c>false</c> when the path is empty or unreadable.</returns>
         protected static bool ParentDirectoryExists(string configPath)
         {
             try
@@ -83,6 +93,10 @@ namespace MCPForUnity.Editor.Clients
             catch { return false; }
         }
 
+        /// <summary>Compares two URLs treating a missing trailing slash and default port as equal, so a status check is not defeated by cosmetic differences.</summary>
+        /// <param name="a">First URL.</param>
+        /// <param name="b">Second URL.</param>
+        /// <returns><c>true</c> when both parse and match on scheme, host, port and path.</returns>
         protected bool UrlsEqual(string a, string b)
         {
             if (string.IsNullOrWhiteSpace(a) || string.IsNullOrWhiteSpace(b))
@@ -151,6 +165,8 @@ namespace MCPForUnity.Editor.Clients
     /// <summary>JSON-file based configurator (Cursor, Windsurf, VS Code, etc.).</summary>
     public abstract class JsonFileMcpConfigurator : McpClientConfiguratorBase
     {
+        /// <summary>Binds the JSON-file configurator to the client definition it reads and writes.</summary>
+        /// <param name="client">Client definition carrying the config paths and transport capabilities.</param>
         public JsonFileMcpConfigurator(McpClient client) : base(client) { }
 
         public override string GetConfigPath() => CurrentOsPath();
@@ -429,6 +445,8 @@ namespace MCPForUnity.Editor.Clients
     /// <summary>Codex (TOML) configurator.</summary>
     public abstract class CodexMcpConfigurator : McpClientConfiguratorBase
     {
+        /// <summary>Binds the Codex TOML configurator to the client definition it reads and writes.</summary>
+        /// <param name="client">Client definition carrying the config paths and transport capabilities.</param>
         public CodexMcpConfigurator(McpClient client) : base(client) { }
 
         public override string GetConfigPath() => CurrentOsPath();
@@ -613,6 +631,8 @@ namespace MCPForUnity.Editor.Clients
     /// <summary>CLI-based configurator (Claude Code).</summary>
     public abstract class ClaudeCliMcpConfigurator : McpClientConfiguratorBase
     {
+        /// <summary>Binds the CLI configurator to the client definition it registers with.</summary>
+        /// <param name="client">Client definition carrying the CLI identity and transport capabilities.</param>
         public ClaudeCliMcpConfigurator(McpClient client) : base(client) { }
 
         public override bool SupportsAutoConfigure => true;

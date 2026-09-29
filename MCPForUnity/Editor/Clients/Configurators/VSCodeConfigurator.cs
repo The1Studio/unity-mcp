@@ -5,8 +5,12 @@ using MCPForUnity.Editor.Models;
 
 namespace MCPForUnity.Editor.Clients.Configurators
 {
+
+    /// <summary>Configures GitHub Copilot in VS Code through the user-level <c>mcp.json</c>.</summary>
     public class VSCodeConfigurator : JsonFileMcpConfigurator
     {
+
+        /// <summary>Creates the VS Code GitHub Copilot client definition with its per-OS config path.</summary>
         public VSCodeConfigurator() : base(new McpClient
         {
             name = "VSCode GitHub Copilot",

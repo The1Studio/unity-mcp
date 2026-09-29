@@ -9,8 +9,12 @@ namespace MCPForUnity.Editor.Clients.Configurators
     /// Claude Code configurator using the CLI-based registration (claude mcp add/remove).
     /// This integrates with Claude Code's native MCP management.
     /// </summary>
+
+    /// <summary>Configures Claude Code through the <c>claude mcp</c> CLI rather than a settings file, and can install the bundled Unity MCP skill for the client.</summary>
     public class ClaudeCodeConfigurator : ClaudeCliMcpConfigurator
     {
+
+        /// <summary>Creates the Claude Code client definition; the CLI transport supplies the config path at runtime.</summary>
         public ClaudeCodeConfigurator() : base(new McpClient
         {
             name = "Claude Code",

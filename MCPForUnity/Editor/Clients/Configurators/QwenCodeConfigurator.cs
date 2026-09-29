@@ -14,8 +14,12 @@ namespace MCPForUnity.Editor.Clients.Configurators
     /// Default: stdio mode (works without Unity Editor for basic operations)
     /// HTTP mode: requires Unity Editor running with MCP HTTP server started
     /// </summary>
+
+    /// <summary>Configures Qwen Code through <c>~/.qwen/settings.json</c>.</summary>
     public class QwenCodeConfigurator : JsonFileMcpConfigurator
     {
+
+        /// <summary>Creates the Qwen Code client definition with its <c>settings.json</c> path.</summary>
         public QwenCodeConfigurator() : base(new McpClient
         {
             name = "Qwen Code",

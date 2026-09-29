@@ -6,10 +6,14 @@ using UnityEditor;
 
 namespace MCPForUnity.Editor.Clients.Configurators
 {
+
+    /// <summary>Configures Claude Desktop's <c>claude_desktop_config.json</c>; limited to the stdio transport because the desktop app cannot reach the HTTP endpoint.</summary>
     public class ClaudeDesktopConfigurator : JsonFileMcpConfigurator
     {
+        /// <summary>Stable display name of the client, reused for the configurator's identity.</summary>
         public const string ClientName = "Claude Desktop";
 
+        /// <summary>Creates the Claude Desktop client definition with its per-OS config path and the default Unity server fields.</summary>
         public ClaudeDesktopConfigurator() : base(new McpClient
         {
             name = ClientName,

@@ -5,8 +5,12 @@ using MCPForUnity.Editor.Models;
 
 namespace MCPForUnity.Editor.Clients.Configurators
 {
+
+    /// <summary>Configures the Kilo Code VS Code extension through its <c>mcp_settings.json</c>.</summary>
     public class KiloCodeConfigurator : JsonFileMcpConfigurator
     {
+
+        /// <summary>Creates the Kilo Code client definition with its per-OS config path.</summary>
         public KiloCodeConfigurator() : base(new McpClient
         {
             name = "Kilo Code",

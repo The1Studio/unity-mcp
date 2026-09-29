@@ -5,8 +5,12 @@ using MCPForUnity.Editor.Models;
 
 namespace MCPForUnity.Editor.Clients.Configurators
 {
+
+    /// <summary>Configures Windsurf through <c>~/.codeium/windsurf/mcp_config.json</c>.</summary>
     public class WindsurfConfigurator : JsonFileMcpConfigurator
     {
+
+        /// <summary>Creates the Windsurf client definition with its config path.</summary>
         public WindsurfConfigurator() : base(new McpClient
         {
             name = "Windsurf",

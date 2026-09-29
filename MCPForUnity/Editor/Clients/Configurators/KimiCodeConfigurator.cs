@@ -14,8 +14,12 @@ namespace MCPForUnity.Editor.Clients.Configurators
     /// Default: stdio mode (works without Unity Editor for basic operations)
     /// HTTP mode: requires Unity Editor running with MCP HTTP server started
     /// </summary>
+
+    /// <summary>Configures Kimi Code through <c>~/.kimi/mcp.json</c>.</summary>
     public class KimiCodeConfigurator : JsonFileMcpConfigurator
     {
+
+        /// <summary>Creates the Kimi Code client definition with its config path.</summary>
         public KimiCodeConfigurator() : base(new McpClient
         {
             name = "Kimi Code",
