@@ -600,15 +600,19 @@ namespace MCPForUnity.Editor.Services
 
         /// <summary>Aggregate counts and duration for the run.</summary>
         public TestRunSummary Summary { get; }
+
         /// <summary>Per-test outcomes captured during the run.</summary>
         public IReadOnlyList<TestRunTestResult> Results { get; }
 
         /// <summary>Total number of tests executed.</summary>
         public int Total => Summary.Total;
+
         /// <summary>Number of tests that passed.</summary>
         public int Passed => Summary.Passed;
+
         /// <summary>Number of tests that failed.</summary>
         public int Failed => Summary.Failed;
+
         /// <summary>Number of tests skipped.</summary>
         public int Skipped => Summary.Skipped;
 
@@ -690,14 +694,19 @@ namespace MCPForUnity.Editor.Services
 
         /// <summary>Total number of tests executed.</summary>
         public int Total { get; }
+
         /// <summary>Number of tests that passed.</summary>
         public int Passed { get; }
+
         /// <summary>Number of tests that failed.</summary>
         public int Failed { get; }
+
         /// <summary>Number of tests skipped.</summary>
         public int Skipped { get; }
+
         /// <summary>Wall-clock duration of the run in seconds.</summary>
         public double DurationSeconds { get; }
+
         /// <summary>Overall Test Runner result state (for example Passed, Failed, or Inconclusive).</summary>
         public string ResultState { get; }
 
@@ -738,16 +747,22 @@ namespace MCPForUnity.Editor.Services
 
         /// <summary>Short test name.</summary>
         public string Name { get; }
+
         /// <summary>Fully qualified test name, including namespace and fixture.</summary>
         public string FullName { get; }
+
         /// <summary>Result state of this test (Passed, Failed, or Skipped).</summary>
         public string State { get; }
+
         /// <summary>Time the test took to run, in seconds.</summary>
         public double DurationSeconds { get; }
+
         /// <summary>Assertion or failure message produced by the test.</summary>
         public string Message { get; }
+
         /// <summary>Stack trace captured when the test failed.</summary>
         public string StackTrace { get; }
+
         /// <summary>Captured log output emitted while the test ran.</summary>
         public string Output { get; }
 
