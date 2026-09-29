@@ -17,6 +17,7 @@ namespace MCPForUnity.Editor.Services.Transport
         private Func<IMcpTransportClient> _webSocketFactory;
         private Func<IMcpTransportClient> _stdioFactory;
 
+        /// <summary>Creates a manager wired to the default WebSocket and stdio transport factories.</summary>
         public TransportManager()
         {
             Configure(
@@ -24,6 +25,9 @@ namespace MCPForUnity.Editor.Services.Transport
                 () => new StdioTransportClient());
         }
 
+        /// <summary>Overrides the transport factories, for example to inject test doubles.</summary>
+        /// <param name="webSocketFactory">Factory creating the HTTP/WebSocket transport client.</param>
+        /// <param name="stdioFactory">Factory creating the stdio transport client.</param>
         public void Configure(
             Func<IMcpTransportClient> webSocketFactory,
             Func<IMcpTransportClient> stdioFactory)
@@ -42,6 +46,9 @@ namespace MCPForUnity.Editor.Services.Transport
             };
         }
 
+        /// <summary>Starts the transport for the given mode, recording its state and unwinding on failure.</summary>
+        /// <param name="mode">Transport to start.</param>
+        /// <returns>True when the transport started; false when it failed (its state then carries the error).</returns>
         public async Task<bool> StartAsync(TransportMode mode)
         {
             IMcpTransportClient client = GetOrCreateClient(mode);
@@ -65,6 +72,8 @@ namespace MCPForUnity.Editor.Services.Transport
             return true;
         }
 
+        /// <summary>Stops one transport, or both when no mode is given, recording each as disconnected.</summary>
+        /// <param name="mode">Transport to stop; null stops every transport.</param>
         public async Task StopAsync(TransportMode? mode = null)
         {
             async Task StopClient(IMcpTransportClient client, TransportMode clientMode)
@@ -92,6 +101,9 @@ namespace MCPForUnity.Editor.Services.Transport
             }
         }
 
+        /// <summary>Verifies the transport is genuinely reachable and refreshes its recorded state.</summary>
+        /// <param name="mode">Transport to verify.</param>
+        /// <returns>True when verification succeeded; false when no client exists or verification failed.</returns>
         public async Task<bool> VerifyAsync(TransportMode mode)
         {
             IMcpTransportClient client = GetClient(mode);
@@ -106,6 +118,9 @@ namespace MCPForUnity.Editor.Services.Transport
             return ok;
         }
 
+        /// <summary>Returns the last recorded state for the given transport.</summary>
+        /// <param name="mode">Transport to query.</param>
+        /// <returns>The transport's current state snapshot.</returns>
         public TransportState GetState(TransportMode mode)
         {
             return mode switch
@@ -116,6 +131,9 @@ namespace MCPForUnity.Editor.Services.Transport
             };
         }
 
+        /// <summary>True when the given transport currently reports a live connection.</summary>
+        /// <param name="mode">Transport to query.</param>
+        /// <returns>True when the transport is connected.</returns>
         public bool IsRunning(TransportMode mode) => GetState(mode).IsConnected;
 
         /// <summary>
@@ -183,6 +201,7 @@ namespace MCPForUnity.Editor.Services.Transport
         }
     }
 
+    /// <summary>Selects which transport the <see cref="TransportManager"/> drives.</summary>
     public enum TransportMode
     {
         Http,

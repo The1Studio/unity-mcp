@@ -1,6 +1,7 @@
 namespace MCPForUnity.Editor.Models
 {
     // Enum representing the various status states for MCP clients
+    /// <summary>Configuration and connection status of an MCP client, shown in the editor's client list.</summary>
     public enum McpStatus
     {
         NotConfigured, // Not set up yet

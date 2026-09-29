@@ -598,14 +598,25 @@ namespace MCPForUnity.Editor.Services
             Results = results;
         }
 
+        /// <summary>Aggregate counts and duration for the run.</summary>
         public TestRunSummary Summary { get; }
+        /// <summary>Per-test outcomes captured during the run.</summary>
         public IReadOnlyList<TestRunTestResult> Results { get; }
 
+        /// <summary>Total number of tests executed.</summary>
         public int Total => Summary.Total;
+        /// <summary>Number of tests that passed.</summary>
         public int Passed => Summary.Passed;
+        /// <summary>Number of tests that failed.</summary>
         public int Failed => Summary.Failed;
+        /// <summary>Number of tests skipped.</summary>
         public int Skipped => Summary.Skipped;
 
+        /// <summary>Projects the run into the payload shape returned to the MCP client.</summary>
+        /// <param name="mode">Result detail mode requested by the caller (for example plain or detailed).</param>
+        /// <param name="includeDetails">When true, includes every individual test result.</param>
+        /// <param name="includeFailedTests">When true and details are off, includes only non-passing tests.</param>
+        /// <returns>An anonymous object with the mode, summary, and selected results.</returns>
         public object ToSerializable(string mode, bool includeDetails = false, bool includeFailedTests = false)
         {
             // Determine which results to include
@@ -664,6 +675,7 @@ namespace MCPForUnity.Editor.Services
         }
     }
 
+    /// <summary>Aggregate counts and duration for one Unity Test Runner run.</summary>
     public sealed class TestRunSummary
     {
         internal TestRunSummary(int total, int passed, int failed, int skipped, double durationSeconds, string resultState)
@@ -676,11 +688,17 @@ namespace MCPForUnity.Editor.Services
             ResultState = resultState;
         }
 
+        /// <summary>Total number of tests executed.</summary>
         public int Total { get; }
+        /// <summary>Number of tests that passed.</summary>
         public int Passed { get; }
+        /// <summary>Number of tests that failed.</summary>
         public int Failed { get; }
+        /// <summary>Number of tests skipped.</summary>
         public int Skipped { get; }
+        /// <summary>Wall-clock duration of the run in seconds.</summary>
         public double DurationSeconds { get; }
+        /// <summary>Overall Test Runner result state (for example Passed, Failed, or Inconclusive).</summary>
         public string ResultState { get; }
 
         internal object ToSerializable()
@@ -697,6 +715,7 @@ namespace MCPForUnity.Editor.Services
         }
     }
 
+    /// <summary>Outcome of a single test within a Unity Test Runner run.</summary>
     public sealed class TestRunTestResult
     {
         internal TestRunTestResult(
@@ -717,12 +736,19 @@ namespace MCPForUnity.Editor.Services
             Output = output;
         }
 
+        /// <summary>Short test name.</summary>
         public string Name { get; }
+        /// <summary>Fully qualified test name, including namespace and fixture.</summary>
         public string FullName { get; }
+        /// <summary>Result state of this test (Passed, Failed, or Skipped).</summary>
         public string State { get; }
+        /// <summary>Time the test took to run, in seconds.</summary>
         public double DurationSeconds { get; }
+        /// <summary>Assertion or failure message produced by the test.</summary>
         public string Message { get; }
+        /// <summary>Stack trace captured when the test failed.</summary>
         public string StackTrace { get; }
+        /// <summary>Captured log output emitted while the test ran.</summary>
         public string Output { get; }
 
         internal object ToSerializable()

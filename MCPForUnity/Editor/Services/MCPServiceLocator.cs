@@ -22,16 +22,27 @@ namespace MCPForUnity.Editor.Services
         private static TransportManager _transportManager;
         private static IPackageDeploymentService _packageDeploymentService;
 
+        /// <summary>Bridge control service that starts and stops the MCP bridge.</summary>
         public static IBridgeControlService Bridge => _bridgeService ??= new BridgeControlService();
+        /// <summary>Client configuration service that writes each client's MCP config file.</summary>
         public static IClientConfigurationService Client => _clientService ??= new ClientConfigurationService();
+        /// <summary>Resolver for project and package paths used across the editor.</summary>
         public static IPathResolverService Paths => _pathService ??= new PathResolverService();
+        /// <summary>Runs Unity Test Runner tests and reports their results.</summary>
         public static ITestRunnerService Tests => _testRunnerService ??= new TestRunnerService();
+        /// <summary>Checks for and applies package updates.</summary>
         public static IPackageUpdateService Updates => _packageUpdateService ??= new PackageUpdateService();
+        /// <summary>Reports the host platform and its capabilities.</summary>
         public static IPlatformService Platform => _platformService ??= new PlatformService();
+        /// <summary>Discovers the MCP tools exposed by this package.</summary>
         public static IToolDiscoveryService ToolDiscovery => _toolDiscoveryService ??= new ToolDiscoveryService();
+        /// <summary>Discovers the MCP resources exposed by this package.</summary>
         public static IResourceDiscoveryService ResourceDiscovery => _resourceDiscoveryService ??= new ResourceDiscoveryService();
+        /// <summary>Manages the MCP server process (start, stop, status).</summary>
         public static IServerManagementService Server => _serverManagementService ??= new ServerManagementService();
+        /// <summary>Coordinates the transport used to talk to the MCP server.</summary>
         public static TransportManager TransportManager => _transportManager ??= new TransportManager();
+        /// <summary>Deploys the MCP package into a target project.</summary>
         public static IPackageDeploymentService Deployment => _packageDeploymentService ??= new PackageDeploymentService();
 
         /// <summary>

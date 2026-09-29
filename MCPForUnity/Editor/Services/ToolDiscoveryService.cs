@@ -9,6 +9,7 @@ using UnityEditor;
 
 namespace MCPForUnity.Editor.Services
 {
+    /// <summary>Reflects over loaded assemblies to discover the MCP tools this package exposes.</summary>
     public class ToolDiscoveryService : IToolDiscoveryService
     {
         private Dictionary<string, ToolMetadata> _cachedTools;

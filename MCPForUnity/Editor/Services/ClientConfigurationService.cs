@@ -14,6 +14,7 @@ namespace MCPForUnity.Editor.Services
     {
         private readonly List<IMcpClientConfigurator> configurators;
 
+        /// <summary>Creates the service from the registered MCP client configurators.</summary>
         public ClientConfigurationService()
         {
             configurators = McpClientRegistry.All.ToList();

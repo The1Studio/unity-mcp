@@ -61,6 +61,8 @@ namespace MCPForUnity.Editor.Services.Transport.Transports
         private string _apiKey;
         private bool _disposed;
 
+        /// <summary>Creates the WebSocket transport client.</summary>
+        /// <param name="toolDiscoveryService">Service used to advertise enabled tools to the server; falls back to the locator when null.</param>
         public WebSocketTransportClient(IToolDiscoveryService toolDiscoveryService = null)
         {
             _toolDiscoveryService = toolDiscoveryService;

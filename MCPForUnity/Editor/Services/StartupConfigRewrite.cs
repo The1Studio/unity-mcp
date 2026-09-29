@@ -17,6 +17,7 @@ namespace MCPForUnity.Editor.Services
     [InitializeOnLoad]
     public static class StartupConfigRewrite
     {
+        /// <summary>Session-state key recording that the one-time startup rewrite has already run this session.</summary>
         public const string SESSION_GUARD_KEY = "MCPForUnity.StartupConfigRewrite.Ran";
 
         static StartupConfigRewrite()

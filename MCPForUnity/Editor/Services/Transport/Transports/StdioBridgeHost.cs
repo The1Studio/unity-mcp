@@ -29,6 +29,11 @@ namespace MCPForUnity.Editor.Services.Transport.Transports
         public long EnqueuedAtMs;
     }
 
+    /// <summary>
+    /// Hosts the stdio bridge: a TCP listener on the editor side that a stdio MCP client connects
+    /// through. Queues incoming commands, marshals them onto the Unity main thread, and writes
+    /// heartbeats so the client can detect editor reloads.
+    /// </summary>
     [InitializeOnLoad]
     public static class StdioBridgeHost
     {
@@ -79,10 +84,16 @@ namespace MCPForUnity.Editor.Services.Transport.Transports
             }
         }
 
+        /// <summary>True while the TCP listener is accepting connections.</summary>
         public static bool IsRunning => isRunning;
+        /// <summary>Port the bridge is listening on.</summary>
+        /// <returns>The currently allocated listen port.</returns>
         public static int GetCurrentPort() => currentUnityPort;
+        /// <summary>True when the bridge was started by auto-connect rather than an explicit user action.</summary>
+        /// <returns>True when running in auto-connect mode.</returns>
         public static bool IsAutoConnectMode() => isAutoConnectMode;
 
+        /// <summary>Stops any running bridge, then starts one on a fallback-allocated port and records the startup.</summary>
         public static void StartAutoConnect()
         {
             Stop();
@@ -103,6 +114,9 @@ namespace MCPForUnity.Editor.Services.Transport.Transports
             }
         }
 
+        /// <summary>Checks whether a project path names an existing folder, treating the Assets root as always present.</summary>
+        /// <param name="path">Project-relative path such as "Assets/Scripts".</param>
+        /// <returns>True when the folder exists on disk.</returns>
         public static bool FolderExists(string path)
         {
             if (string.IsNullOrEmpty(path))
@@ -257,6 +271,7 @@ namespace MCPForUnity.Editor.Services.Transport.Transports
             return false;
         }
 
+        /// <summary>Starts the TCP listener and its heartbeat and command-processing loops.</summary>
         public static void Start()
         {
             lock (startStopLock)
@@ -408,6 +423,7 @@ namespace MCPForUnity.Editor.Services.Transport.Transports
             return closedIntentionally && (ex is ObjectDisposedException || ex is OperationCanceledException);
         }
 
+        /// <summary>Stops the listener, closes active client sockets, and tears down its background tasks.</summary>
         public static void Stop()
         {
             Task toWait = null;
@@ -1103,6 +1119,9 @@ namespace MCPForUnity.Editor.Services.Transport.Transports
         }
 
 
+        /// <summary>Writes a heartbeat message so the connected client learns the editor is reloading or still alive.</summary>
+        /// <param name="reloading">True when the editor is about to reload and the client should expect a gap.</param>
+        /// <param name="reason">Optional human-readable reason for the heartbeat.</param>
         public static void WriteHeartbeat(bool reloading, string reason = null)
         {
             try

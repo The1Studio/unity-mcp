@@ -17,6 +17,7 @@ namespace MCPForUnity.Editor.Services
         private readonly TransportManager _transportManager;
         private TransportMode _preferredMode = TransportMode.Http;
 
+        /// <summary>Creates the service bound to the transport manager from the service locator.</summary>
         public BridgeControlService()
         {
             _transportManager = MCPServiceLocator.TransportManager;

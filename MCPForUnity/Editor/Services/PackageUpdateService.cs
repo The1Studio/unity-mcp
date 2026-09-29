@@ -412,11 +412,15 @@ namespace MCPForUnity.Editor.Services
             }
         }
 
+        /// <summary>Creates the web client used for update checks; override to substitute one with custom timeout behaviour.</summary>
+        /// <returns>A web client that applies <see cref="GetRequestTimeoutMs"/> to requests.</returns>
         protected virtual WebClient CreateWebClient()
         {
             return new TimeoutWebClient(GetRequestTimeoutMs());
         }
 
+        /// <summary>Request timeout applied to update-check HTTP calls; override to change it.</summary>
+        /// <returns>Timeout in milliseconds.</returns>
         protected virtual int GetRequestTimeoutMs()
         {
             return DefaultRequestTimeoutMs;

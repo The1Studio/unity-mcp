@@ -11,6 +11,10 @@ using UnityEngine;
 
 namespace MCPForUnity.Editor.Setup
 {
+    /// <summary>
+    /// Downloads the <c>unity-mcp-skill</c> folder from the upstream repository and mirrors it into the
+    /// project's <c>.claude/skills</c> directory, tracking the last synced commit so reruns are incremental.
+    /// </summary>
     public static class SkillSyncService
     {
         private const string DefaultRepoUrl = "https://github.com/CoplayDev/unity-mcp";
@@ -18,21 +22,39 @@ namespace MCPForUnity.Editor.Setup
         private const string SyncOwnershipMarker = ".unity-mcp-skill-sync";
         private const string LastSyncedCommitKeyPrefix = "UnityMcpSkillSync.LastSyncedCommit";
 
+        /// <summary>Outcome of one skill sync: counts of files touched plus the synced commit.</summary>
         public sealed class SyncResult
         {
+            /// <summary>True when the sync completed without error.</summary>
             public bool Success { get; set; }
+            /// <summary>Number of files added during the sync.</summary>
             public int Added { get; set; }
+            /// <summary>Number of files whose contents changed.</summary>
             public int Updated { get; set; }
+            /// <summary>Number of files removed because they no longer exist upstream.</summary>
             public int Deleted { get; set; }
+            /// <summary>Commit the skill folder was synced from.</summary>
             public string CommitSha { get; set; }
+            /// <summary>Failure message when <see cref="Success"/> is false.</summary>
             public string Error { get; set; }
         }
 
+        /// <summary>Syncs the skill from the default upstream repository into the given install directory.</summary>
+        /// <param name="installDir">Directory the skill folder is mirrored into.</param>
+        /// <param name="branch">Branch of the upstream repository to sync from.</param>
+        /// <param name="log">Callback receiving human-readable progress lines.</param>
+        /// <param name="onComplete">Callback invoked on the main thread with the sync result.</param>
         public static void SyncAsync(string installDir, string branch, Action<string> log, Action<SyncResult> onComplete)
         {
             SyncAsync(DefaultRepoUrl, installDir, branch, log, onComplete);
         }
 
+        /// <summary>Syncs the skill from the given repository URL into the given install directory.</summary>
+        /// <param name="repoUrl">Repository to download the skill folder from.</param>
+        /// <param name="installDir">Directory the skill folder is mirrored into.</param>
+        /// <param name="branch">Branch of the repository to sync from.</param>
+        /// <param name="log">Callback receiving human-readable progress lines.</param>
+        /// <param name="onComplete">Callback invoked on the main thread with the sync result.</param>
         public static void SyncAsync(string repoUrl, string installDir, string branch, Action<string> log, Action<SyncResult> onComplete)
         {
             var lastSyncedCommitKey = GetLastSyncedCommitKey(repoUrl, branch);
