@@ -13,6 +13,10 @@ using UnityEngine.UIElements;
 
 namespace MCPForUnity.Editor.Tools
 {
+
+    /// <summary>
+    /// MCP tool <c>manage_ui</c>: create and edit UI Documents, UXML/USS assets, and visual elements, and render or screenshot UI for inspection.
+    /// </summary>
     [McpForUnityTool("manage_ui", AutoRegister = false, Group = "ui")]
     public static class ManageUI
     {
@@ -45,6 +49,9 @@ namespace MCPForUnity.Editor.Tools
             s_panelRTs.Clear();
         }
 
+        /// <summary>Dispatches one <c>manage_ui</c> action and returns its response envelope.</summary>
+        /// <param name="params">Action name plus the action-specific arguments; must not be null.</param>
+        /// <returns>A success response with the action result, or an error response describing the failure.</returns>
         public static object HandleCommand(JObject @params)
         {
             string action = @params["action"]?.ToString()?.ToLowerInvariant();

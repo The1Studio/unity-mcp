@@ -118,6 +118,7 @@ namespace MCPForUnity.Editor.Tools
             relPathSafe = ("Assets/" + tail).TrimEnd('/');
             return true;
         }
+
         /// <summary>
         /// Main handler for script management actions.
         /// </summary>

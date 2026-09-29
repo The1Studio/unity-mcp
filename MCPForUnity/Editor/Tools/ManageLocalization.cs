@@ -12,9 +12,17 @@ using UnityEngine.Localization.Tables;
 
 namespace MCPForUnity.Editor.Tools
 {
+
+    /// <summary>
+    /// MCP tool <c>manage_localization</c>: list locales and string tables and read or update the active locale and table entries.
+    /// </summary>
     [McpForUnityTool("manage_localization", AutoRegister = true)]
     public static class ManageLocalization
     {
+
+        /// <summary>Dispatches one <c>manage_localization</c> action and returns its response envelope.</summary>
+        /// <param name="params">Action name plus the action-specific arguments; must not be null.</param>
+        /// <returns>A success response with the action result, or an error response describing the failure.</returns>
         public static object HandleCommand(JObject @params)
         {
             if (@params == null) return new ErrorResponse("Parameters cannot be null.");

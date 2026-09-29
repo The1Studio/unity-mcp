@@ -12,11 +12,18 @@ namespace MCPForUnity.Editor.Tools
 {
     [McpForUnityTool("manage_build", AutoRegister = false, Group = "core",
         RequiresPolling = true, PollAction = "status", MaxPollSeconds = 1800)]
+
+    /// <summary>
+    /// MCP tool <c>manage_build</c>: start player builds, query build status, and read or change build platform, settings, scene list, and profiles.
+    /// </summary>
     public static class ManageBuild
     {
         private static readonly string[] ValidActions =
             { "build", "status", "platform", "settings", "scenes", "profiles", "batch", "cancel" };
 
+        /// <summary>Dispatches one <c>manage_build</c> action and returns its response envelope.</summary>
+        /// <param name="params">Action name plus the action-specific arguments; must not be null.</param>
+        /// <returns>A success response with the action result, or an error response describing the failure.</returns>
         public static object HandleCommand(JObject @params)
         {
             if (@params == null)

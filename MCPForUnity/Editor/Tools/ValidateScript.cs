@@ -14,6 +14,10 @@ namespace MCPForUnity.Editor.Tools
     [McpForUnityTool("validate_script", AutoRegister = false, Group = "core")]
     public static class ValidateScript
     {
+
+        /// <summary>Dispatches one <c>validate_script</c> action and returns its response envelope.</summary>
+        /// <param name="params">Action name plus the action-specific arguments; must not be null.</param>
+        /// <returns>A success response with the action result, or an error response describing the failure.</returns>
         public static object HandleCommand(JObject @params)
         {
             var p = new ToolParams(@params);

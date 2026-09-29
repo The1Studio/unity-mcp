@@ -46,6 +46,9 @@ namespace MCPForUnity.Editor.Tools
             "get_components",
         };
 
+        /// <summary>Dispatches one <c>manage_asset</c> action and returns its response envelope.</summary>
+        /// <param name="params">Action name plus the action-specific arguments; must not be null.</param>
+        /// <returns>A success response with the action result, or an error response describing the failure.</returns>
         public static async Task<object> HandleCommand(JObject @params)
         {
             string action = @params["action"]?.ToString()?.ToLowerInvariant();

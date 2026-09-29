@@ -18,6 +18,9 @@ namespace MCPForUnity.Editor.Tools
     {
         private const int DefaultWaitTimeoutSeconds = 60;
 
+        /// <summary>Dispatches one <c>refresh_unity</c> action and returns its response envelope.</summary>
+        /// <param name="params">Action name plus the action-specific arguments; must not be null.</param>
+        /// <returns>A success response with the action result, or an error response describing the failure.</returns>
         public static async Task<object> HandleCommand(JObject @params)
         {
             string mode = @params?["mode"]?.ToString() ?? "if_dirty";

@@ -12,6 +12,10 @@ using UnityEditor;
 
 namespace MCPForUnity.Editor.Tools
 {
+
+    /// <summary>
+    /// MCP tool <c>unity_reflect</c>: search and inspect Unity and package types and members through reflection, scoped to runtime, packages, or the project.
+    /// </summary>
     [McpForUnityTool("unity_reflect", AutoRegister = false, Group = "docs")]
     public static class UnityReflect
     {
@@ -97,6 +101,9 @@ namespace MCPForUnity.Editor.Tools
             }
         }
 
+        /// <summary>Dispatches one <c>unity_reflect</c> action and returns its response envelope.</summary>
+        /// <param name="params">Action name plus the action-specific arguments; must not be null.</param>
+        /// <returns>A success response with the action result, or an error response describing the failure.</returns>
         public static object HandleCommand(JObject @params)
         {
             if (EditorApplication.isCompiling)

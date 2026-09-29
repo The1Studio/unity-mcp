@@ -4,9 +4,17 @@ using MCPForUnity.Editor.Helpers;
 
 namespace MCPForUnity.Editor.Tools.Graphics
 {
+
+    /// <summary>
+    /// MCP tool <c>manage_graphics</c>: author post-processing volumes and effects and render-pipeline settings, and run or query lightmap bakes.
+    /// </summary>
     [McpForUnityTool("manage_graphics", AutoRegister = false, Group = "core")]
     public static class ManageGraphics
     {
+
+        /// <summary>Dispatches one <c>manage_graphics</c> action and returns its response envelope.</summary>
+        /// <param name="params">Action name plus the action-specific arguments; must not be null.</param>
+        /// <returns>A success response with the action result, or an error response describing the failure.</returns>
         public static object HandleCommand(JObject @params)
         {
             if (@params == null)

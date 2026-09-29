@@ -4,9 +4,17 @@ using MCPForUnity.Editor.Helpers;
 
 namespace MCPForUnity.Editor.Tools.Cameras
 {
+
+    /// <summary>
+    /// MCP tool <c>manage_camera</c>: create and configure cameras and Cinemachine virtual cameras, capture screenshots, and manage Cinemachine brain settings.
+    /// </summary>
     [McpForUnityTool("manage_camera", AutoRegister = false)]
     public static class ManageCamera
     {
+
+        /// <summary>Dispatches one <c>manage_camera</c> action and returns its response envelope.</summary>
+        /// <param name="params">Action name plus the action-specific arguments; must not be null.</param>
+        /// <returns>A success response with the action result, or an error response describing the failure.</returns>
         public static object HandleCommand(JObject @params)
         {
             if (@params == null)

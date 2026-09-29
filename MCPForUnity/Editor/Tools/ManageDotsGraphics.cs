@@ -20,6 +20,10 @@ namespace MCPForUnity.Editor.Tools
     [McpForUnityTool("manage_dots_graphics", AutoRegister = true)]
     public static class ManageDotsGraphics
     {
+
+        /// <summary>Dispatches one <c>manage_dots_graphics</c> action and returns its response envelope.</summary>
+        /// <param name="params">Action name plus the action-specific arguments; must not be null.</param>
+        /// <returns>A success response with the action result, or an error response describing the failure.</returns>
         public static object HandleCommand(JObject @params)
         {
             if (@params == null)

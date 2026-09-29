@@ -15,6 +15,10 @@ namespace MCPForUnity.Editor.Tools
     [McpForUnityTool("run_tests", AutoRegister = false, Group = "testing")]
     public static class RunTests
     {
+
+        /// <summary>Dispatches one <c>run_tests</c> action and returns its response envelope.</summary>
+        /// <param name="params">Action name plus the action-specific arguments; must not be null.</param>
+        /// <returns>A success response with the action result, or an error response describing the failure.</returns>
         public static Task<object> HandleCommand(JObject @params)
         {
             try

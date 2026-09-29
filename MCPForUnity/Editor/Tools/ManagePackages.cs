@@ -15,6 +15,10 @@ using UnityEngine;
 
 namespace MCPForUnity.Editor.Tools
 {
+
+    /// <summary>
+    /// MCP tool <c>manage_packages</c>: add, remove, embed, and resolve packages, query package status and info, and manage scoped registries.
+    /// </summary>
     [McpForUnityTool("manage_packages", AutoRegister = false, Group = "core", RequiresPolling = true, PollAction = "status")]
     public static class ManagePackages
     {
@@ -25,6 +29,9 @@ namespace MCPForUnity.Editor.Tools
         private static readonly Dictionary<string, ListRequest> PendingListRequests = new();
         private static readonly Dictionary<string, SearchRequest> PendingSearchRequests = new();
 
+        /// <summary>Dispatches one <c>manage_packages</c> action and returns its response envelope.</summary>
+        /// <param name="params">Action name plus the action-specific arguments; must not be null.</param>
+        /// <returns>A success response with the action result, or an error response describing the failure.</returns>
         public static object HandleCommand(JObject @params)
         {
             if (@params == null)

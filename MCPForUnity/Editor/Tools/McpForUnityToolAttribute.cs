@@ -114,6 +114,8 @@ namespace MCPForUnity.Editor.Tools
         /// </summary>
         public string DefaultValue { get; set; }
 
+        /// <summary>Creates the attribute carrying a parameter's human-readable description.</summary>
+        /// <param name="description">Text exposed to the MCP client describing the parameter.</param>
         public ToolParameterAttribute(string description)
         {
             Description = description;

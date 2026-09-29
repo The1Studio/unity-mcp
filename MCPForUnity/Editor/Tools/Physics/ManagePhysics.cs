@@ -4,9 +4,17 @@ using MCPForUnity.Editor.Helpers;
 
 namespace MCPForUnity.Editor.Tools.Physics
 {
+
+    /// <summary>
+    /// MCP tool <c>manage_physics</c>: read and set global physics settings, edit the collision matrix, create and assign physics materials, manage joints, and run raycasts.
+    /// </summary>
     [McpForUnityTool("manage_physics", AutoRegister = false, Group = "core")]
     public static class ManagePhysics
     {
+
+        /// <summary>Dispatches one <c>manage_physics</c> action and returns its response envelope.</summary>
+        /// <param name="params">Action name plus the action-specific arguments; must not be null.</param>
+        /// <returns>A success response with the action result, or an error response describing the failure.</returns>
         public static object HandleCommand(JObject @params)
         {
             if (@params == null)

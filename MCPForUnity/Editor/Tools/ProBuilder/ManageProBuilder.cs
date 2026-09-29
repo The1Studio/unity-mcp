@@ -177,6 +177,9 @@ namespace MCPForUnity.Editor.Tools.ProBuilder
                 Debug.Log("[MCP] Patched ProBuilderDefault material: zeroed emission and set GI flags to EmissiveIsBlack.");
         }
 
+        /// <summary>Dispatches one <c>manage_probuilder</c> action and returns its response envelope.</summary>
+        /// <param name="params">Action name plus the action-specific arguments; must not be null.</param>
+        /// <returns>A success response with the action result, or an error response describing the failure.</returns>
         public static object HandleCommand(JObject @params)
         {
             if (!EnsureProBuilder())

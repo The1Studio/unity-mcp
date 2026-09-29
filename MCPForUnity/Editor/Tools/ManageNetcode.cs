@@ -8,9 +8,17 @@ using Unity.Netcode;
 
 namespace MCPForUnity.Editor.Tools
 {
+
+    /// <summary>
+    /// MCP tool <c>manage_netcode</c>: inspect the network manager and network objects and start or shut down host, server, and client sessions.
+    /// </summary>
     [McpForUnityTool("manage_netcode", AutoRegister = true)]
     public static class ManageNetcode
     {
+
+        /// <summary>Dispatches one <c>manage_netcode</c> action and returns its response envelope.</summary>
+        /// <param name="params">Action name plus the action-specific arguments; must not be null.</param>
+        /// <returns>A success response with the action result, or an error response describing the failure.</returns>
         public static object HandleCommand(JObject @params)
         {
             if (@params == null) return new ErrorResponse("Parameters cannot be null.");

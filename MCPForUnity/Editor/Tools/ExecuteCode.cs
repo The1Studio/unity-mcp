@@ -13,6 +13,10 @@ using UnityEngine;
 
 namespace MCPForUnity.Editor.Tools
 {
+
+    /// <summary>
+    /// MCP tool <c>execute_code</c>: compile and run C# supplied by the MCP client inside the editor through Roslyn or CodeDOM, returning output and diagnostics.
+    /// </summary>
     [McpForUnityTool("execute_code", AutoRegister = false, Group = "scripting_ext")]
     public static class ExecuteCode
     {
@@ -54,6 +58,9 @@ namespace MCPForUnity.Editor.Tools
             "for (;;)",
         };
 
+        /// <summary>Dispatches one <c>execute_code</c> action and returns its response envelope.</summary>
+        /// <param name="params">Action name plus the action-specific arguments; must not be null.</param>
+        /// <returns>A success response with the action result, or an error response describing the failure.</returns>
         public static object HandleCommand(JObject @params)
         {
             if (@params == null)

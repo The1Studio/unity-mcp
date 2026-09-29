@@ -13,6 +13,10 @@ namespace MCPForUnity.Editor.Tools
     [McpForUnityTool("get_sha", AutoRegister = false, Group = "core")]
     public static class GetSha
     {
+
+        /// <summary>Dispatches one <c>get_sha</c> action and returns its response envelope.</summary>
+        /// <param name="params">Action name plus the action-specific arguments; must not be null.</param>
+        /// <returns>A success response with the action result, or an error response describing the failure.</returns>
         public static object HandleCommand(JObject @params)
         {
             var p = new ToolParams(@params);

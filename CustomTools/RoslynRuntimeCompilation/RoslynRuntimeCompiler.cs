@@ -41,26 +41,42 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 #endif
 
+/// <summary>
+/// Compiles LLM-supplied C# in memory with Roslyn and invokes a well-known entry point,
+/// without writing script files to the project (so no domain reload is triggered).
+/// Attach to a GameObject to compile and run code against it in the editor or play mode.
+/// </summary>
 public class RoslynRuntimeCompiler : MonoBehaviour
 {
+
+    /// <summary>C# source compiled on demand; must expose the entry type and method named below.</summary>
     [TextArea(8, 20)]
     [Tooltip("Code to compile at runtime. Example class name: AIGenerated with public static void Run(GameObject host)")]
     public string code = "using UnityEngine;\npublic class AIGenerated {\n    public static void Run(GameObject host) {\n        Debug.Log($\"Hello from AI - {host.name}\");\n        host.transform.Rotate(Vector3.up * 45f * Time.deltaTime);\n    }\n}";
 
+    /// <summary>Fully qualified name of the type in <see cref="code"/> that holds the entry method.</summary>
     [Tooltip("Fully qualified type name to invoke (default: AIGenerated)")]
     public string entryTypeName = "AIGenerated";
+
+    /// <summary>Name of the static method invoked on the entry type, matching a supported signature.</summary>
     [Tooltip("Method name to call on entry type (default: Run)")]
     public string entryMethodName = "Run";
     
+    /// <summary>When true, the generated MonoBehaviour is attached to the target GameObject instead of only being invoked.</summary>
     [Header("MonoBehaviour Support")]
     [Tooltip("If true, attempts to attach generated MonoBehaviour to target GameObject")]
     public bool attachAsComponent = false;
+
+    /// <summary>GameObject the compiled code runs against and receives as its host argument; falls back to this object.</summary>
     [Tooltip("Target GameObject to attach component to (if null, uses this.gameObject)")]
     public GameObject targetGameObject;
 
+    /// <summary>Records every compile/run attempt into the shared compilation history.</summary>
     [Header("History & Tracing")]
     [Tooltip("Enable automatic history tracking of compiled scripts")]
     public bool enableHistory = true;
+
+    /// <summary>Upper bound on retained history entries; oldest entries are dropped beyond it.</summary>
     [Tooltip("Maximum number of history entries to keep")]
     public int maxHistoryEntries = 20;
 
@@ -70,33 +86,65 @@ public class RoslynRuntimeCompiler : MonoBehaviour
     private Type entryType;
     private Component attachedComponent; // Track dynamically attached component
 
+    /// <summary>True once a compilation has produced a loaded assembly.</summary>
     public bool HasCompiledAssembly => compiledAssembly != null;
+
+    /// <summary>True when the entry method was successfully resolved in the compiled assembly.</summary>
     public bool HasEntryMethod => entryMethod != null;
+
+    /// <summary>True when the entry type was successfully resolved in the compiled assembly.</summary>
     public bool HasEntryType => entryType != null;
+
+    /// <summary>The resolved entry type from the last successful compilation; null before one succeeds.</summary>
     public Type EntryType => entryType; // Public accessor for editor
 
     // compile result diagnostics (string-friendly)
+
+    /// <summary>Diagnostics text from the most recent compilation, empty when it succeeded.</summary>
     public string lastCompileDiagnostics = "";
     
     // History tracking - SHARED across all instances
+
+    /// <summary>
+    /// One record of a compile/run attempt: the source, the resolved entry point, and the outcome.
+    /// </summary>
     [System.Serializable]
     public class CompilationHistoryEntry
     {
+
+        /// <summary>When the attempt was recorded.</summary>
         public string timestamp;
+
+        /// <summary>C# source that was compiled in this attempt.</summary>
         public string sourceCode;
+
+        /// <summary>Entry type name used for this attempt.</summary>
         public string typeName;
+
+        /// <summary>Entry method name used for this attempt.</summary>
         public string methodName;
+
+        /// <summary>Whether compilation and invocation both succeeded.</summary>
         public bool success;
+
+        /// <summary>Compiler or runtime diagnostics produced by the attempt.</summary>
         public string diagnostics;
+
+        /// <summary>Name of the GameObject the code was executed against, when applicable.</summary>
         public string executionTarget;
     }
     
     // Static shared history
     private static System.Collections.Generic.List<CompilationHistoryEntry> _sharedHistory = new System.Collections.Generic.List<CompilationHistoryEntry>();
     
+    /// <summary>All recorded compile/run attempts, shared across every instance of the component.</summary>
     public System.Collections.Generic.List<CompilationHistoryEntry> CompilationHistory => _sharedHistory;
 
     // public wrapper so EditorWindow or other runtime UI can call compile/run
+
+    /// <summary>Compiles <see cref="code"/> in memory with Roslyn and loads the resulting assembly.</summary>
+    /// <param name="diagnostics">Compiler diagnostics; empty on success.</param>
+    /// <returns>True when compilation succeeded and the assembly was loaded.</returns>
     public bool CompileInMemory(out string diagnostics)
     {
 #if UNITY_EDITOR
@@ -201,6 +249,10 @@ public class RoslynRuntimeCompiler : MonoBehaviour
 #endif
     }
 
+    /// <summary>Invokes the resolved entry method, as a component, coroutine, or reflected call depending on its signature.</summary>
+    /// <param name="host">GameObject passed to and targeted by the invoked code.</param>
+    /// <param name="runtimeError">Exception message when invocation failed; empty on success.</param>
+    /// <returns>True when the entry method ran without throwing.</returns>
     public bool InvokeEntry(GameObject host, out string runtimeError)
     {
         runtimeError = null;
@@ -512,6 +564,8 @@ public class RoslynRuntimeCompiler : MonoBehaviour
     }
 
     // helper: convenience method to compile + run on this.gameObject
+
+    /// <summary>Compiles the current source and runs it against this component's own GameObject, reporting any error.</summary>
     public void CompileAndRunOnSelf()
     {
         if (CompileInMemory(out var diag))
@@ -847,6 +901,8 @@ public static class RoslynMCPHelper
 
 #if UNITY_EDITOR
 // Editor window
+
+/// <summary>Editor window that edits and runs the Roslyn compiler component's code from a text area.</summary>
 public class RoslynRuntimeCompilerWindow : EditorWindow
 {
     private RoslynRuntimeCompiler helperInScene;
@@ -865,6 +921,7 @@ public class RoslynRuntimeCompilerWindow : EditorWindow
     private bool attachAsComponent = false;
     private GameObject targetGameObject = null;
 
+    /// <summary>Opens (or focuses) the Roslyn Runtime Compiler editor window.</summary>
     [MenuItem("Window/Roslyn Runtime Compiler")]
     public static void ShowWindow()
     {

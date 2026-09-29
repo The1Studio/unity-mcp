@@ -9,9 +9,17 @@ using MCPForUnity.Runtime.Helpers;
 
 namespace MCPForUnity.Editor.Tools
 {
+
+    /// <summary>
+    /// MCP tool <c>manage_video</c>: list and configure VideoPlayer components and control playback (play, pause, stop, seek).
+    /// </summary>
     [McpForUnityTool("manage_video", AutoRegister = true)]
     public static class ManageVideo
     {
+
+        /// <summary>Dispatches one <c>manage_video</c> action and returns its response envelope.</summary>
+        /// <param name="params">Action name plus the action-specific arguments; must not be null.</param>
+        /// <returns>A success response with the action result, or an error response describing the failure.</returns>
         public static object HandleCommand(JObject @params)
         {
             if (@params == null) return new ErrorResponse("Parameters cannot be null.");

@@ -7,6 +7,10 @@ using UnityEngine;
 
 namespace MCPForUnity.Editor.Tools.Animation
 {
+
+    /// <summary>
+    /// MCP tool <c>manage_animation</c>: inspect and edit Animator controllers (states, transitions, parameters, layers, clips) and drive playback.
+    /// </summary>
     [McpForUnityTool("manage_animation", AutoRegister = false, Group = "animation")]
     public static class ManageAnimation
     {
@@ -158,6 +162,9 @@ namespace MCPForUnity.Editor.Tools.Animation
             return token;
         }
 
+        /// <summary>Dispatches one <c>manage_animation</c> action and returns its response envelope.</summary>
+        /// <param name="params">Action name plus the action-specific arguments; must not be null.</param>
+        /// <returns>A success response with the action result, or an error response describing the failure.</returns>
         public static object HandleCommand(JObject @params)
         {
             JObject normalizedParams = NormalizeParams(@params);

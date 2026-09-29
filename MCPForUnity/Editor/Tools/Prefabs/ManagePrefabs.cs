@@ -12,11 +12,12 @@ using MCPForUnity.Runtime.Helpers;
 
 namespace MCPForUnity.Editor.Tools.Prefabs
 {
-    [McpForUnityTool("manage_prefabs", AutoRegister = false)]
     /// <summary>
-    /// Tool to manage Unity Prefabs: create, inspect, modify, and open/save/close prefab stage.
-    /// Supports both headless editing (modify_contents) and interactive prefab stage workflows.
+    /// Creates, inspects, and modifies Unity prefabs and drives the interactive prefab stage.
+    /// Supports both headless content editing (<c>modify_contents</c>) and open/save/close of the
+    /// prefab stage for interactive workflows.
     /// </summary>
+    [McpForUnityTool("manage_prefabs", AutoRegister = false)]
     public static class ManagePrefabs
     {
         // Action constants
@@ -29,6 +30,9 @@ namespace MCPForUnity.Editor.Tools.Prefabs
         private const string ACTION_CLOSE_PREFAB_STAGE = "close_prefab_stage";
         private const string SupportedActions = ACTION_CREATE_FROM_GAMEOBJECT + ", " + ACTION_GET_INFO + ", " + ACTION_GET_HIERARCHY + ", " + ACTION_MODIFY_CONTENTS + ", " + ACTION_OPEN_PREFAB_STAGE + ", " + ACTION_SAVE_PREFAB_STAGE + ", " + ACTION_CLOSE_PREFAB_STAGE;
 
+        /// <summary>Dispatches one <c>manage_prefabs</c> action and returns its response envelope.</summary>
+        /// <param name="params">Action name plus the action-specific arguments; must not be null.</param>
+        /// <returns>A success response with the action result, or an error response describing the failure.</returns>
         public static object HandleCommand(JObject @params)
         {
             if (@params == null)

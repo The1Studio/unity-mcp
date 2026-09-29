@@ -122,6 +122,9 @@ namespace MCPForUnity.Editor.Tools
 
         // --- Main Handler ---
 
+        /// <summary>Dispatches one <c>read_console</c> action and returns its response envelope.</summary>
+        /// <param name="params">Action name plus the action-specific arguments; must not be null.</param>
+        /// <returns>A success response with the action result, or an error response describing the failure.</returns>
         public static object HandleCommand(JObject @params)
         {
             // Check if ALL required reflection members were successfully initialized.

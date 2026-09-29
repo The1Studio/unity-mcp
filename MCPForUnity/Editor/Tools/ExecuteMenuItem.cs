@@ -6,10 +6,11 @@ using UnityEditor;
 
 namespace MCPForUnity.Editor.Tools
 {
-    [McpForUnityTool("execute_menu_item", AutoRegister = false)]
     /// <summary>
-    /// Tool to execute a Unity Editor menu item by its path.
+    /// Executes a Unity Editor menu item identified by its path, rejecting a small blacklist of
+    /// disruptive entries (for example File/Quit) before invoking it.
     /// </summary>
+    [McpForUnityTool("execute_menu_item", AutoRegister = false)]
     public static class ExecuteMenuItem
     {
         // Basic blacklist to prevent execution of disruptive menu items.
@@ -19,6 +20,9 @@ namespace MCPForUnity.Editor.Tools
             "File/Quit",
         };
 
+        /// <summary>Dispatches one <c>execute_menu_item</c> action and returns its response envelope.</summary>
+        /// <param name="params">Action name plus the action-specific arguments; must not be null.</param>
+        /// <returns>A success response with the action result, or an error response describing the failure.</returns>
         public static object HandleCommand(JObject @params)
         {
             McpLog.Info("[ExecuteMenuItem] Handling menu item command");

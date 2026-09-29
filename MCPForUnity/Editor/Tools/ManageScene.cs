@@ -329,6 +329,9 @@ namespace MCPForUnity.Editor.Tools
             return CaptureSceneViewScreenshot(cmd, cmd.fileName, 1, false, 0);
         }
 
+        /// <summary>Captures a multi-view (surround) batch of scene screenshots at the requested resolution.</summary>
+        /// <param name="maxResolution">Cap in pixels for each captured view; each image is fitted within it.</param>
+        /// <returns>A success response carrying the captured views, or an error response if capture failed.</returns>
         public static object ExecuteMultiviewScreenshot(int maxResolution = 480)
         {
             var cmd = new SceneCommand { maxResolution = maxResolution };

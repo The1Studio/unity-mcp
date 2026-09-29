@@ -5,9 +5,17 @@ using Newtonsoft.Json.Linq;
 
 namespace MCPForUnity.Editor.Tools.Profiler
 {
+
+    /// <summary>
+    /// MCP tool <c>manage_profiler</c>: control the Unity Profiler, read frame timing and counters, take and compare memory snapshots, and drive the Frame Debugger.
+    /// </summary>
     [McpForUnityTool("manage_profiler", AutoRegister = false, Group = "profiling")]
     public static class ManageProfiler
     {
+
+        /// <summary>Dispatches one <c>manage_profiler</c> action and returns its response envelope.</summary>
+        /// <param name="params">Action name plus the action-specific arguments; must not be null.</param>
+        /// <returns>A success response with the action result, or an error response describing the failure.</returns>
         public static async Task<object> HandleCommand(JObject @params)
         {
             if (@params == null)

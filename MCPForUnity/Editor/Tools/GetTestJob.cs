@@ -11,6 +11,10 @@ namespace MCPForUnity.Editor.Tools
     [McpForUnityTool("get_test_job", AutoRegister = false, Group = "testing")]
     public static class GetTestJob
     {
+
+        /// <summary>Dispatches one <c>get_test_job</c> action and returns its response envelope.</summary>
+        /// <param name="params">Action name plus the action-specific arguments; must not be null.</param>
+        /// <returns>A success response with the action result, or an error response describing the failure.</returns>
         public static object HandleCommand(JObject @params)
         {
             string jobId = @params?["job_id"]?.ToString() ?? @params?["jobId"]?.ToString();

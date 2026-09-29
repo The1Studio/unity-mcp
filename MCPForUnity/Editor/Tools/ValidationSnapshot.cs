@@ -25,6 +25,9 @@ namespace MCPForUnity.Editor.Tools
         private const int MaxSampleSize = 100;
         private const float MovementThreshold = 0.1f;
 
+        /// <summary>Dispatches one <c>validation_snapshot</c> action and returns its response envelope.</summary>
+        /// <param name="params">Action name plus the action-specific arguments; must not be null.</param>
+        /// <returns>A success response with the action result, or an error response describing the failure.</returns>
         public static object HandleCommand(JObject @params)
         {
             if (@params == null)

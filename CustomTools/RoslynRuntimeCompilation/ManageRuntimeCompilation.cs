@@ -38,6 +38,9 @@ namespace MCPForUnity.Editor.Tools
             public List<string> TypeNames;
         }
         
+        /// <summary>Dispatches one <c>compile_and_load</c> runtime-compilation action and returns its response envelope.</summary>
+        /// <param name="params">Action name plus action-specific arguments; must not be null.</param>
+        /// <returns>A success response with the action result, or an error response describing the failure.</returns>
         public static object HandleCommand(JObject @params)
         {
             string action = @params["action"]?.ToString()?.ToLower();

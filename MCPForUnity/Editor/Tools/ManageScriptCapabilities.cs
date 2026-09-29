@@ -10,6 +10,10 @@ namespace MCPForUnity.Editor.Tools
     [McpForUnityTool("manage_script_capabilities", AutoRegister = false, Group = "core")]
     public static class ManageScriptCapabilities
     {
+
+        /// <summary>Dispatches one <c>manage_script_capabilities</c> action and returns its response envelope.</summary>
+        /// <param name="params">Action name plus the action-specific arguments; must not be null.</param>
+        /// <returns>A success response with the action result, or an error response describing the failure.</returns>
         public static object HandleCommand(JObject @params)
         {
             return new SuccessResponse("Script capabilities retrieved.", new

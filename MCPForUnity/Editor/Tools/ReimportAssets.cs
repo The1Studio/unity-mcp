@@ -13,6 +13,10 @@ namespace MCPForUnity.Editor.Tools
     [McpForUnityTool("reimport_assets", AutoRegister = false)]
     public static class ReimportAssets
     {
+
+        /// <summary>Dispatches one <c>reimport_assets</c> action and returns its response envelope.</summary>
+        /// <param name="params">Action name plus the action-specific arguments; must not be null.</param>
+        /// <returns>A success response with the action result, or an error response describing the failure.</returns>
         public static object HandleCommand(JObject @params)
         {
             var pathsToken = @params?["paths"];
