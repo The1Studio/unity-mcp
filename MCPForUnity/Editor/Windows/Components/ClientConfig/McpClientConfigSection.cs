@@ -67,8 +67,11 @@ namespace MCPForUnity.Editor.Windows.Components.ClientConfig
         /// </summary>
         public event Action<string, string> OnClientConfigMismatch;
 
+        /// <summary>Root visual element of the client-configuration section, supplied by the host window.</summary>
         public VisualElement Root { get; private set; }
 
+        /// <summary>Binds the section to its root element, loads the discovered client configurators, and wires its callbacks.</summary>
+        /// <param name="root">Root visual element supplied by the host editor window.</param>
         public McpClientConfigSection(VisualElement root)
         {
             Root = root;
@@ -189,6 +192,7 @@ namespace MCPForUnity.Editor.Windows.Components.ClientConfig
             copyJsonButton.clicked += OnCopyJsonClicked;
         }
 
+        /// <summary>Re-checks and redraws the configuration status of the selected client.</summary>
         public void UpdateClientStatus()
         {
             if (selectedClientIndex < 0 || selectedClientIndex >= configurators.Count)
@@ -217,6 +221,7 @@ namespace MCPForUnity.Editor.Windows.Components.ClientConfig
             };
         }
 
+        /// <summary>Refreshes the manual-config panel with the selected client's config path and snippet.</summary>
         public void UpdateManualConfiguration()
         {
             if (selectedClientIndex < 0 || selectedClientIndex >= configurators.Count)
@@ -603,6 +608,8 @@ namespace MCPForUnity.Editor.Windows.Components.ClientConfig
             McpLog.Info("Configuration copied to clipboard");
         }
 
+        /// <summary>Refreshes the selected client, deferring the work when a Claude CLI client is being inspected unless immediacy is forced.</summary>
+        /// <param name="forceImmediate">Skip the deferred refresh path and update immediately.</param>
         public void RefreshSelectedClient(bool forceImmediate = false)
         {
             if (selectedClientIndex >= 0 && selectedClientIndex < configurators.Count)

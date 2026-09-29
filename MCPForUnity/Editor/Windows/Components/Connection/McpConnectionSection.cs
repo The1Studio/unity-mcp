@@ -66,16 +66,24 @@ namespace MCPForUnity.Editor.Windows.Components.Connection
         private Action<bool, string> onHealthStatusUpdate;
 
         // Events
+        /// <summary>Raised when the connection settings change in a way that requires the manual config snippet to be rebuilt.</summary>
         public event Action OnManualConfigUpdateRequested;
+
+        /// <summary>Raised when the user switches between the stdio and HTTP transports.</summary>
         public event Action OnTransportChanged;
 
+        /// <summary>Root visual element of the connection section, supplied by the host window.</summary>
         public VisualElement Root { get; private set; }
 
+        /// <summary>Registers the callback used to push connection-health updates to the Advanced section.</summary>
+        /// <param name="callback">Receiver invoked with a health flag and a status message.</param>
         public void SetHealthStatusUpdateCallback(Action<bool, string> callback)
         {
             onHealthStatusUpdate = callback;
         }
 
+        /// <summary>Binds the section to its root element and wires its UI callbacks.</summary>
+        /// <param name="root">Root visual element supplied by the host editor window.</param>
         public McpConnectionSection(VisualElement root)
         {
             Root = root;
@@ -318,6 +326,7 @@ namespace MCPForUnity.Editor.Windows.Components.Connection
             RefreshHttpUi();
         }
 
+        /// <summary>Refreshes the connection controls (running state, transport toggle, HTTP vs stdio affordances) from live bridge and transport state.</summary>
         public void UpdateConnectionStatus()
         {
             var bridgeService = MCPServiceLocator.Bridge;
@@ -443,6 +452,7 @@ namespace MCPForUnity.Editor.Windows.Components.Connection
             connectionToggleButton?.EnableInClassList("server-running", isRunning && stdioSelected);
         }
 
+        /// <summary>Rebuilds the displayed HTTP server command from the current transport and launch policy.</summary>
         public void UpdateHttpServerCommandDisplay()
         {
             if (httpServerCommandSection == null || httpServerCommandField == null)
@@ -974,6 +984,8 @@ namespace MCPForUnity.Editor.Windows.Components.Connection
             McpLog.Info("API key cleared");
         }
 
+        /// <summary>Verifies the bridge connection, coalescing overlapping calls so only one probe runs at a time.</summary>
+        /// <returns>A task that completes when the verification probe finishes.</returns>
         public async Task VerifyBridgeConnectionAsync()
         {
             // Prevent concurrent verification calls

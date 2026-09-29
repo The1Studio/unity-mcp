@@ -19,6 +19,7 @@ using UnityEngine.UIElements;
 
 namespace MCPForUnity.Editor.Windows
 {
+    /// <summary>Main editor window hosting the MCP connection, client-config, advanced, tools, and resources sections.</summary>
     public class MCPForUnityEditorWindow : EditorWindow
     {
         // Section controllers
@@ -71,6 +72,7 @@ namespace MCPForUnity.Editor.Windows
             }
         }
 
+        /// <summary>Opens the window, reusing an already-open instance when one exists.</summary>
         public static void ShowWindow()
         {
             var existingWindows = UnityEngine.Resources.FindObjectsOfTypeAll<MCPForUnityEditorWindow>();
@@ -112,11 +114,14 @@ namespace MCPForUnity.Editor.Windows
         }
 
         // Helper to check and manage open windows from other classes
+        /// <summary>Reports whether any instance of this window is currently open.</summary>
+        /// <returns><c>true</c> when at least one window is open.</returns>
         public static bool HasAnyOpenWindow()
         {
             return OpenWindows.Count > 0;
         }
 
+        /// <summary>Closes every open instance of this window, logging and continuing past individual close failures.</summary>
         public static void CloseAllOpenWindows()
         {
             if (OpenWindows.Count == 0)
@@ -138,6 +143,7 @@ namespace MCPForUnity.Editor.Windows
             }
         }
 
+        /// <summary>Builds the window UI, guarded so repeated calls from domain reloads do not rebuild it.</summary>
         public void CreateGUI()
         {
             // Guard against repeated CreateGUI calls (e.g., domain reloads)

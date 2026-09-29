@@ -24,8 +24,11 @@ namespace MCPForUnity.Editor.Windows.Components.Resources
         private VisualElement categoryContainer;
         private List<ResourceMetadata> allResources = new();
 
+        /// <summary>Root visual element of the resources section, supplied by the host window.</summary>
         public VisualElement Root { get; }
 
+        /// <summary>Binds the section to its root element and wires its scan and enable/disable callbacks.</summary>
+        /// <param name="root">Root visual element supplied by the host editor window.</param>
         public McpResourcesSection(VisualElement root)
         {
             Root = root;

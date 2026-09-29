@@ -46,13 +46,23 @@ namespace MCPForUnity.Editor.Windows.Components.Advanced
         private Button testConnectionButton;
 
         // Events
+        /// <summary>Raised when the Git URL field changes, so dependent sections can re-check package state.</summary>
         public event Action OnGitUrlChanged;
+
+        /// <summary>Raised when the HTTP server command needs to be rebuilt and redisplayed.</summary>
         public event Action OnHttpServerCommandUpdateRequested;
+
+        /// <summary>Raised when the user asks to test the connection to the MCP server.</summary>
         public event Action OnTestConnectionRequested;
+
+        /// <summary>Raised after the package is deployed to or restored from the local server, so the window can refresh.</summary>
         public event Action OnPackageDeployed;
 
+        /// <summary>Root visual element of the Advanced section, supplied by the host window.</summary>
         public VisualElement Root { get; private set; }
 
+        /// <summary>Binds the section to its root element and wires the deploy, browse, and test-connection callbacks.</summary>
+        /// <param name="root">Root visual element supplied by the host editor window.</param>
         public McpAdvancedSection(VisualElement root)
         {
             Root = root;
@@ -325,6 +335,7 @@ namespace MCPForUnity.Editor.Windows.Components.Advanced
             testConnectionButton.clicked += () => OnTestConnectionRequested?.Invoke();
         }
 
+        /// <summary>Refreshes the uvx path-override fields from the path service, flagging overrides and fallbacks.</summary>
         public void UpdatePathOverrides()
         {
             var pathService = MCPServiceLocator.Paths;
@@ -649,6 +660,9 @@ namespace MCPForUnity.Editor.Windows.Components.Advanced
                 : StyleKeyword.Null;
         }
 
+        /// <summary>Updates the connection health indicator and its status label.</summary>
+        /// <param name="isHealthy">Whether the server is currently healthy.</param>
+        /// <param name="statusText">Text describing the current health state.</param>
         public void UpdateHealthStatus(bool isHealthy, string statusText)
         {
             if (healthStatus != null)

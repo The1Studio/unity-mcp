@@ -41,6 +41,8 @@ namespace MCPForUnity.Editor.Windows
 
         private DependencyCheckResult _dependencyResult;
 
+        /// <summary>Opens the setup window, running a fresh dependency check when no result is supplied.</summary>
+        /// <param name="dependencyResult">Pre-computed dependency result, or null to check now.</param>
         public static void ShowWindow(DependencyCheckResult dependencyResult = null)
         {
             var window = GetWindow<MCPSetupWindow>("MCP Setup");
@@ -49,6 +51,7 @@ namespace MCPForUnity.Editor.Windows
             window.Show();
         }
 
+        /// <summary>Builds the setup window UI from its UXML and populates the dependency indicators.</summary>
         public void CreateGUI()
         {
             string basePath = AssetPathUtility.GetMcpPackageRootPath();

@@ -21,6 +21,7 @@ namespace MCPForUnity.Editor.Windows.Components.Validation
         private ValidationLevel currentValidationLevel = ValidationLevel.Standard;
 
         // Validation levels
+        /// <summary>How thoroughly incoming tool payloads are validated before execution.</summary>
         public enum ValidationLevel
         {
             Basic,
@@ -29,8 +30,11 @@ namespace MCPForUnity.Editor.Windows.Components.Validation
             Strict
         }
 
+        /// <summary>Root visual element of the validation section, supplied by the host window.</summary>
         public VisualElement Root { get; private set; }
 
+        /// <summary>Binds the section to its root element and wires its validation-level controls.</summary>
+        /// <param name="root">Root visual element supplied by the host editor window.</param>
         public McpValidationSection(VisualElement root)
         {
             Root = root;

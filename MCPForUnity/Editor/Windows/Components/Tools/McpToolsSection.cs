@@ -48,8 +48,11 @@ namespace MCPForUnity.Editor.Windows.Components.Tools
             { "profiling", "Profiling & Frame Debugger" },
         };
 
+        /// <summary>Root visual element of the tools section, supplied by the host window.</summary>
         public VisualElement Root { get; }
 
+        /// <summary>Binds the section to its root element and wires its enable/disable and rescan callbacks.</summary>
+        /// <param name="root">Root visual element supplied by the host editor window.</param>
         public McpToolsSection(VisualElement root)
         {
             Root = root;

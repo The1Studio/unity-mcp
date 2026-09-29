@@ -92,6 +92,7 @@ namespace MCPForUnity.Editor.Windows
             window.Show();
         }
 
+        /// <summary>Builds the window UI from its UXML, resetting the search filter so stale results are not restored after a domain reload.</summary>
         public void CreateGUI()
         {
             // Clear search filter on GUI recreation to avoid stale filtered results
@@ -401,10 +402,19 @@ namespace MCPForUnity.Editor.Windows
     /// </summary>
     public class EditorPrefItem
     {
+        /// <summary>EditorPrefs key this row represents.</summary>
         public string Key { get; set; }
+
+        /// <summary>Current stored value, or empty when the preference is unset.</summary>
         public string Value { get; set; }
+
+        /// <summary>Value type of the preference, used to pick the editor control and parse edits.</summary>
         public EditorPrefType Type { get; set; }
+
+        /// <summary>Whether the key is a recognized MCP preference rather than an unrelated EditorPrefs entry.</summary>
         public bool IsKnown { get; set; }
+
+        /// <summary>Whether the preference has never been written, so the row shows a default rather than a stored value.</summary>
         public bool IsUnset { get; set; }
     }
 
