@@ -9,6 +9,7 @@ using UnityEngine;
 
 namespace MCPForUnity.Editor.Helpers
 {
+    /// <summary>Shared helpers for applying serialized property sets to Unity materials, including alias and structured-format handling.</summary>
     public static class MaterialOps
     {
         /// <summary>

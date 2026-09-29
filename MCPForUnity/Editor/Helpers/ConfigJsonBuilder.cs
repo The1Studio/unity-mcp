@@ -11,8 +11,13 @@ using UnityEngine;
 
 namespace MCPForUnity.Editor.Helpers
 {
+    /// <summary>Builds the JSON config snippet registered with JSON-file MCP clients, including the Unity server entry and per-client transport fields.</summary>
     public static class ConfigJsonBuilder
     {
+        /// <summary>Builds a pretty-printed config snippet for manual paste, using the <c>servers</c> root for VS Code-style clients and <c>mcpServers</c> otherwise.</summary>
+        /// <param name="uvPath">Resolved path to <c>uvx</c> used for the stdio transport.</param>
+        /// <param name="client">Client definition whose layout and transport rules shape the entry.</param>
+        /// <returns>Indented JSON containing the <c>unityMCP</c> server entry.</returns>
         public static string BuildManualConfigJson(string uvPath, McpClient client)
         {
             var root = new JObject();
@@ -27,6 +32,11 @@ namespace MCPForUnity.Editor.Helpers
             return root.ToString(Formatting.Indented);
         }
 
+        /// <summary>Merges the Unity server entry into an existing config root, replacing only the <c>unityMCP</c> node and preserving every other server.</summary>
+        /// <param name="root">Existing config root; a new one is created when null.</param>
+        /// <param name="uvPath">Resolved path to <c>uvx</c> used for the stdio transport.</param>
+        /// <param name="client">Client definition whose layout and transport rules shape the entry.</param>
+        /// <returns>The updated config root.</returns>
         public static JObject ApplyUnityServerToExistingConfig(JObject root, string uvPath, McpClient client)
         {
             if (root == null) root = new JObject();

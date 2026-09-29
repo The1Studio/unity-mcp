@@ -24,6 +24,9 @@ namespace MCPForUnity.Editor.Helpers
                 args.Add(new TomlString { Value = flag });
         }
 
+        /// <summary>Builds the <c>[mcp_servers.unityMCP]</c> TOML block for Codex, emitting a URL in HTTP mode or command/args in stdio mode with Windows env passthrough and a raised startup timeout.</summary>
+        /// <param name="uvPath">Resolved path to <c>uvx</c> used for the stdio transport.</param>
+        /// <returns>TOML text holding the Unity server block.</returns>
         public static string BuildCodexServerBlock(string uvPath)
         {
             var table = new TomlTable();
@@ -83,6 +86,10 @@ namespace MCPForUnity.Editor.Helpers
             return writer.ToString();
         }
 
+        /// <summary>Merges the Unity server block into existing Codex TOML, creating missing tables and enabling the HTTP client feature when the HTTP transport is active.</summary>
+        /// <param name="existingToml">Current Codex config; parsed leniently, treated as empty when invalid.</param>
+        /// <param name="uvPath">Resolved path to <c>uvx</c> used for the stdio transport.</param>
+        /// <returns>The updated TOML document as text.</returns>
         public static string UpsertCodexServerBlock(string existingToml, string uvPath)
         {
             // Parse existing TOML or create new root table
@@ -111,11 +118,22 @@ namespace MCPForUnity.Editor.Helpers
             return writer.ToString();
         }
 
+        /// <summary>Parses the Unity server entry from Codex TOML when only its stdio command is needed.</summary>
+        /// <param name="toml">Codex TOML document.</param>
+        /// <param name="command">Parsed command, or null when absent.</param>
+        /// <param name="args">Parsed argument list, or null when absent.</param>
+        /// <returns><c>true</c> when a usable stdio command was found.</returns>
         public static bool TryParseCodexServer(string toml, out string command, out string[] args)
         {
             return TryParseCodexServer(toml, out command, out args, out _);
         }
 
+        /// <summary>Parses the Unity server entry from Codex TOML, recovering either the HTTP URL or the stdio command and arguments.</summary>
+        /// <param name="toml">Codex TOML document.</param>
+        /// <param name="command">Stdio command, or null when the entry uses HTTP or is absent.</param>
+        /// <param name="args">Stdio arguments, or null when the entry uses HTTP or is absent.</param>
+        /// <param name="url">HTTP URL, or null when the entry uses stdio.</param>
+        /// <returns><c>true</c> when a URL or a command-with-args entry was found.</returns>
         public static bool TryParseCodexServer(string toml, out string command, out string[] args, out string url)
         {
             command = null;

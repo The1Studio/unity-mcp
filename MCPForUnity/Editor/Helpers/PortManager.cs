@@ -27,11 +27,17 @@ namespace MCPForUnity.Editor.Helpers
         private const int MaxPortAttempts = 100;
         private const string RegistryFileName = "unity-mcp-port.json";
 
+        /// <summary>Persisted record of the port assigned to one project, written to the shared port registry file.</summary>
         [Serializable]
         public class PortConfig
         {
+            /// <summary>Port the Unity bridge listens on for this project.</summary>
             public int unity_port;
+
+            /// <summary>Timestamp recording when the port was first assigned.</summary>
             public string created_date;
+
+            /// <summary>Unity project path the port belongs to, so the port is reused only for the same project.</summary>
             public string project_path;
         }
 

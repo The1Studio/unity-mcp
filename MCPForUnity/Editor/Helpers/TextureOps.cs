@@ -6,8 +6,13 @@ using UnityEngine;
 
 namespace MCPForUnity.Editor.Helpers
 {
+    /// <summary>Pixel-level helpers for parsing color and palette parameters and writing them into textures.</summary>
     public static class TextureOps
     {
+        /// <summary>Encodes a texture using the format implied by the target asset extension, defaulting to PNG for unknown extensions.</summary>
+        /// <param name="texture">Texture to encode; returns null when null.</param>
+        /// <param name="assetPath">Target asset path whose extension selects PNG or JPEG.</param>
+        /// <returns>Encoded image bytes, or null when the texture is null.</returns>
         public static byte[] EncodeTexture(Texture2D texture, string assetPath)
         {
             if (texture == null)
@@ -33,6 +38,9 @@ namespace MCPForUnity.Editor.Helpers
             }
         }
 
+        /// <summary>Fills every pixel of a texture with a single color.</summary>
+        /// <param name="texture">Texture to fill; no-op when null.</param>
+        /// <param name="color">Color written to every pixel.</param>
         public static void FillTexture(Texture2D texture, Color32 color)
         {
             if (texture == null)
@@ -46,6 +54,9 @@ namespace MCPForUnity.Editor.Helpers
             texture.SetPixels32(pixels);
         }
 
+        /// <summary>Parses an <c>[r, g, b, a]</c> array into a color, clamping each channel to 0-255 and defaulting to opaque white.</summary>
+        /// <param name="colorArray">Array with 3 or 4 channel values.</param>
+        /// <returns>Parsed color; opaque white when fewer than three channels are supplied.</returns>
         public static Color32 ParseColor32(JArray colorArray)
         {
             if (colorArray == null || colorArray.Count < 3)
@@ -59,6 +70,9 @@ namespace MCPForUnity.Editor.Helpers
             return new Color32(r, g, b, a);
         }
 
+        /// <summary>Parses an array of color arrays into a palette, skipping entries that are not arrays.</summary>
+        /// <param name="paletteArray">Array of <c>[r, g, b, a]</c> entries.</param>
+        /// <returns>Parsed palette, or null when the input is null or yields no valid colors.</returns>
         public static List<Color32> ParsePalette(JArray paletteArray)
         {
             if (paletteArray == null)
@@ -75,11 +89,23 @@ namespace MCPForUnity.Editor.Helpers
             return palette.Count > 0 ? palette : null;
         }
 
+        /// <summary>Writes full-frame pixel data into a texture.</summary>
+        /// <param name="texture">Target texture.</param>
+        /// <param name="pixelsToken">Flat color array or a <c>base64:</c> RGBA32 payload.</param>
+        /// <param name="width">Width of the region, in pixels.</param>
+        /// <param name="height">Height of the region, in pixels.</param>
         public static void ApplyPixelData(Texture2D texture, JToken pixelsToken, int width, int height)
         {
             ApplyPixelDataToRegion(texture, pixelsToken, 0, 0, width, height);
         }
 
+        /// <summary>Writes pixel data into a sub-rectangle of a texture, clipping pixels that fall outside it and warning on a size mismatch.</summary>
+        /// <param name="texture">Target texture.</param>
+        /// <param name="pixelsToken">Flat color array or a <c>base64:</c> RGBA32 payload.</param>
+        /// <param name="offsetX">Left edge of the region, in pixels.</param>
+        /// <param name="offsetY">Bottom edge of the region, in pixels.</param>
+        /// <param name="regionWidth">Width of the region, in pixels.</param>
+        /// <param name="regionHeight">Height of the region, in pixels.</param>
         public static void ApplyPixelDataToRegion(Texture2D texture, JToken pixelsToken, int offsetX, int offsetY, int regionWidth, int regionHeight)
         {
             if (texture == null || pixelsToken == null)

@@ -23,6 +23,10 @@ namespace MCPForUnity.Editor.Helpers
             return Path.GetFullPath(Path.Combine(libraryPath, fileName));
         }
 
+        /// <summary>Serializes a tool's state into the project Library so it survives a domain reload.</summary>
+        /// <typeparam name="T">State type to serialize.</typeparam>
+        /// <param name="toolName">Name of the tool owning the state.</param>
+        /// <param name="state">State to persist; a default instance is written when null.</param>
         public static void SaveState<T>(string toolName, T state)
         {
             var path = GetStatePath(toolName);
@@ -31,6 +35,10 @@ namespace MCPForUnity.Editor.Helpers
             File.WriteAllText(path, json);
         }
 
+        /// <summary>Reads a tool's previously saved state, returning the type default when it is absent or unreadable.</summary>
+        /// <typeparam name="T">State type to deserialize.</typeparam>
+        /// <param name="toolName">Name of the tool owning the state.</param>
+        /// <returns>The saved state, or the default value of <typeparamref name="T"/> when none exists.</returns>
         public static T LoadState<T>(string toolName)
         {
             var path = GetStatePath(toolName);
@@ -50,6 +58,8 @@ namespace MCPForUnity.Editor.Helpers
             }
         }
 
+        /// <summary>Deletes a tool's saved state file.</summary>
+        /// <param name="toolName">Name of the tool whose state is discarded.</param>
         public static void ClearState(string toolName)
         {
             var path = GetStatePath(toolName);

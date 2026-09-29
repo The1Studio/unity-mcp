@@ -196,6 +196,9 @@ namespace MCPForUnity.Editor.Helpers
             Directory.CreateDirectory(Path.GetDirectoryName(configPath));
         }
 
+        /// <summary>Extracts the package source that follows a <c>--from</c> flag in a uvx argument list.</summary>
+        /// <param name="args">uvx argument list.</param>
+        /// <returns>The <c>--from</c> value, or null when the flag is absent.</returns>
         public static string ExtractUvxUrl(string[] args)
         {
             if (args == null) return null;
@@ -209,6 +212,10 @@ namespace MCPForUnity.Editor.Helpers
             return null;
         }
 
+        /// <summary>Compares two filesystem paths after normalization, ignoring case on Windows.</summary>
+        /// <param name="a">First path.</param>
+        /// <param name="b">Second path.</param>
+        /// <returns><c>true</c> when both resolve to the same path.</returns>
         public static bool PathsEqual(string a, string b)
         {
             if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b)) return false;
@@ -228,6 +235,9 @@ namespace MCPForUnity.Editor.Helpers
             }
         }
 
+        /// <summary>Writes a file through a temporary file and a backup so an interrupted write cannot corrupt the live config.</summary>
+        /// <param name="path">Destination file path.</param>
+        /// <param name="contents">Text to write, encoded as UTF-8 without a byte-order mark.</param>
         public static void WriteAtomicFile(string path, string contents)
         {
             string tmp = path + ".tmp";

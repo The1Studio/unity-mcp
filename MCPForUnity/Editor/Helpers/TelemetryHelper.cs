@@ -130,6 +130,7 @@ namespace MCPForUnity.Editor.Helpers
             Interlocked.Exchange(ref s_sender, sender);
         }
 
+        /// <summary>Clears the registered sender so telemetry events stop being forwarded.</summary>
         public static void UnregisterTelemetrySender()
         {
             Interlocked.Exchange(ref s_sender, null);

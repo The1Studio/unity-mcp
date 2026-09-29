@@ -12,15 +12,22 @@ namespace MCPForUnity.Editor.Helpers
     /// </summary>
     public static class RendererHelpers
     {
+        /// <summary>Outcome of ensuring a renderer has a usable material, reporting whether a replacement was made and why.</summary>
         public readonly struct EnsureMaterialResult
         {
+            /// <summary>Creates a result describing whether the renderer's material had to be replaced.</summary>
+            /// <param name="materialReplaced">Whether a replacement material was assigned.</param>
+            /// <param name="replacementReason">Machine-readable reason for the replacement, or empty when none was needed.</param>
             public EnsureMaterialResult(bool materialReplaced, string replacementReason)
             {
                 MaterialReplaced = materialReplaced;
                 ReplacementReason = replacementReason ?? string.Empty;
             }
 
+            /// <summary>Whether a replacement material was assigned to the renderer.</summary>
             public bool MaterialReplaced { get; }
+
+            /// <summary>Reason a replacement was made, such as a missing or pipeline-invalid material.</summary>
             public string ReplacementReason { get; }
         }
 

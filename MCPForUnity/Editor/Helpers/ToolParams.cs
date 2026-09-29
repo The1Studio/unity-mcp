@@ -13,6 +13,8 @@ namespace MCPForUnity.Editor.Helpers
     {
         private readonly JObject _params;
 
+        /// <summary>Wraps a tool's raw JSON parameter object for typed, case-insensitive extraction.</summary>
+        /// <param name="params">Raw parameters supplied by the MCP tool call; must not be null.</param>
         public ToolParams(JObject @params)
         {
             _params = @params ?? throw new ArgumentNullException(nameof(@params));
@@ -224,8 +226,13 @@ namespace MCPForUnity.Editor.Helpers
     /// </summary>
     public class Result<T>
     {
+        /// <summary>Whether the operation produced a value rather than an error.</summary>
         public bool IsSuccess { get; }
+
+        /// <summary>Extracted value, valid only when <see cref="IsSuccess"/> is true.</summary>
         public T Value { get; }
+
+        /// <summary>Human-readable error message, populated only when the operation failed.</summary>
         public string ErrorMessage { get; }
 
         private Result(bool isSuccess, T value, string errorMessage)
@@ -235,7 +242,14 @@ namespace MCPForUnity.Editor.Helpers
             ErrorMessage = errorMessage;
         }
 
+        /// <summary>Creates a successful result carrying a value.</summary>
+        /// <param name="value">Value the operation produced.</param>
+        /// <returns>A successful result.</returns>
         public static Result<T> Success(T value) => new Result<T>(true, value, null);
+
+        /// <summary>Creates a failed result carrying an error message.</summary>
+        /// <param name="errorMessage">Message describing why the operation failed.</param>
+        /// <returns>A failed result.</returns>
         public static Result<T> Error(string errorMessage) => new Result<T>(false, default, errorMessage);
 
         /// <summary>

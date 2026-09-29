@@ -12,6 +12,7 @@ namespace MCPForUnity.Editor.Helpers
     /// </summary>
     public static class ScreenshotPreferences
     {
+        /// <summary>EditorPrefs key holding the user's default screenshot output folder.</summary>
         public const string EditorPrefsKey = "MCPForUnity_ScreenshotsFolder";
 
         /// <summary>
