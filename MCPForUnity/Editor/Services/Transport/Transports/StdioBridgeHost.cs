@@ -86,9 +86,11 @@ namespace MCPForUnity.Editor.Services.Transport.Transports
 
         /// <summary>True while the TCP listener is accepting connections.</summary>
         public static bool IsRunning => isRunning;
+
         /// <summary>Port the bridge is listening on.</summary>
         /// <returns>The currently allocated listen port.</returns>
         public static int GetCurrentPort() => currentUnityPort;
+
         /// <summary>True when the bridge was started by auto-connect rather than an explicit user action.</summary>
         /// <returns>True when running in auto-connect mode.</returns>
         public static bool IsAutoConnectMode() => isAutoConnectMode;

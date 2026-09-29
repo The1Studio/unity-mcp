@@ -9,14 +9,19 @@ namespace MCPForUnity.Editor.Services
     {
         /// <summary>Resource name as exposed to the MCP client (for example "unity://scene").</summary>
         public string Name { get; set; }
+
         /// <summary>Human-readable description advertised to the MCP client.</summary>
         public string Description { get; set; }
+
         /// <summary>Name of the handler class that implements the resource.</summary>
         public string ClassName { get; set; }
+
         /// <summary>Namespace of the handler class.</summary>
         public string Namespace { get; set; }
+
         /// <summary>Assembly that declares the handler class.</summary>
         public string AssemblyName { get; set; }
+
         /// <summary>True when the resource ships with the package rather than being user-provided.</summary>
         public bool IsBuiltIn { get; set; }
     }

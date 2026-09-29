@@ -7,14 +7,19 @@ namespace MCPForUnity.Editor.Services.Transport
     {
         /// <summary>True when the transport currently holds a live connection to the MCP server.</summary>
         public bool IsConnected { get; }
+
         /// <summary>Name of the transport backing this state (for example "stdio" or "http").</summary>
         public string TransportName { get; }
+
         /// <summary>Listening port when the transport is socket-based; null otherwise.</summary>
         public int? Port { get; }
+
         /// <summary>Identifier assigned to the current session so responses can be correlated; null when disconnected.</summary>
         public string SessionId { get; }
+
         /// <summary>Human-readable diagnostic detail about the connection, shown in the editor connection panel.</summary>
         public string Details { get; }
+
         /// <summary>Failure message when the transport could not connect; null on success.</summary>
         public string Error { get; }
 

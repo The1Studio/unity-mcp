@@ -27,14 +27,19 @@ namespace MCPForUnity.Editor.Setup
         {
             /// <summary>True when the sync completed without error.</summary>
             public bool Success { get; set; }
+
             /// <summary>Number of files added during the sync.</summary>
             public int Added { get; set; }
+
             /// <summary>Number of files whose contents changed.</summary>
             public int Updated { get; set; }
+
             /// <summary>Number of files removed because they no longer exist upstream.</summary>
             public int Deleted { get; set; }
+
             /// <summary>Commit the skill folder was synced from.</summary>
             public string CommitSha { get; set; }
+
             /// <summary>Failure message when <see cref="Success"/> is false.</summary>
             public string Error { get; set; }
         }
