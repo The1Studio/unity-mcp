@@ -174,6 +174,13 @@ Note: If using Homebrew, make sure /opt/homebrew/bin is in your PATH.";
             return false;
         }
 
+        /// <summary>
+        /// Builds the extra PATH entries probed when the editor's inherited PATH is too narrow
+        /// (Unity launched from Dock or Spotlight, which does not source the user's shell profile).
+        /// pyenv shims come first so a pyenv-managed Python wins over the system one.
+        /// Returns only the additions; <c>ExecPath.TryRun</c> prepends them to the existing PATH.
+        /// </summary>
+        /// <returns>Joined PATH additions, or <c>null</c> when there are none.</returns>
         protected string BuildAugmentedPath()
         {
             var additions = GetPathAdditions();

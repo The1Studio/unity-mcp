@@ -48,6 +48,15 @@ namespace MCPForUnity.Editor.Dependencies.Models
         /// </summary>
         public string InstallationHint { get; set; }
 
+        /// <summary>
+        /// Creates a status for the named dependency. Availability starts at <c>false</c> and
+        /// must be set by the detector that produced this instance.
+        /// </summary>
+        /// <param name="name">Human-readable dependency name, e.g. "Python".</param>
+        /// <param name="isRequired">
+        /// <c>true</c> when the dependency is needed for basic MCP operation; <c>false</c> for
+        /// optional ones, which are reported to the user but do not block readiness.
+        /// </param>
         public DependencyStatus(string name, bool isRequired = true)
         {
             Name = name;

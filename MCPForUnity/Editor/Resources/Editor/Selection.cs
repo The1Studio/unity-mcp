@@ -13,6 +13,13 @@ namespace MCPForUnity.Editor.Resources.Editor
     [McpForUnityResource("get_selection")]
     public static class Selection
     {
+        /// <summary>
+        /// Handles the <c>get_selection</c> command: reports the active object/game object/
+        /// transform, the selection count, and the full list of selected objects and game objects
+        /// with their types, instance IDs and asset GUIDs.
+        /// </summary>
+        /// <param name="params">Unused; the selection is global editor state.</param>
+        /// <returns>A success envelope with the selection detail, or an error response if it throws.</returns>
         public static object HandleCommand(JObject @params)
         {
             try

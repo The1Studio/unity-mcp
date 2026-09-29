@@ -18,6 +18,16 @@ namespace MCPForUnity.Editor.Resources.Scene
     [McpForUnityResource("get_gameobject")]
     public static class GameObjectResource
     {
+        /// <summary>
+        /// Handles the <c>get_gameobject</c> command: resolves the instance ID from
+        /// <c>instanceID</c>, <c>instance_id</c> or <c>id</c> and returns the object's transform,
+        /// hierarchy and component type names.
+        /// </summary>
+        /// <param name="params">Command arguments; must carry an instance ID.</param>
+        /// <returns>
+        /// A success envelope wrapping <see cref="SerializeGameObject"/>, or an error response when
+        /// the parameters, the instance ID, or the lookup target is missing.
+        /// </returns>
         public static object HandleCommand(JObject @params)
         {
             if (@params == null)
@@ -68,6 +78,12 @@ namespace MCPForUnity.Editor.Resources.Scene
         /// Serializes a GameObject without component details.
         /// For component data, use GetComponents or GetComponent resources.
         /// </summary>
+        /// <param name="go">GameObject to serialize; <c>null</c> yields <c>null</c>.</param>
+        /// <returns>
+        /// An anonymous object carrying the instance ID, name, tag, layer, active/static flags,
+        /// the full transform (local and world), the parent and child instance IDs, the component
+        /// type names and the hierarchy path.
+        /// </returns>
         public static object SerializeGameObject(GameObject go)
         {
             if (go == null)
@@ -128,6 +144,14 @@ namespace MCPForUnity.Editor.Resources.Scene
     [McpForUnityResource("get_gameobject_components")]
     public static class GameObjectComponentsResource
     {
+        /// <summary>
+        /// Handles the <c>get_gameobject_components</c> command: returns the target's components,
+        /// paged by <c>cursor</c>/<c>pageSize</c> (clamped to 1-100). When
+        /// <c>includeProperties</c> is set, each component is fully serialized; otherwise only its
+        /// type name and instance ID are returned.
+        /// </summary>
+        /// <param name="params">Command arguments; must carry an instance ID.</param>
+        /// <returns>A paged component envelope, or an error response when a required argument is missing.</returns>
         public static object HandleCommand(JObject @params)
         {
             if (@params == null)
@@ -214,6 +238,13 @@ namespace MCPForUnity.Editor.Resources.Scene
     [McpForUnityResource("get_gameobject_component")]
     public static class GameObjectComponentResource
     {
+        /// <summary>
+        /// Handles the <c>get_gameobject_component</c> command: finds the first component on the
+        /// target whose short or fully-qualified type name matches <c>componentName</c>
+        /// (case-insensitive) and returns its serialized properties.
+        /// </summary>
+        /// <param name="params">Command arguments; must carry an instance ID and a component name.</param>
+        /// <returns>The component envelope, or an error response when the component is not present.</returns>
         public static object HandleCommand(JObject @params)
         {
             if (@params == null)

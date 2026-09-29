@@ -176,6 +176,12 @@ Note: Make sure ~/.local/bin is in your PATH for user-local installations.";
             return false;
         }
 
+        /// <summary>
+        /// Builds the extra PATH entries probed when the editor's inherited PATH is too narrow
+        /// (Unity launched from a desktop launcher, which does not source the user's shell profile).
+        /// Returns only the additions; <c>ExecPath.TryRun</c> prepends them to the existing PATH.
+        /// </summary>
+        /// <returns>Joined PATH additions, or <c>null</c> when there are none.</returns>
         protected string BuildAugmentedPath()
         {
             var additions = GetPathAdditions();

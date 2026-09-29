@@ -239,6 +239,13 @@ namespace MCPForUnity.Editor.Dependencies.PlatformDetectors
             return !string.IsNullOrEmpty(fullPath);
         }
 
+        /// <summary>
+        /// Builds the extra PATH entries probed when the editor's inherited PATH is too narrow
+        /// (Unity launched from a shortcut or the Hub, which does not pick up later additions to
+        /// the user PATH). Returns only the additions; <c>ExecPath.TryRun</c> prepends them to the
+        /// existing PATH.
+        /// </summary>
+        /// <returns>Joined PATH additions, or <c>null</c> when there are none.</returns>
         protected string BuildAugmentedPath()
         {
             var additions = GetPathAdditions();

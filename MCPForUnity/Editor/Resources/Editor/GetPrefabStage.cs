@@ -16,6 +16,13 @@ namespace MCPForUnity.Editor.Resources.Editor
     [McpForUnityResource("get_prefab_stage")]
     public static class GetPrefabStage
     {
+        /// <summary>
+        /// Handles the <c>get_prefab_stage</c> command, reporting whether a prefab is open for
+        /// editing and, if so, its asset path, root name, mode (Isolation or In-Context) and
+        /// dirty flag. Returns <c>{ isOpen = false }</c> when the current stage is the main scene.
+        /// </summary>
+        /// <param name="params">Unused; the open prefab stage is global editor state.</param>
+        /// <returns>A success envelope with the stage info, or an error response if it throws.</returns>
         public static object HandleCommand(JObject @params)
         {
             try

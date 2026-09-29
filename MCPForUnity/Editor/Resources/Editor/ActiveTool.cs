@@ -11,6 +11,13 @@ namespace MCPForUnity.Editor.Resources.Editor
     [McpForUnityResource("get_active_tool")]
     public static class ActiveTool
     {
+        /// <summary>
+        /// Handles the <c>get_active_tool</c> command: reports the active handle tool, pivot mode
+        /// and rotation, and the current handle rotation/position. A custom tool has no enum name,
+        /// so it is reported as "Unknown Custom Tool" with <c>isCustom</c> set.
+        /// </summary>
+        /// <param name="params">Unused; the active tool is global editor state.</param>
+        /// <returns>A success envelope with the tool info, or an error response if reading it throws.</returns>
         public static object HandleCommand(JObject @params)
         {
             try

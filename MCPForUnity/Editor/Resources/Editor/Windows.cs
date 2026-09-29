@@ -14,6 +14,13 @@ namespace MCPForUnity.Editor.Resources.Editor
     [McpForUnityResource("get_windows")]
     public static class Windows
     {
+        /// <summary>
+        /// Handles the <c>get_windows</c> command, listing every open <c>EditorWindow</c> with its
+        /// title, type, focus state, screen rect and instance ID. A window that fails to describe
+        /// itself is warned about and skipped rather than failing the whole listing.
+        /// </summary>
+        /// <param name="params">Unused; the open windows are global editor state.</param>
+        /// <returns>A success envelope with the window list, or an error response if it throws.</returns>
         public static object HandleCommand(JObject @params)
         {
             try

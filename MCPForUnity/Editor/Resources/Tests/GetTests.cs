@@ -26,6 +26,17 @@ namespace MCPForUnity.Editor.Resources.Tests
         private const int DEFAULT_PAGE_SIZE = 50;
         private const int MAX_PAGE_SIZE = 200;
 
+        /// <summary>
+        /// Handles the <c>get_tests</c> command: retrieves the project's EditMode and/or PlayMode
+        /// tests, filters them by an optional case-insensitive name substring, and returns one
+        /// page of results.
+        /// </summary>
+        /// <param name="params">
+        /// Optional <c>mode</c> ("EditMode" or "PlayMode"; omitted means all), <c>filter</c>,
+        /// <c>page_size</c> (clamped to <see cref="MAX_PAGE_SIZE"/>) and either <c>cursor</c>
+        /// (0-based) or <c>page_number</c> (1-based).
+        /// </param>
+        /// <returns>A paged test envelope, or an error response for a bad mode or a failed lookup.</returns>
         public static async Task<object> HandleCommand(JObject @params)
         {
             // Parse mode filter
@@ -114,6 +125,15 @@ namespace MCPForUnity.Editor.Resources.Tests
         private const int DEFAULT_PAGE_SIZE = 50;
         private const int MAX_PAGE_SIZE = 200;
 
+        /// <summary>
+        /// Handles the deprecated <c>get_tests_for_mode</c> command: the same paginated listing as
+        /// <c>get_tests</c>, except <c>mode</c> is required.
+        /// </summary>
+        /// <param name="params">
+        /// <c>mode</c> ("EditMode" or "PlayMode", required), plus the optional <c>filter</c>,
+        /// <c>page_size</c>, <c>cursor</c> and <c>page_number</c> arguments.
+        /// </param>
+        /// <returns>A paged test envelope, or an error response when <c>mode</c> is absent or unknown.</returns>
         public static async Task<object> HandleCommand(JObject @params)
         {
             string modeStr = @params?["mode"]?.ToString();

@@ -45,6 +45,11 @@ namespace MCPForUnity.Editor.Dependencies.Models
         /// </summary>
         public DateTime CheckedAt { get; set; }
 
+        /// <summary>
+        /// Creates an empty result with no dependencies recorded. <see cref="CheckedAt"/> is
+        /// stamped with the current UTC time; callers populate <see cref="Dependencies"/> and
+        /// then call <see cref="GenerateSummary"/> to fill in the verdict and message.
+        /// </summary>
         public DependencyCheckResult()
         {
             Dependencies = new List<DependencyStatus>();

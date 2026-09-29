@@ -15,6 +15,13 @@ namespace MCPForUnity.Editor.Resources.Project
     [McpForUnityResource("get_project_info")]
     public static class ProjectInfo
     {
+        /// <summary>
+        /// Handles the <c>get_project_info</c> command, returning the project root and name, the
+        /// Unity version, the active build target, the render pipeline, the active input handler,
+        /// and whether ugui, TextMeshPro and the Input System packages are installed.
+        /// </summary>
+        /// <param name="params">Unused; the values come from the loaded project.</param>
+        /// <returns>A success envelope with the project info, or an error response if it throws.</returns>
         public static object HandleCommand(JObject @params)
         {
             try

@@ -14,6 +14,13 @@ namespace MCPForUnity.Editor.Resources.Project
     {
         private const int TotalLayerCount = 32;
 
+        /// <summary>
+        /// Handles the <c>get_layers</c> command, returning the project's named layers keyed by
+        /// index. Unnamed slots (including the reserved built-in ones) are omitted, so the result
+        /// is a sparse map rather than a 32-entry array.
+        /// </summary>
+        /// <param name="params">Unused; layer names come from the project's TagManager.</param>
+        /// <returns>A success envelope mapping layer index to name, or an error response if it throws.</returns>
         public static object HandleCommand(JObject @params)
         {
             try

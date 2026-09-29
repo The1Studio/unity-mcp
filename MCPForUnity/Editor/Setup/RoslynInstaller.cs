@@ -8,6 +8,12 @@ using UnityEngine.Networking;
 
 namespace MCPForUnity.Editor.Setup
 {
+    /// <summary>
+    /// Downloads the Roslyn (Microsoft.CodeAnalysis) assemblies and their transitive NuGet
+    /// dependencies into <c>Assets/Plugins/Roslyn/</c>, which is what makes the
+    /// <c>runtime_compilation</c> MCP tool available. No package dependency: the .nupkg files are
+    /// fetched straight from nuget.org and the target DLL is unzipped out of each one.
+    /// </summary>
     public static class RoslynInstaller
     {
         private const string PluginsRelPath = "Plugins/Roslyn";
@@ -24,6 +30,17 @@ namespace MCPForUnity.Editor.Setup
             ("system.runtime.compilerservices.unsafe","6.0.0",  "lib/netstandard2.0/System.Runtime.CompilerServices.Unsafe.dll",   "System.Runtime.CompilerServices.Unsafe.dll"),
         };
 
+        /// <summary>
+        /// Reports whether every entry in <see cref="NuGetEntries"/> is present in
+        /// <c>Assets/Plugins/Roslyn/</c> at an assembly version new enough for the Roslyn build
+        /// that references it.
+        /// </summary>
+        /// <returns>
+        /// <c>true</c> only when all DLLs exist and each on-disk assembly version is at least its
+        /// declared NuGet version. A stale DLL that still satisfies file-existence but shadows the
+        /// required version (Unity's own <c>System.Runtime.CompilerServices.Unsafe</c> v4.x against
+        /// the v6 reference) reports <c>false</c>, so <see cref="Install"/> rewrites it.
+        /// </returns>
         public static bool IsInstalled()
         {
             string folder = Path.Combine(Application.dataPath, PluginsRelPath);
@@ -56,6 +73,19 @@ namespace MCPForUnity.Editor.Setup
             return true;
         }
 
+        /// <summary>
+        /// Fetches and writes every Roslyn DLL, then refreshes the asset database so the
+        /// assemblies are imported before the caller asks for <c>runtime_compilation</c>.
+        /// </summary>
+        /// <param name="interactive">
+        /// <c>true</c> for the menu-driven path: prompts before overwriting an existing install,
+        /// shows a progress bar and a result dialog. <c>false</c> for silent/CI installs, where the
+        /// log line is the only feedback.
+        /// </param>
+        /// <remarks>
+        /// Failures are logged and surfaced in a dialog rather than thrown — a partial install is
+        /// recoverable by re-running, and the caller (a menu item) has nowhere to propagate to.
+        /// </remarks>
         public static void Install(bool interactive = true)
         {
             if (IsInstalled() && interactive)

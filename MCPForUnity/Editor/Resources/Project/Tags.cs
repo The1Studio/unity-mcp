@@ -11,6 +11,12 @@ namespace MCPForUnity.Editor.Resources.Project
     [McpForUnityResource("get_tags")]
     public static class Tags
     {
+        /// <summary>
+        /// Handles the <c>get_tags</c> command, returning every tag defined in the project's
+        /// TagManager.
+        /// </summary>
+        /// <param name="params">Unused; tags come from the project settings.</param>
+        /// <returns>A success envelope with the tag list, or an error response if it throws.</returns>
         public static object HandleCommand(JObject @params)
         {
             try

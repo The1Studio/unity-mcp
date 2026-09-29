@@ -64,6 +64,16 @@ namespace MCPForUnity.Editor.Dependencies.PlatformDetectors
         }
 
 
+        /// <summary>
+        /// Splits a dotted version string and parses the first two components.
+        /// </summary>
+        /// <param name="version">Version text such as "3.11.4" or "3.11".</param>
+        /// <param name="major">Parsed major component; 0 when parsing fails.</param>
+        /// <param name="minor">Parsed minor component; 0 when parsing fails.</param>
+        /// <returns>
+        /// <c>true</c> only when the string has at least two dot-separated parts and both parse
+        /// as integers; <c>false</c> otherwise (a single-component version is not accepted).
+        /// </returns>
         protected bool TryParseVersion(string version, out int major, out int minor)
         {
             major = 0;
@@ -85,6 +95,21 @@ namespace MCPForUnity.Editor.Dependencies.PlatformDetectors
             return false;
         }
         // In PlatformDetectorBase.cs
+        /// <summary>
+        /// Runs <paramref name="command"/> with <c>--version</c> to confirm it is a working uv
+        /// installation, then extracts the version number from the output.
+        /// </summary>
+        /// <param name="command">Executable name or path to probe, e.g. "uv" or "uvx.exe".</param>
+        /// <param name="augmentedPath">
+        /// Extra PATH entries prepended by <c>ExecPath.TryRun</c>, so an installation outside the
+        /// editor's inherited PATH is still found.
+        /// </param>
+        /// <param name="version">Version parsed from the <c>uv</c> / <c>uvx</c> banner.</param>
+        /// <param name="fullPath">The executable that was actually invoked.</param>
+        /// <returns>
+        /// <c>true</c> when the command ran and its output began with "uv " or "uvx ";
+        /// <c>false</c> on failure, timeout, or unrecognized output.
+        /// </returns>
         protected bool TryValidateUvWithPath(string command, string augmentedPath, out string version, out string fullPath)
         {
             version = null;
@@ -132,6 +157,12 @@ namespace MCPForUnity.Editor.Dependencies.PlatformDetectors
         
 
         // Add abstract method for subclasses to implement
+        /// <summary>
+        /// Resolves an executable against the platform's augmented PATH.
+        /// </summary>
+        /// <param name="executable">Executable name, with the platform's extension where required.</param>
+        /// <param name="fullPath">Absolute path to the executable, or <c>null</c> when not found.</param>
+        /// <returns><c>true</c> when the executable was located.</returns>
         protected abstract bool TryFindInPath(string executable, out string fullPath);
     }
 }

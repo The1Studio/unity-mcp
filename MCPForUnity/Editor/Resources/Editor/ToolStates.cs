@@ -13,6 +13,13 @@ namespace MCPForUnity.Editor.Resources.Editor
     [McpForUnityResource("get_tool_states")]
     public static class ToolStates
     {
+        /// <summary>
+        /// Handles the <c>get_tool_states</c> command: serializes every discovered tool with its
+        /// group, enabled flag, description, parameter list and polling metadata, plus per-group
+        /// enabled/total counts. The Python server uses this to expose only the enabled tools.
+        /// </summary>
+        /// <param name="params">Unused; tool state comes from the discovery service.</param>
+        /// <returns>A success envelope with <c>tools</c> and <c>groups</c>, or an error response.</returns>
         public static object HandleCommand(JObject @params)
         {
             try

@@ -8,6 +8,12 @@ using UnityEngine;
 
 namespace MCPForUnity.Editor.Setup
 {
+    /// <summary>
+    /// Editor window that syncs the <c>unity-mcp-skill</c> files into a local agent CLI
+    /// installation (Claude or Codex). Reads the remote directory tree through the GitHub API and
+    /// applies an incremental add/update/delete, so no repository clone is needed; the settings
+    /// (repo URL, branch, CLI, install directory) persist in EditorPrefs.
+    /// </summary>
     public class McpForUnitySkillInstaller : EditorWindow
     {
         private const string RepoUrlKey = "UnityMcpSkillSync.RepoUrl";
@@ -28,6 +34,10 @@ namespace MCPForUnity.Editor.Setup
         private readonly ConcurrentQueue<string> _pendingLogs = new();
         private readonly StringBuilder _logBuilder = new(4096);
 
+        /// <summary>
+        /// Opens (or focuses) the sync window. Configuration fields are restored from EditorPrefs
+        /// in <c>OnEnable</c>.
+        /// </summary>
         public static void OpenWindow()
         {
             GetWindow<McpForUnitySkillInstaller>("Unity MCP Skill Install(Sync)");
