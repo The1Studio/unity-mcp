@@ -5,8 +5,18 @@ using UnityEditor.Build;
 
 namespace MCPForUnity.Editor.Tools.Build
 {
+    /// <summary>
+    /// Reads and writes the PlayerSettings fields exposed by the <c>build</c> tool's settings
+    /// action, keyed by the client's snake_case property names.
+    /// </summary>
     public static class BuildSettingsHelper
     {
+        /// <summary>
+        /// Reads one player-setting property, resolved against the given build target.
+        /// </summary>
+        /// <param name="property">Property name, e.g. <c>product_name</c> or <c>scripting_backend</c>.</param>
+        /// <param name="namedTarget">Build target whose overridden settings are read.</param>
+        /// <returns>An anonymous <c>{ property, value }</c> object, or null for an unknown property name.</returns>
         public static object ReadProperty(string property, NamedBuildTarget namedTarget)
         {
             switch (property.ToLowerInvariant())
@@ -33,6 +43,14 @@ namespace MCPForUnity.Editor.Tools.Build
             }
         }
 
+        /// <summary>
+        /// Applies one player-setting property. Values are validated before being written, so an
+        /// invalid scripting backend or architecture leaves the existing setting untouched.
+        /// </summary>
+        /// <param name="property">Property name to set.</param>
+        /// <param name="value">New value, parsed according to the property.</param>
+        /// <param name="namedTarget">Build target whose overridden settings are written.</param>
+        /// <returns>Null on success; otherwise the validation or failure message.</returns>
         public static string WriteProperty(string property, string value, NamedBuildTarget namedTarget)
         {
             try
@@ -85,6 +103,10 @@ namespace MCPForUnity.Editor.Tools.Build
             }
         }
 
+        /// <summary>
+        /// The property names <see cref="ReadProperty"/> and <see cref="WriteProperty"/> accept,
+        /// for echoing back in validation messages.
+        /// </summary>
         public static readonly IReadOnlyList<string> ValidProperties = new[]
         {
             "product_name", "company_name", "version", "bundle_id",

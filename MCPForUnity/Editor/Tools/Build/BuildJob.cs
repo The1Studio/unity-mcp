@@ -5,31 +5,72 @@ using UnityEditor.Build.Reporting;
 
 namespace MCPForUnity.Editor.Tools.Build
 {
+    /// <summary>
+    /// Lifecycle state of a build (or batch) job as reported back to the MCP client.
+    /// </summary>
     public enum BuildJobState
     {
+        /// <summary>Queued but not yet started.</summary>
         Pending,
+
+        /// <summary>Currently running in the editor's build pipeline.</summary>
         Building,
+
+        /// <summary>Finished without errors.</summary>
         Succeeded,
+
+        /// <summary>Finished with at least one error.</summary>
         Failed,
+
+        /// <summary>Aborted by the caller before it completed.</summary>
         Cancelled,
+
+        /// <summary>Not run, e.g. its platform was excluded from a batch.</summary>
         Skipped
     }
 
+    /// <summary>
+    /// State and outcome of a single-platform player build, captured from the
+    /// <see cref="BuildReport"/> at completion so the heavy native report object is not retained.
+    /// </summary>
     public class BuildJob
     {
+        /// <summary>Identifier the client uses to poll this job via the <c>build</c> tool.</summary>
         public string JobId { get; }
+
+        /// <summary>Current lifecycle state; defaults to <see cref="BuildJobState.Pending"/>.</summary>
         public BuildJobState State { get; set; } = BuildJobState.Pending;
+
+        /// <summary>Platform this player build targets.</summary>
         public BuildTarget Target { get; set; }
+
+        /// <summary>Absolute path the built player is written to.</summary>
         public string OutputPath { get; set; }
+
+        /// <summary>UTC timestamp the build started; <c>default</c> until it does.</summary>
         public DateTime StartedAt { get; set; }
+
+        /// <summary>UTC timestamp the build finished, or null while it is still running.</summary>
         public DateTime? CompletedAt { get; set; }
+
+        /// <summary>Failure detail; null or empty when the build did not fail.</summary>
         public string ErrorMessage { get; set; }
 
-        // Extracted from BuildReport at completion to avoid retaining the heavy native object
+        /// <summary>Total size of the built output in megabytes, from the build report.</summary>
         public double TotalSizeMb { get; set; }
+
+        /// <summary>Number of errors the build reported.</summary>
         public int TotalErrors { get; set; }
+
+        /// <summary>Number of warnings the build reported.</summary>
         public int TotalWarnings { get; set; }
 
+        /// <summary>
+        /// Creates a job in the <see cref="BuildJobState.Pending"/> state.
+        /// </summary>
+        /// <param name="jobId">Identifier the client will poll with.</param>
+        /// <param name="target">Platform this build targets.</param>
+        /// <param name="outputPath">Absolute path the built player is written to.</param>
         public BuildJob(string jobId, BuildTarget target, string outputPath)
         {
             JobId = jobId;
@@ -37,6 +78,12 @@ namespace MCPForUnity.Editor.Tools.Build
             OutputPath = outputPath;
         }
 
+        /// <summary>
+        /// Projects the job into the JSON shape the <c>build</c> tool returns. Timing and
+        /// size/error fields are included only once they are meaningful, so a client polling a
+        /// pending job does not read stale or zeroed values.
+        /// </summary>
+        /// <returns>A dictionary ready to serialize as the tool's status payload.</returns>
         public object ToStatusResponse()
         {
             var data = new Dictionary<string, object>
@@ -70,18 +117,39 @@ namespace MCPForUnity.Editor.Tools.Build
         }
     }
 
+    /// <summary>
+    /// A multi-platform build request: the parent job that owns the per-platform
+    /// <see cref="BuildJob"/> children built one after another.
+    /// </summary>
     public class BatchJob
     {
+        /// <summary>Identifier the client uses to poll the whole batch.</summary>
         public string JobId { get; }
+
+        /// <summary>Aggregate lifecycle state; defaults to <see cref="BuildJobState.Pending"/>.</summary>
         public BuildJobState State { get; set; } = BuildJobState.Pending;
+
+        /// <summary>Per-platform builds, in execution order.</summary>
         public List<BuildJob> Children { get; } = new();
+
+        /// <summary>Index of the child currently building, or -1 when none is running.</summary>
         public int CurrentIndex { get; set; } = -1;
 
+        /// <summary>
+        /// Creates a batch job in the <see cref="BuildJobState.Pending"/> state.
+        /// </summary>
+        /// <param name="jobId">Identifier the client will poll with.</param>
         public BatchJob(string jobId)
         {
             JobId = jobId;
         }
 
+        /// <summary>
+        /// Projects the batch into the JSON shape the <c>build</c> tool returns: the aggregate
+        /// state, how many children are terminal, which child is building, and each child's own
+        /// status payload.
+        /// </summary>
+        /// <returns>A dictionary ready to serialize as the tool's status payload.</returns>
         public object ToStatusResponse()
         {
             int completed = 0;
@@ -124,26 +192,59 @@ namespace MCPForUnity.Editor.Tools.Build
         private static readonly Dictionary<string, BatchJob> _batchJobs = new();
         private static BuildJob _lastCompletedJob;
 
+        /// <summary>
+        /// Generates a short unique id for a single-platform build job.
+        /// </summary>
+        /// <returns>An id of the form <c>build-</c> plus 9 hex characters.</returns>
         public static string CreateJobId() => $"build-{Guid.NewGuid():N}".Substring(0, 16);
+
+        /// <summary>
+        /// Generates a short unique id for a batch job.
+        /// </summary>
+        /// <returns>An id of the form <c>batch-</c> plus 9 hex characters.</returns>
         public static string CreateBatchId() => $"batch-{Guid.NewGuid():N}".Substring(0, 16);
 
+        /// <summary>Registers a single-platform build job so clients can poll it by id.</summary>
+        /// <param name="job">The job to add; an existing job with the same id is replaced.</param>
         public static void AddBuildJob(BuildJob job) => _buildJobs[job.JobId] = job;
+
+        /// <summary>Registers a batch job so clients can poll it by id.</summary>
+        /// <param name="job">The batch to add; an existing batch with the same id is replaced.</param>
         public static void AddBatchJob(BatchJob job) => _batchJobs[job.JobId] = job;
 
+        /// <summary>
+        /// Looks up a previously registered build job.
+        /// </summary>
+        /// <param name="jobId">Id returned by <see cref="CreateJobId"/>.</param>
+        /// <returns>The job, or null when the id is unknown or the job was pruned.</returns>
         public static BuildJob GetBuildJob(string jobId)
         {
             _buildJobs.TryGetValue(jobId, out var job);
             return job;
         }
 
+        /// <summary>
+        /// Looks up a previously registered batch job.
+        /// </summary>
+        /// <param name="jobId">Id returned by <see cref="CreateBatchId"/>.</param>
+        /// <returns>The batch, or null when the id is unknown or the batch was pruned.</returns>
         public static BatchJob GetBatchJob(string jobId)
         {
             _batchJobs.TryGetValue(jobId, out var job);
             return job;
         }
 
+        /// <summary>
+        /// The most recently finished build, kept regardless of pruning so a client can retrieve
+        /// the last result without holding its id. Null until the first build completes.
+        /// </summary>
         public static BuildJob LastCompletedJob => _lastCompletedJob;
 
+        /// <summary>
+        /// Records the just-finished build as the last completed one and prunes the job store back
+        /// under its retention cap.
+        /// </summary>
+        /// <param name="job">The build that just finished.</param>
         public static void SetLastCompleted(BuildJob job)
         {
             _lastCompletedJob = job;

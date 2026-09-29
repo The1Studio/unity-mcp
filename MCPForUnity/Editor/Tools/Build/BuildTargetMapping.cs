@@ -4,10 +4,23 @@ using UnityEditor.Build;
 
 namespace MCPForUnity.Editor.Tools.Build
 {
+    /// <summary>
+    /// Translates the MCP client's platform names (e.g. <c>windows64</c>, <c>macos</c>, <c>ios</c>)
+    /// into Unity <see cref="BuildTarget"/> values, and resolves the matching build-target group,
+    /// named target, default output path, and standalone subtarget for a build request.
+    /// </summary>
     public static class BuildTargetMapping
     {
         private const string VisionOSName = "VisionOS";
 
+        /// <summary>
+        /// Resolves a client-supplied platform name to a <see cref="BuildTarget"/>. Falls back to
+        /// parsing any build target the installed editor defines (so newly added platforms work
+        /// without a code change).
+        /// </summary>
+        /// <param name="name">Platform name; null or empty selects the editor's active build target.</param>
+/// <param name="target">Resolved build target, or <c>default</c> when resolution fails.</param>
+        /// <returns>True when <paramref name="target"/> was resolved; false for an unknown name.</returns>
         public static bool TryResolveBuildTarget(string name, out BuildTarget target)
         {
             if (string.IsNullOrEmpty(name))
@@ -38,6 +51,13 @@ namespace MCPForUnity.Editor.Tools.Build
             }
         }
 
+        /// <summary>
+        /// Maps a build target to its <see cref="BuildTargetGroup"/>. VisionOS is resolved by name
+        /// when the installed editor exposes the group; otherwise the result is
+        /// <see cref="BuildTargetGroup.Unknown"/>.
+        /// </summary>
+        /// <param name="target">The build target to map.</param>
+        /// <returns>The matching build target group, or <see cref="BuildTargetGroup.Unknown"/>.</returns>
         public static BuildTargetGroup GetTargetGroup(BuildTarget target)
         {
             switch (target)
@@ -63,11 +83,24 @@ namespace MCPForUnity.Editor.Tools.Build
             }
         }
 
+        /// <summary>
+        /// Returns the <see cref="NamedBuildTarget"/> used by the PlayerSettings APIs for the given
+        /// build target.
+        /// </summary>
+        /// <param name="target">The build target to map.</param>
+        /// <returns>The named build target derived from the target's build target group.</returns>
         public static NamedBuildTarget GetNamedBuildTarget(BuildTarget target)
         {
             return NamedBuildTarget.FromBuildTargetGroup(GetTargetGroup(target));
         }
 
+        /// <summary>
+        /// Resolves a client-supplied platform name all the way to a <see cref="NamedBuildTarget"/>,
+        /// reporting why resolution failed when it does.
+        /// </summary>
+        /// <param name="name">Platform name as sent by the client.</param>
+        /// <param name="namedTarget">Resolved named target, or <c>default</c> on failure.</param>
+        /// <returns>Null on success; otherwise a human-readable explanation of the failure.</returns>
         public static string TryResolveNamedBuildTarget(string name, out NamedBuildTarget namedTarget)
         {
             if (!TryResolveBuildTarget(name, out var buildTarget))
@@ -89,6 +122,12 @@ namespace MCPForUnity.Editor.Tools.Build
             return null;
         }
 
+        /// <summary>
+        /// Builds the error text returned when a platform name cannot be resolved, listing the valid
+        /// targets and calling out the missing visionOS support module as its own case.
+        /// </summary>
+        /// <param name="name">The unrecognized platform name.</param>
+        /// <returns>A message naming the valid targets, or the visionOS-specific guidance.</returns>
         public static string GetUnknownBuildTargetMessage(string name)
         {
             if (string.Equals(name, "visionos", StringComparison.OrdinalIgnoreCase))
@@ -128,6 +167,14 @@ namespace MCPForUnity.Editor.Tools.Build
                 && Enum.IsDefined(typeof(BuildTarget), target);
         }
 
+        /// <summary>
+        /// Produces the conventional output path for a build when the caller does not supply one:
+        /// <c>Builds/&lt;target&gt;/&lt;productName&gt;</c> plus the per-platform file extension
+        /// (<c>.exe</c>, <c>.app</c>, <c>.x86_64</c>, and <c>.apk</c>/<c>.aab</c> for Android).
+        /// </summary>
+        /// <param name="target">Platform being built.</param>
+        /// <param name="productName">Player product name, used as the file stem.</param>
+        /// <returns>The default output path for the target.</returns>
         public static string GetDefaultOutputPath(BuildTarget target, string productName)
         {
             string basePath = $"Builds/{target}";
@@ -152,6 +199,12 @@ namespace MCPForUnity.Editor.Tools.Build
             }
         }
 
+        /// <summary>
+        /// Converts the client's subtarget string into a <see cref="StandaloneBuildSubtarget"/>
+        /// ordinal; anything other than <c>server</c> resolves to a player build.
+        /// </summary>
+        /// <param name="subtarget">Client-supplied subtarget name, typically <c>player</c> or <c>server</c>.</param>
+        /// <returns>The subtarget as an integer, ready for <c>BuildPlayerOptions.subtarget</c>.</returns>
         public static int ResolveSubtarget(string subtarget)
         {
             if (string.IsNullOrEmpty(subtarget))
