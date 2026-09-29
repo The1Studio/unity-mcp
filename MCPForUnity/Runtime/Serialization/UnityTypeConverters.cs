@@ -9,6 +9,11 @@ using UnityEditor; // Required for AssetDatabase and EditorUtility
 
 namespace MCPForUnity.Runtime.Serialization
 {
+    /// <summary>
+    /// Serializes a <see cref="Vector3"/> as <c>{ x, y, z }</c>. On read it accepts either that
+    /// object shape or a JSON array of at least three numbers, so clients may send positions in
+    /// either form.
+    /// </summary>
     public class Vector3Converter : JsonConverter<Vector3>
     {
         public override void WriteJson(JsonWriter writer, Vector3 value, JsonSerializer serializer)
@@ -38,6 +43,10 @@ namespace MCPForUnity.Runtime.Serialization
         }
     }
 
+    /// <summary>
+    /// Serializes a <see cref="Vector2"/> as <c>{ x, y }</c>. On read it accepts either that
+    /// object shape or a JSON array of at least two numbers.
+    /// </summary>
     public class Vector2Converter : JsonConverter<Vector2>
     {
         public override void WriteJson(JsonWriter writer, Vector2 value, JsonSerializer serializer)
@@ -64,6 +73,10 @@ namespace MCPForUnity.Runtime.Serialization
         }
     }
 
+    /// <summary>
+    /// Serializes a <see cref="Quaternion"/> as <c>{ x, y, z, w }</c>. On read it accepts either
+    /// that object shape or a JSON array of at least four numbers.
+    /// </summary>
     public class QuaternionConverter : JsonConverter<Quaternion>
     {
         public override void WriteJson(JsonWriter writer, Quaternion value, JsonSerializer serializer)
@@ -96,6 +109,10 @@ namespace MCPForUnity.Runtime.Serialization
         }
     }
 
+    /// <summary>
+    /// Serializes a <see cref="Color"/> as <c>{ r, g, b, a }</c> using its raw channel values
+    /// (no colour-space conversion).
+    /// </summary>
     public class ColorConverter : JsonConverter<Color>
     {
         public override void WriteJson(JsonWriter writer, Color value, JsonSerializer serializer)
@@ -124,6 +141,9 @@ namespace MCPForUnity.Runtime.Serialization
         }
     }
 
+    /// <summary>
+    /// Serializes a <see cref="Rect"/> as <c>{ x, y, width, height }</c>.
+    /// </summary>
     public class RectConverter : JsonConverter<Rect>
     {
         public override void WriteJson(JsonWriter writer, Rect value, JsonSerializer serializer)
@@ -152,6 +172,10 @@ namespace MCPForUnity.Runtime.Serialization
         }
     }
 
+    /// <summary>
+    /// Serializes a <see cref="Bounds"/> as <c>{ center, size }</c>, delegating both nested values
+    /// to the serializer so they pick up the Vector3 converter.
+    /// </summary>
     public class BoundsConverter : JsonConverter<Bounds>
     {
         public override void WriteJson(JsonWriter writer, Bounds value, JsonSerializer serializer)
@@ -173,6 +197,10 @@ namespace MCPForUnity.Runtime.Serialization
         }
     }
 
+    /// <summary>
+    /// Serializes a <see cref="Vector4"/> as <c>{ x, y, z, w }</c>. On read it accepts either that
+    /// object shape or a JSON array of at least four numbers.
+    /// </summary>
     public class Vector4Converter : JsonConverter<Vector4>
     {
         public override void WriteJson(JsonWriter writer, Vector4 value, JsonSerializer serializer)
@@ -544,9 +572,6 @@ namespace MCPForUnity.Runtime.Serialization
 #endif
         }
 
-        /// <summary>
-        /// Checks if a string looks like a valid GUID (32 hex chars, with or without hyphens).
-        /// </summary>
         private static bool IsValidGuid(string str)
         {
             if (string.IsNullOrEmpty(str)) return false;

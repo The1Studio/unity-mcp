@@ -7,18 +7,46 @@ using UnityEngine;
 namespace MCPForUnity.Runtime.Helpers
 //The reason for having another Runtime Utilities in additional to Editor Utilities is to avoid Editor-only dependencies in this runtime code.
 {
+    /// <summary>
+    /// Outcome of a screenshot capture: where the PNG was written, and optionally the image itself
+    /// as base64 so the MCP client can view it without reading from disk.
+    /// </summary>
     public readonly struct ScreenshotCaptureResult
     {
+        /// <summary>
+        /// Creates a synchronous result that carries no inline image.
+        /// </summary>
+        /// <param name="fullPath">Absolute path the PNG was written to.</param>
+        /// <param name="projectRelativePath">Same path relative to the Unity project root.</param>
+        /// <param name="superSize">Resolution multiplier applied to the capture.</param>
         public ScreenshotCaptureResult(string fullPath, string projectRelativePath, int superSize)
             : this(fullPath, projectRelativePath, superSize, isAsync: false, imageBase64: null, imageWidth: 0, imageHeight: 0)
         {
         }
 
+        /// <summary>
+        /// Creates a result that carries no inline image, choosing whether the capture completed
+        /// synchronously.
+        /// </summary>
+        /// <param name="fullPath">Absolute path the PNG will be written to.</param>
+        /// <param name="projectRelativePath">Same path relative to the Unity project root.</param>
+        /// <param name="superSize">Resolution multiplier applied to the capture.</param>
+        /// <param name="isAsync">True when the file is written after the current frame, so the path is not yet readable.</param>
         public ScreenshotCaptureResult(string fullPath, string projectRelativePath, int superSize, bool isAsync)
             : this(fullPath, projectRelativePath, superSize, isAsync, imageBase64: null, imageWidth: 0, imageHeight: 0)
         {
         }
 
+        /// <summary>
+        /// Creates a result that may carry the captured image inline as base64.
+        /// </summary>
+        /// <param name="fullPath">Absolute path the PNG was written to.</param>
+        /// <param name="projectRelativePath">Same path relative to the Unity project root.</param>
+        /// <param name="superSize">Resolution multiplier applied to the capture.</param>
+        /// <param name="isAsync">True when the file is written after the current frame.</param>
+        /// <param name="imageBase64">Base64 PNG data, or null when the image was not requested.</param>
+        /// <param name="imageWidth">Width of the encoded image in pixels.</param>
+        /// <param name="imageHeight">Height of the encoded image in pixels.</param>
         public ScreenshotCaptureResult(string fullPath, string projectRelativePath, int superSize, bool isAsync,
             string imageBase64, int imageWidth, int imageHeight)
         {
@@ -31,17 +59,34 @@ namespace MCPForUnity.Runtime.Helpers
             ImageHeight = imageHeight;
         }
 
+
+        /// <summary>Absolute filesystem path the PNG was (or will be) written to.</summary>
         public string FullPath { get; }
+
         /// <summary>Path relative to the Unity project root (e.g. "Captures/foo.png"). Suitable for ScreenCapture.CaptureScreenshot.</summary>
         public string ProjectRelativePath { get; }
+
+        /// <summary>Resolution multiplier that was applied to the capture.</summary>
         public int SuperSize { get; }
+
+        /// <summary>True when the PNG is written after the current frame, so <see cref="FullPath"/> is not yet readable.</summary>
         public bool IsAsync { get; }
+
         /// <summary>Base64-encoded PNG image data. Only populated when include_image is true.</summary>
         public string ImageBase64 { get; }
+
+        /// <summary>Width in pixels of the image encoded in <see cref="ImageBase64"/>; 0 when no image was captured.</summary>
         public int ImageWidth { get; }
+
+        /// <summary>Height in pixels of the image encoded in <see cref="ImageBase64"/>; 0 when no image was captured.</summary>
         public int ImageHeight { get; }
     }
 
+    /// <summary>
+    /// Runtime screenshot capture used by the <c>manage_camera</c>/screenshot tooling. Lives in the
+    /// Runtime assembly so it can run in Play Mode without editor-only dependencies; it writes
+    /// PNGs under the project's screenshot folder and can return the image inline as base64.
+    /// </summary>
     public static class ScreenshotUtility
     {
         /// <summary>
@@ -109,6 +154,16 @@ namespace MCPForUnity.Runtime.Helpers
             }
         }
 
+        /// <summary>
+        /// Requests a full-screen capture through <c>ScreenCapture.CaptureScreenshot</c>, which is
+        /// asynchronous: the file appears after the current frame, so <c>IsAsync</c> is true on the
+        /// result.
+        /// </summary>
+        /// <param name="fileName">File name to write; a timestamped <c>screenshot-*.png</c> when null.</param>
+        /// <param name="superSize">Resolution multiplier applied to the capture.</param>
+        /// <param name="ensureUniqueFileName">Whether to add a suffix instead of overwriting an existing file.</param>
+        /// <param name="folderOverride">Project-relative or in-project absolute folder; the default folder when null.</param>
+        /// <returns>The capture result, whose file is written after the current frame.</returns>
         public static ScreenshotCaptureResult CaptureToProjectFolder(
             string fileName = null,
             int superSize = 1,
@@ -126,6 +181,14 @@ namespace MCPForUnity.Runtime.Helpers
         /// When <paramref name="includeImage"/> is true, the result includes a base64-encoded PNG (optionally
         /// downscaled so the longest edge is at most <paramref name="maxResolution"/>).
         /// </summary>
+        /// <param name="camera">Camera to render; throws when null.</param>
+        /// <param name="fileName">File name to write; a timestamped <c>screenshot-*.png</c> when null.</param>
+        /// <param name="superSize">Resolution multiplier applied to the render.</param>
+        /// <param name="ensureUniqueFileName">Whether to add a suffix instead of overwriting an existing file.</param>
+        /// <param name="includeImage">Whether to also return the PNG inline as base64.</param>
+        /// <param name="maxResolution">Longest-edge cap for the inline image; 0 selects 640 pixels.</param>
+        /// <param name="folderOverride">Project-relative or in-project absolute folder; the default folder when null.</param>
+        /// <returns>The capture result, including the inline image when requested.</returns>
         public static ScreenshotCaptureResult CaptureFromCameraToProjectFolder(
             Camera camera,
             string fileName = null,
@@ -239,6 +302,13 @@ namespace MCPForUnity.Runtime.Helpers
         /// final composited frame including UI Toolkit overlays, post-processing, etc.
         /// Falls back to camera-based capture if ScreenCapture returns null at runtime.
         /// </summary>
+        /// <param name="fileName">File name to write; a timestamped <c>screenshot-*.png</c> when null.</param>
+        /// <param name="superSize">Resolution multiplier applied to the capture.</param>
+        /// <param name="ensureUniqueFileName">Whether to add a suffix instead of overwriting an existing file.</param>
+        /// <param name="includeImage">Whether to also return the PNG inline as base64.</param>
+        /// <param name="maxResolution">Longest-edge cap for the inline image; 0 selects 640 pixels.</param>
+        /// <param name="folderOverride">Project-relative or in-project absolute folder; the default folder when null.</param>
+        /// <returns>The capture result, including the inline image when requested.</returns>
         public static ScreenshotCaptureResult CaptureComposited(
             string fileName = null,
             int superSize = 1,
@@ -318,6 +388,13 @@ namespace MCPForUnity.Runtime.Helpers
         /// Requires the Screen Capture module and only works when the Game View is actively rendering.
         /// Falls back to camera-based capture if CaptureScreenshotAsTexture is unavailable.
         /// </summary>
+        /// <param name="fileName">File name to write; a timestamped <c>screenshot-*.png</c> when null.</param>
+        /// <param name="superSize">Resolution multiplier applied to the capture.</param>
+        /// <param name="ensureUniqueFileName">Whether to add a suffix instead of overwriting an existing file.</param>
+        /// <param name="includeImage">Whether to also return the PNG inline as base64.</param>
+        /// <param name="maxResolution">Longest-edge cap for the inline image; 0 selects 640 pixels.</param>
+        /// <returns>The capture result, including the inline image when requested.</returns>
+        /// <exception cref="InvalidOperationException">Thrown when the Screen Capture module is not enabled.</exception>
         public static ScreenshotCaptureResult CaptureScreenToAssetsFolder(
             string fileName = null,
             int superSize = 1,
@@ -387,6 +464,9 @@ namespace MCPForUnity.Runtime.Helpers
         /// Renders a camera to a Texture2D without saving to disk. Used for multi-angle captures.
         /// Returns the base64-encoded PNG, downscaled to fit within <paramref name="maxResolution"/>.
         /// </summary>
+        /// <param name="camera">Camera to render; throws when null.</param>
+        /// <param name="maxResolution">Longest-edge cap for the returned image; 0 selects 640 pixels.</param>
+        /// <returns>The base64 PNG and its pixel dimensions.</returns>
         public static (string base64, int width, int height) RenderCameraToBase64(Camera camera, int maxResolution = 640)
         {
             if (camera == null) throw new ArgumentNullException(nameof(camera));
@@ -436,6 +516,9 @@ namespace MCPForUnity.Runtime.Helpers
         /// Renders a camera to a Texture2D without saving to disk.
         /// Caller owns the returned texture and must destroy it.
         /// </summary>
+        /// <param name="camera">Camera to render; throws when null.</param>
+        /// <param name="maxResolution">Longest-edge cap for the returned texture; 0 selects 640 pixels.</param>
+        /// <returns>A new texture owned by the caller, which must destroy it when done.</returns>
         public static Texture2D RenderCameraToTexture(Camera camera, int maxResolution = 640)
         {
             if (camera == null) throw new ArgumentNullException(nameof(camera));
@@ -483,6 +566,10 @@ namespace MCPForUnity.Runtime.Helpers
         /// Labels are drawn as white text on a dark banner at the bottom of each tile.
         /// Returns base64 PNG plus dimensions. Destroys all input tile textures.
         /// </summary>
+        /// <param name="tiles">Tile images to lay out; throws when null or empty.</param>
+        /// <param name="labels">Optional caption per tile, drawn on the banner beneath it.</param>
+        /// <param name="padding">Gap in pixels between cells.</param>
+        /// <returns>The composited sheet as base64 PNG plus its dimensions.</returns>
         public static (string base64, int width, int height) ComposeContactSheet(
             List<Texture2D> tiles, List<string> labels, int padding = 4)
         {
@@ -663,6 +750,9 @@ namespace MCPForUnity.Runtime.Helpers
         /// Uses bilinear filtering via a temporary RenderTexture blit.
         /// Caller must destroy the returned Texture2D.
         /// </summary>
+        /// <param name="source">Texture to downscale; throws when null.</param>
+        /// <param name="maxEdge">Longest-edge cap in pixels.</param>
+        /// <returns>A new, smaller texture owned by the caller.</returns>
         public static Texture2D DownscaleTexture(Texture2D source, int maxEdge)
         {
             if (source == null)
@@ -729,6 +819,9 @@ namespace MCPForUnity.Runtime.Helpers
         /// absolute, or null/empty) to an absolute filesystem path inside the project root.
         /// Throws on traversal escape or absolute paths outside the project.
         /// </summary>
+        /// <param name="folderOverride">Folder spec: project-relative, absolute inside the project, or null for the default.</param>
+        /// <returns>The resolved absolute folder path, with forward slashes and no trailing separator.</returns>
+        /// <exception cref="InvalidOperationException">Thrown when the path resolves outside the project root.</exception>
         public static string ResolveFolderAbsolute(string folderOverride)
         {
             string projectRoot = GetProjectRootPath().TrimEnd('/');
@@ -762,6 +855,8 @@ namespace MCPForUnity.Runtime.Helpers
         /// (forward slashes, no leading separator). Returns the input unchanged when it does
         /// not live under the project root.
         /// </summary>
+        /// <param name="normalizedFullPath">Absolute path inside the project, using forward slashes.</param>
+        /// <returns>The project-relative path, or the input unchanged when it is outside the project.</returns>
         public static string ToProjectRelativePath(string normalizedFullPath)
         {
             if (string.IsNullOrEmpty(normalizedFullPath)) return normalizedFullPath;
@@ -778,6 +873,8 @@ namespace MCPForUnity.Runtime.Helpers
         /// True when <paramref name="projectRelativePath"/> lives under the Unity Assets/ folder
         /// (and therefore should be imported via AssetDatabase).
         /// </summary>
+        /// <param name="projectRelativePath">Project-relative path to test.</param>
+        /// <returns>True when the path is <c>Assets</c> or lives beneath it.</returns>
         public static bool IsUnderAssets(string projectRelativePath)
         {
             if (string.IsNullOrEmpty(projectRelativePath)) return false;
@@ -858,7 +955,13 @@ namespace MCPForUnity.Runtime.Helpers
         private int _superSize = 1;
         private Action<Texture2D> _onComplete;
 
-        /// <summary>Spawns a hidden GameObject, attaches a capturer, returns immediately.</summary>
+        /// <summary>
+        /// Spawns a hidden, non-saved GameObject carrying a capturer and returns immediately; the
+        /// callback runs after the end of the current frame with the captured texture, which may be
+        /// null when the capture failed.
+        /// </summary>
+        /// <param name="superSize">Resolution multiplier applied to the capture.</param>
+        /// <param name="onComplete">Receives the captured texture, or null on failure, after end of frame.</param>
         public static void Begin(int superSize, Action<Texture2D> onComplete)
         {
             var go = new GameObject("__MCP_ScreenshotCapturer__") { hideFlags = HideFlags.HideAndDontSave };

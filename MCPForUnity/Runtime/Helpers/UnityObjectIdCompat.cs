@@ -22,6 +22,8 @@ namespace MCPForUnity.Runtime.Helpers
         /// the int-shaped wire format that older consumers expect. For deserialization
         /// round-trips on 6.5+, prefer the full <c>entityID</c> field.
         /// </summary>
+        /// <param name="obj">Object to identify.</param>
+        /// <returns>An int handle for the object, or 0 when it is null.</returns>
         public static int GetInstanceIDCompat(this Object obj)
         {
             if (obj == null)
@@ -50,6 +52,8 @@ namespace MCPForUnity.Runtime.Helpers
         ///              but is obsolete-as-error; reflection bypasses CS0619 until the public
         ///              EntityId(int) ctor stabilizes.
         /// </summary>
+        /// <param name="instanceId">Session-scoped int handle, as produced by <see cref="GetInstanceIDCompat"/>.</param>
+        /// <returns>The resolved object, or null when the handle no longer maps to a live object.</returns>
         public static Object InstanceIDToObjectCompat(int instanceId)
         {
 #if UNITY_6000_6_OR_NEWER
@@ -79,6 +83,8 @@ namespace MCPForUnity.Runtime.Helpers
         /// Takes the Object directly (rather than a previously-computed int handle) to avoid
         /// routing through the lossy int truncation in <see cref="GetInstanceIDCompat"/>.
         /// </summary>
+        /// <param name="obj">Object whose preview state is queried.</param>
+        /// <returns>True while Unity is still generating an asset preview for the object.</returns>
         public static bool IsLoadingAssetPreviewCompat(this Object obj)
         {
             if (obj == null)

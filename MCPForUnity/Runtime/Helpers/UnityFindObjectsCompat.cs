@@ -25,6 +25,8 @@ namespace MCPForUnity.Runtime.Helpers
     public static class UnityFindObjectsCompat
     {
         /// <summary>Find all active objects of type T.</summary>
+/// <typeparam name="T">Component or object type to find.</typeparam>
+/// <returns>The active objects of type T; an empty array when none exist.</returns>
         public static T[] FindAll<T>() where T : UObject
         {
 #if UNITY_6000_5_OR_NEWER
@@ -41,6 +43,8 @@ namespace MCPForUnity.Runtime.Helpers
         }
 
         /// <summary>Find all active objects of the given runtime type.</summary>
+/// <param name="type">Runtime type to find.</param>
+/// <returns>The active objects of that type; an empty array when none exist.</returns>
         public static UObject[] FindAll(Type type)
         {
 #if UNITY_6000_5_OR_NEWER
@@ -53,6 +57,9 @@ namespace MCPForUnity.Runtime.Helpers
         }
 
         /// <summary>Find all objects of the given runtime type, optionally including inactive.</summary>
+/// <param name="type">Runtime type to find.</param>
+/// <param name="includeInactive">Whether inactive objects are included in the result.</param>
+/// <returns>The matching objects; an empty array when none exist.</returns>
         public static UObject[] FindAll(Type type, bool includeInactive)
         {
 #if UNITY_6000_5_OR_NEWER
@@ -68,6 +75,8 @@ namespace MCPForUnity.Runtime.Helpers
         }
 
         /// <summary>Find any single object of the given runtime type (no ordering guarantee).</summary>
+/// <param name="type">Runtime type to find.</param>
+/// <returns>Any matching object, or null when none exists.</returns>
         public static UObject FindAny(Type type)
         {
 #if UNITY_2022_3_OR_NEWER

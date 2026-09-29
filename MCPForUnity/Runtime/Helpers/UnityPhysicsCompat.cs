@@ -71,6 +71,8 @@ namespace MCPForUnity.Runtime.Helpers
         /// writable. Returns <c>true</c> if the write happened, <c>false</c> if the
         /// property is unavailable in this Unity version.
         /// </summary>
+        /// <param name="value">Value to assign to the property.</param>
+        /// <returns>True when the write happened; false when the property is unavailable.</returns>
         public static bool TrySetPhysics2DAutoSyncTransforms(bool value)
         {
             var prop = Physics2DAutoSyncProp;
@@ -123,6 +125,8 @@ namespace MCPForUnity.Runtime.Helpers
         /// writable. Returns <c>true</c> if the write happened, <c>false</c> if the
         /// property is unavailable in this Unity version.
         /// </summary>
+        /// <param name="value">Value to assign to the property.</param>
+        /// <returns>True when the write happened; false when the property is unavailable.</returns>
         public static bool TrySetPhysicsAutoSyncTransforms(bool value)
         {
             var prop = PhysicsAutoSyncProp;
@@ -209,6 +213,8 @@ namespace MCPForUnity.Runtime.Helpers
         /// Returns false if the requested mode isn't expressible on this Unity version
         /// (e.g. Update mode on pre-2022.2).
         /// </summary>
+        /// <param name="mode">Mode to apply.</param>
+        /// <returns>True when the mode was applied; false when this Unity version cannot express it.</returns>
         public static bool TrySetPhysicsSimulationMode(SimulationMode mode)
         {
             var modeProp = PhysicsSimulationModeProp;
