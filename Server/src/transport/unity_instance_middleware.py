@@ -54,6 +54,48 @@ def set_unity_instance_middleware(middleware: 'UnityInstanceMiddleware') -> None
     _unity_instance_middleware = middleware
 
 
+UNITY_INSTANCE_PARAM_DESCRIPTION = (
+    "Optional. Route just this call to a specific connected Unity Editor: "
+    "Name@hash, or a unique hash prefix (or a port number in stdio mode). "
+    "Read mcpforunity://instances for the candidates. Overrides the session's "
+    "active instance for this call only; omit it to use the active/auto-selected one."
+)
+
+
+# Server-local tools that never talk to an Editor, so a per-call target is meaningless.
+# (Not simply "unity_target is None": execute_custom_tool has none yet does route.)
+TOOLS_WITHOUT_UNITY_INSTANCE = frozenset({
+    "set_active_instance",
+    "manage_tools",
+    "debug_request_context",
+    "manage_script_capabilities",
+})
+
+
+def add_unity_instance_param(schema: dict | None) -> dict | None:
+    """Return ``schema`` with an optional ``unity_instance`` property added.
+
+    ``on_call_tool`` has always accepted (and popped) ``unity_instance`` from any
+    tool call, but the advertised schemas are ``additionalProperties: false`` and
+    never listed it, so schema-aware clients neither offered nor accepted it
+    (#101). Advertising it once here, rather than on each tool signature, keeps
+    the 50+ tool functions untouched. Never marks it required, never mutates the
+    input, and is idempotent.
+    """
+    if not isinstance(schema, dict):
+        return schema
+    props = schema.get("properties")
+    if not isinstance(props, dict) or "unity_instance" in props:
+        return schema
+    new_props = dict(props)
+    new_props["unity_instance"] = {
+        "anyOf": [{"type": "string"}, {"type": "null"}],
+        "default": None,
+        "description": UNITY_INSTANCE_PARAM_DESCRIPTION,
+    }
+    return {**schema, "properties": new_props}
+
+
 class UnityInstanceMiddleware(Middleware):
     """
     Middleware that manages per-session Unity instance selection.
@@ -528,15 +570,16 @@ class UnityInstanceMiddleware(Middleware):
             len(tools), tool_names_from_fastmcp,
         )
 
+        self._refresh_tool_visibility_metadata_from_registry()
+
         if not self._should_filter_tool_listing():
             _diag.debug("on_list_tools: skipping middleware filter (not HTTP or PluginHub not configured)")
-            return tools
+            return self._advertise_unity_instance(tools)
 
-        self._refresh_tool_visibility_metadata_from_registry()
         enabled_tool_names = await self._resolve_enabled_tool_names_for_context(context)
         if enabled_tool_names is None:
             _diag.debug("on_list_tools: no Unity session data, returning %d tools from FastMCP as-is", len(tools))
-            return tools
+            return self._advertise_unity_instance(tools)
 
         filtered = []
         for tool in tools:
@@ -549,7 +592,27 @@ class UnityInstanceMiddleware(Middleware):
             "enabled_names=%s",
             len(filtered), len(tools), sorted(enabled_tool_names),
         )
-        return filtered
+        return self._advertise_unity_instance(filtered)
+
+    def _advertise_unity_instance(self, tools):
+        """Add the optional ``unity_instance`` argument to every Unity-routed tool schema."""
+        out = []
+        for tool in tools:
+            name = getattr(tool, "name", None)
+            if name in TOOLS_WITHOUT_UNITY_INSTANCE:
+                out.append(tool)
+                continue
+            params = getattr(tool, "parameters", None)
+            new_params = add_unity_instance_param(params)
+            if new_params is params:
+                out.append(tool)
+                continue
+            try:
+                out.append(tool.model_copy(update={"parameters": new_params}))
+            except Exception:  # unknown tool type: leave as advertised
+                _diag.debug("Could not advertise unity_instance on %s", name, exc_info=True)
+                out.append(tool)
+        return out
 
     def _should_filter_tool_listing(self) -> bool:
         transport = (config.transport_mode or "stdio").lower()

@@ -263,7 +263,32 @@ async def disconnect_reflected(d, a, b):
         assert not ed_a.received, "call for the gone editor was rerouted to the other"
 
 
+async def schema_advertises_unity_instance(d, a, b):
+    """#101: every Editor-routed tool schema lists optional unity_instance; meta-tools do not."""
+    ed_a, ed_b = await two_editors(d, a, b)
+    async with client(d) as c:
+        tools = {t.name: t for t in await c.list_tools()}
+        scene_schema = tools["manage_scene"].inputSchema
+        prop = scene_schema["properties"].get("unity_instance")
+        assert prop is not None, list(scene_schema["properties"])
+        assert "unity_instance" not in scene_schema.get("required", []), scene_schema
+        assert scene_schema.get("additionalProperties") is False, scene_schema
+        missing = [n for n, t in tools.items()
+                   if n not in ("set_active_instance", "manage_tools",
+                                "debug_request_context", "manage_script_capabilities")
+                   and "unity_instance" not in t.inputSchema.get("properties", {})]
+        assert not missing, f"tools without unity_instance: {missing}"
+        assert "unity_instance" not in tools["set_active_instance"].inputSchema["properties"]
+        # a schema-validating client accepts the advertised argument
+        import jsonschema
+        jsonschema.validate({"action": "get_active", "unity_instance": B_ID}, scene_schema)
+        jsonschema.validate({"action": "get_active", "unity_instance": None}, scene_schema)
+        # and the advertised argument still routes
+        assert await answered_by(c, unity_instance=B_ID) == "ProjB"
+
+
 SCENARIOS = {
+    "schema_advertises_unity_instance": (schema_advertises_unity_instance, "elsewhere"),
     "routes_by_selector": (routes_by_selector, "elsewhere"),
     "port_selector_rejected": (port_selector_rejected, "elsewhere"),
     "no_selection_lists_instances": (no_selection_lists_instances, "elsewhere"),

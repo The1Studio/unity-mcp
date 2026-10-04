@@ -26,6 +26,7 @@ SCENARIOS = [
     "concurrent_sessions",         # (c)
     "second_client_leaving",       # (c)
     "disconnect_reflected",        # (d)
+    "schema_advertises_unity_instance",  # #101
 ]
 
 
