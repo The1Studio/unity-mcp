@@ -62,6 +62,8 @@ class UnityInstanceMiddleware(Middleware):
     for all tool and resource calls.
     """
 
+    _MAX_TRACKED_SESSIONS = 1024
+
     def __init__(self):
         super().__init__()
         self._active_by_key: dict[str, str] = {}
@@ -81,7 +83,11 @@ class UnityInstanceMiddleware(Middleware):
 
         Prioritizes client_id for stability.
         In remote-hosted mode, falls back to user_id for session isolation.
-        Otherwise falls back to 'global' (assuming single-user local mode).
+        Then the MCP session id: one shared HTTP daemon serves many concurrent
+        clients (one ``mcp-session-id`` each), and without this they all collapsed
+        onto the single "global" key, so one client's ``set_active_instance``
+        silently re-routed every other client's calls.
+        Otherwise falls back to 'global' (a single stdio client).
         """
         client_id = getattr(ctx, "client_id", None)
         if isinstance(client_id, str) and client_id:
@@ -92,6 +98,13 @@ class UnityInstanceMiddleware(Middleware):
         if isinstance(user_id, str) and user_id:
             return f"user:{user_id}"
 
+        try:
+            session_id = getattr(ctx, "session_id", None)
+        except RuntimeError:
+            session_id = None  # outside a request context (no session yet)
+        if isinstance(session_id, str) and session_id:
+            return f"session:{session_id}"
+
         # Fallback to global for local dev stability
         return "global"
 
@@ -99,7 +112,13 @@ class UnityInstanceMiddleware(Middleware):
         """Store the active instance for this session."""
         key = await self.get_session_key(ctx)
         with self._lock:
+            # Re-insert so the dict stays ordered by recency of use.
+            self._active_by_key.pop(key, None)
             self._active_by_key[key] = instance_id
+            # A long-lived shared daemon sees an unbounded stream of short-lived
+            # client sessions; drop the least recently set selections.
+            while len(self._active_by_key) > self._MAX_TRACKED_SESSIONS:
+                self._active_by_key.pop(next(iter(self._active_by_key)))
 
     async def get_active_instance(self, ctx) -> str | None:
         """Retrieve the active instance for this session."""
@@ -391,6 +410,11 @@ class UnityInstanceMiddleware(Middleware):
         from transport.unity_transport import _resolve_user_id_from_request
         return await _resolve_user_id_from_request()
 
+    @staticmethod
+    def _is_instances_resource_read(context: MiddlewareContext) -> bool:
+        uri = getattr(getattr(context, "message", None), "uri", None)
+        return str(uri) == "mcpforunity://instances"
+
     async def _inject_unity_instance(self, context: MiddlewareContext) -> None:
         """Inject active Unity instance and user_id into context if available."""
         ctx = context.fastmcp_context
@@ -422,7 +446,13 @@ class UnityInstanceMiddleware(Middleware):
         if not active_instance:
             active_instance = await self.get_active_instance(ctx)
         if not active_instance:
-            active_instance = await self._maybe_autoselect_instance(ctx)
+            try:
+                active_instance = await self._maybe_autoselect_instance(ctx)
+            except CrossProjectAutoSelectError:
+                # Reading the instance list is how a caller recovers from this
+                # refusal; it must not be refused by the very guard it explains.
+                if not self._is_instances_resource_read(context):
+                    raise
         if active_instance:
             # If using HTTP transport (PluginHub configured), validate session
             # But for stdio transport (no PluginHub needed or maybe partially configured),

@@ -76,15 +76,20 @@ class InstanceSelectionRequiredError(RuntimeError):
 
     _SELECTION_REQUIRED = (
         "Unity instance selection is required. "
-        "Call set_active_instance with Name@hash from mcpforunity://instances."
+        "Pass unity_instance=<Name@hash> on the call, or call set_active_instance "
+        "with Name@hash from mcpforunity://instances."
     )
     _MULTIPLE_INSTANCES = (
-        "Multiple Unity instances are connected. "
-        "Call set_active_instance with Name@hash from mcpforunity://instances."
+        "Multiple Unity instances are connected and none was selected. "
+        "Pass unity_instance=<Name@hash> on the call, or call set_active_instance "
+        "with Name@hash from mcpforunity://instances."
     )
 
-    def __init__(self, message: str | None = None):
-        super().__init__(message or self._SELECTION_REQUIRED)
+    def __init__(self, message: str | None = None, available: list[str] | None = None):
+        text = message or self._SELECTION_REQUIRED
+        if available:
+            text = f"{text} Available: {', '.join(sorted(available))}."
+        super().__init__(text)
 
 
 class PluginHub(WebSocketEndpoint):
@@ -919,6 +924,7 @@ class PluginHub(WebSocketEndpoint):
         session_count: int,
         explicit_required: bool,
         target_hash: str | None,
+        available: list[str] | None = None,
     ) -> None:
         """Reject a resolution that requires an explicit instance choice.
 
@@ -933,9 +939,10 @@ class PluginHub(WebSocketEndpoint):
             return
         if session_count > 1:
             raise InstanceSelectionRequiredError(
-                InstanceSelectionRequiredError._MULTIPLE_INSTANCES)
+                InstanceSelectionRequiredError._MULTIPLE_INSTANCES,
+                available=available)
         if explicit_required and session_count > 0:
-            raise InstanceSelectionRequiredError()
+            raise InstanceSelectionRequiredError(available=available)
 
     @classmethod
     async def _resolve_session_id(
@@ -997,6 +1004,15 @@ class PluginHub(WebSocketEndpoint):
             else:
                 target_hash = unity_instance
 
+        # Ids (Name@hash) of the sessions seen by the latest _try_once(), so a
+        # "selection required" error can name the candidates instead of making
+        # the caller go and read mcpforunity://instances.
+        available: list[str] = []
+
+        def _remember(sessions: dict) -> None:
+            available[:] = [
+                f"{s.project_name}@{s.project_hash}" for s in sessions.values()]
+
         async def _try_once() -> tuple[str | None, int, bool]:
             explicit_required = config.http_remote_hosted
             # Prefer a specific Unity instance if one was requested
@@ -1013,6 +1029,7 @@ class PluginHub(WebSocketEndpoint):
             # No target provided: determine if we can auto-select
             # In remote-hosted mode, filter sessions by user_id
             sessions = await cls._registry.list_sessions(user_id=user_id)
+            _remember(sessions)
             count = len(sessions)
             if count == 0:
                 return None, count, explicit_required
@@ -1028,7 +1045,7 @@ class PluginHub(WebSocketEndpoint):
         # waiting can resolve this (_try_once always returns no session while
         # explicit_required is set), so surface it now rather than after the wait.
         if session_id is None and explicit_required and not target_hash and session_count > 0:
-            raise InstanceSelectionRequiredError()
+            raise InstanceSelectionRequiredError(available=available)
         deadline = time.monotonic() + max_wait_s
         wait_started = None
 
@@ -1049,7 +1066,8 @@ class PluginHub(WebSocketEndpoint):
             # this loop exists to perform would never run (issue #107).
             session_id, session_count, explicit_required = await _try_once()
             cls._raise_if_ambiguous_selection(
-                session_id, session_count, explicit_required, target_hash)
+                session_id, session_count, explicit_required, target_hash,
+                available=available)
 
         if session_id is not None and wait_started is not None:
             logger.debug(
@@ -1061,7 +1079,8 @@ class PluginHub(WebSocketEndpoint):
         # Re-check against the newest snapshot so no exit path can return a
         # session the guards would have rejected, nor reject one they resolved.
         cls._raise_if_ambiguous_selection(
-            session_id, session_count, explicit_required, target_hash)
+            session_id, session_count, explicit_required, target_hash,
+            available=available)
 
         if session_id is None:
             logger.warning(
