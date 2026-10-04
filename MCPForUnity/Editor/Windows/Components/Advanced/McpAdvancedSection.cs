@@ -184,7 +184,7 @@ namespace MCPForUnity.Editor.Windows.Components.Advanced
                 var autoStartLabel = autoStartOnLoadToggle.parent?.Q<Label>();
                 if (autoStartLabel != null)
                     autoStartLabel.tooltip = autoStartOnLoadToggle.tooltip;
-                autoStartOnLoadToggle.SetValueWithoutNotify(EditorPrefs.GetBool(EditorPrefKeys.AutoStartOnLoad, false));
+                autoStartOnLoadToggle.SetValueWithoutNotify(EditorPrefs.GetBool(EditorPrefKeys.AutoStartOnLoad, EditorPrefKeys.AutoStartOnLoadDefault));
             }
 
             gitUrlOverride.value = EditorPrefs.GetString(EditorPrefKeys.GitUrlOverride, "");
@@ -411,7 +411,7 @@ namespace MCPForUnity.Editor.Windows.Components.Advanced
 
             gitUrlOverride.value = EditorPrefs.GetString(EditorPrefKeys.GitUrlOverride, "");
             if (autoStartOnLoadToggle != null)
-                autoStartOnLoadToggle.value = EditorPrefs.GetBool(EditorPrefKeys.AutoStartOnLoad, false);
+                autoStartOnLoadToggle.value = EditorPrefs.GetBool(EditorPrefKeys.AutoStartOnLoad, EditorPrefKeys.AutoStartOnLoadDefault);
             debugLogsToggle.value = EditorPrefs.GetBool(EditorPrefKeys.DebugLogs, false);
             if (logRecordToggle != null)
                 logRecordToggle.value = McpLogRecord.IsEnabled;

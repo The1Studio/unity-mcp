@@ -68,6 +68,8 @@ namespace MCPForUnity.Editor.Constants
         internal const string ApiKey = "MCPForUnity.ApiKey";
 
         internal const string AutoStartOnLoad = "MCPForUnity.AutoStartOnLoad";
+        /// <summary>Default when the user never set <see cref="AutoStartOnLoad"/>; a stored value (true or false) always wins.</summary>
+        internal const bool AutoStartOnLoadDefault = true;
         internal const string BatchExecuteMaxCommands = "MCPForUnity.BatchExecute.MaxCommands";
         internal const string LogRecordEnabled = "MCPForUnity.LogRecordEnabled";
 
