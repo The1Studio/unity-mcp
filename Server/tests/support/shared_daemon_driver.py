@@ -35,6 +35,8 @@ from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
 
 SERVER_DIR = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(SERVER_DIR / "src"))
+from transport.unity_instance_middleware import TOOLS_WITHOUT_UNITY_INSTANCE  # noqa: E402
 
 
 class FakeEditor:
@@ -43,7 +45,9 @@ class FakeEditor:
         self.name = name
         self.hash = project_hash
         self.path = project_path
-        self.received: list[dict] = []
+        self.received: list[dict] = []   # real tool commands only
+        self.probes: list[dict] = []     # server readiness/state probes
+        self.session_id: str | None = None
         self._ws = None
         self._task: asyncio.Task | None = None
 
@@ -60,6 +64,7 @@ class FakeEditor:
         }))
         registered = json.loads(await self._ws.recv())
         assert registered["type"] == "registered", registered
+        self.session_id = registered["session_id"]
         self._task = asyncio.create_task(self._serve())
 
     async def _serve(self) -> None:
@@ -67,17 +72,28 @@ class FakeEditor:
             async for raw in self._ws:
                 msg = json.loads(raw)
                 if msg.get("type") == "ping":
-                    await self._ws.send(json.dumps({"type": "pong"}))
+                    # A real plugin echoes its session id; without it the server
+                    # treats the session as stale after PING_TIMEOUT (20 s).
+                    await self._ws.send(json.dumps(
+                        {"type": "pong", "session_id": self.session_id}))
                 elif msg.get("type") == "execute":
-                    self.received.append(msg)
-                    await self._ws.send(json.dumps({
-                        "type": "command_result",
-                        "id": msg["id"],
-                        "result": {
+                    if msg["name"] == "ping":
+                        self.probes.append(msg)
+                        result = {"status": "success", "result": {"message": "pong"}}
+                    elif msg["name"] == "get_editor_state":
+                        self.probes.append(msg)
+                        result = {"success": False, "error": "not modelled"}
+                    else:
+                        self.received.append(msg)
+                        result = {
                             "success": True,
                             "message": "ok",
                             "data": {"answered_by": self.name},
-                        },
+                        }
+                    await self._ws.send(json.dumps({
+                        "type": "command_result",
+                        "id": msg["id"],
+                        "result": result,
                     }))
         except websockets.ConnectionClosed:
             pass
@@ -106,6 +122,9 @@ class Daemon:
             "PYTHONUNBUFFERED": "1",
         })
         env.pop("UNITY_MCP_DEFAULT_INSTANCE", None)
+        # The server skips its readiness preflight under pytest; the daemon must run
+        # the production path, so never let the parent's marker leak in.
+        env.pop("PYTEST_CURRENT_TEST", None)
         (workdir / "home").mkdir(parents=True, exist_ok=True)
         self.log = workdir / "daemon.log"
         self._log_fh = open(self.log, "w")
@@ -274,11 +293,12 @@ async def schema_advertises_unity_instance(d, a, b):
         assert "unity_instance" not in scene_schema.get("required", []), scene_schema
         assert scene_schema.get("additionalProperties") is False, scene_schema
         missing = [n for n, t in tools.items()
-                   if n not in ("set_active_instance", "manage_tools",
-                                "debug_request_context", "manage_script_capabilities")
+                   if n not in TOOLS_WITHOUT_UNITY_INSTANCE
                    and "unity_instance" not in t.inputSchema.get("properties", {})]
         assert not missing, f"tools without unity_instance: {missing}"
-        assert "unity_instance" not in tools["set_active_instance"].inputSchema["properties"]
+        for n in TOOLS_WITHOUT_UNITY_INSTANCE:
+            if n in tools:
+                assert "unity_instance" not in tools[n].inputSchema.get("properties", {}), n
         # a schema-validating client accepts the advertised argument
         import jsonschema
         jsonschema.validate({"action": "get_active", "unity_instance": B_ID}, scene_schema)
@@ -287,7 +307,53 @@ async def schema_advertises_unity_instance(d, a, b):
         assert await answered_by(c, unity_instance=B_ID) == "ProjB"
 
 
+async def per_call_does_not_stick(d, a, b):
+    """A per-call unity_instance applies to that call only, within the SAME session."""
+    ed_a, ed_b = await two_editors(d, a, b)
+    async with client(d) as c:
+        assert await answered_by(c, unity_instance=A_ID) == "ProjA"
+        is_error, sc, text = await scene(c)  # no selection now
+        blob = text + json.dumps(sc)
+        assert is_error or sc.get("success") is False, f"per-call target stuck: {blob}"
+        assert A_ID in blob and B_ID in blob, blob
+        assert await answered_by(c, unity_instance=B_ID) == "ProjB"
+        is_error, sc, text = await scene(c)
+        assert is_error or sc.get("success") is False, f"per-call target stuck: {text}{sc}"
+        # a sticky choice still works and a per-call override does not replace it
+        r = await c.call_tool("set_active_instance", {"instance": B_ID}, raise_on_error=False)
+        assert not r.is_error, r
+        assert await answered_by(c) == "ProjB"
+        assert await answered_by(c, unity_instance=A_ID) == "ProjA"
+        assert await answered_by(c) == "ProjB"
+    assert len(ed_a.received) == 2 and len(ed_b.received) == 3, (
+        len(ed_a.received), len(ed_b.received))
+
+
+async def instances_resource_exempt_from_cross_project_guard(d, a, b):
+    """One unrelated Editor: reading the instance list works, tool calls stay refused."""
+    ed_a = FakeEditor(d.port, "ProjA", "aaaa1111", str(a))
+    await ed_a.connect()
+    async with client(d) as c:
+        assert await instances(c) == [A_ID]
+        is_error, sc, text = await scene(c)
+        assert is_error and "Refusing to auto-select" in text, (text, sc)
+        # the read must not have opened the guard for a later tool call
+        is_error, sc, text = await scene(c)
+        assert is_error and "Refusing to auto-select" in text, (text, sc)
+        # any other resource is still guarded
+        try:
+            await c.read_resource("mcpforunity://editor/state")
+        except Exception as exc:  # noqa: BLE001
+            assert "Refusing to auto-select" in str(exc), exc
+        else:
+            raise AssertionError("editor/state read was not refused")
+    assert not ed_a.received
+
+
 SCENARIOS = {
+    "per_call_does_not_stick": (per_call_does_not_stick, "elsewhere"),
+    "instances_resource_exempt_from_cross_project_guard": (
+        instances_resource_exempt_from_cross_project_guard, "elsewhere"),
     "schema_advertises_unity_instance": (schema_advertises_unity_instance, "elsewhere"),
     "routes_by_selector": (routes_by_selector, "elsewhere"),
     "port_selector_rejected": (port_selector_rejected, "elsewhere"),

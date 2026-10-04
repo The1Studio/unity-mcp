@@ -27,6 +27,8 @@ SCENARIOS = [
     "second_client_leaving",       # (c)
     "disconnect_reflected",        # (d)
     "schema_advertises_unity_instance",  # #101
+    "per_call_does_not_stick",     # per-call target must not become the default
+    "instances_resource_exempt_from_cross_project_guard",
 ]
 
 

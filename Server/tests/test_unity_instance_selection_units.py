@@ -85,3 +85,21 @@ def test_selection_error_names_the_candidates():
             None, 2, False, None, available=["B@bbb", "A@aaa"])
     msg = str(exc.value)
     assert "A@aaa, B@bbb" in msg and "unity_instance" in msg
+
+
+@pytest.mark.parametrize("uri,exempt", [
+    ("mcpforunity://instances", True),
+    ("mcpforunity://instances/", False),
+    ("mcpforunity://instances?x=1", False),
+    ("mcpforunity://instances-evil", False),
+    ("mcpforunity://editor/state", False),
+    ("xmcpforunity://instances", False),
+])
+def test_only_the_exact_instances_uri_is_exempt(uri, exempt):
+    ctx = Mock()
+    ctx.message = Mock(uri=uri)
+    assert UnityInstanceMiddleware._is_instances_resource_read(ctx) is exempt
+
+
+def test_shipped_session_cap():
+    assert UnityInstanceMiddleware._MAX_TRACKED_SESSIONS == 1024

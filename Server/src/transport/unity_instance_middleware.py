@@ -173,6 +173,13 @@ class UnityInstanceMiddleware(Middleware):
         key = await self.get_session_key(ctx)
         with self._lock:
             self._active_by_key.pop(key, None)
+        # Also drop the persisted ctx state the tools read; otherwise a cleared
+        # selection keeps routing to the old instance until the next injection.
+        try:
+            await ctx.set_state("unity_instance", None)
+            await ctx.set_state("unity_session_id", None)
+        except Exception:  # ctx without state support (tests, lifespan contexts)
+            logger.debug("clear_active_instance: could not clear ctx state", exc_info=True)
 
     async def _discover_instances(self, ctx) -> list:
         """
@@ -538,6 +545,12 @@ class UnityInstanceMiddleware(Middleware):
             await ctx.set_state("unity_instance", active_instance)
             if session_id is not None:
                 await ctx.set_state("unity_session_id", session_id)
+        else:
+            # ctx state is persisted per MCP session, so without this a previous
+            # call's target (e.g. a per-call unity_instance) would silently be read
+            # back by this selection-less call instead of raising the ambiguity error.
+            await ctx.set_state("unity_instance", None)
+            await ctx.set_state("unity_session_id", None)
 
     async def on_call_tool(self, context: MiddlewareContext, call_next):
         """Inject active Unity instance into tool context if available."""
