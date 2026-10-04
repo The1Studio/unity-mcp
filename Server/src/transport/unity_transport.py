@@ -5,7 +5,7 @@ import asyncio
 import logging
 from typing import Awaitable, Callable, TypeVar
 
-from transport.plugin_hub import PluginHub
+from transport.plugin_hub import InstanceSelectionRequiredError, PluginHub
 from core.config import config
 from core.constants import API_KEY_HEADER
 from services.api_key_service import ApiKeyService
@@ -114,6 +114,12 @@ async def send_with_unity_instance(
                 ),
                 hint="restart_bridge",
             ).model_dump())
+        except InstanceSelectionRequiredError as exc:
+            # Not transient: retrying the same call can never succeed.
+            return normalize_unity_response(
+                MCPResponse(success=False, error=str(exc),
+                            hint="select_instance").model_dump()
+            )
         except Exception as exc:
             # Truly unknown — preserve previous wrapping for backward-compat.
             err = str(exc) or f"{type(exc).__name__}"

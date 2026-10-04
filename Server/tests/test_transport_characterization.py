@@ -138,8 +138,10 @@ class TestUnityInstanceMiddlewareSessionManagement:
     @pytest.mark.asyncio
     async def test_middleware_falls_back_to_global_key(self):
         """
-        Current behavior: When client_id is None/missing, use 'global' key.
-        This allows single-user local mode to work without session tracking.
+        When client_id is None/missing and the request has an MCP session, key by that
+        session (a shared HTTP daemon serves many clients; collapsing them onto one
+        'global' key let one client's set_active_instance re-route all the others).
+        With no session at all (outside a request) the 'global' key remains.
         """
         middleware = UnityInstanceMiddleware()
 
@@ -148,8 +150,10 @@ class TestUnityInstanceMiddlewareSessionManagement:
         ctx.session_id = "session-id"
         ctx.get_state = AsyncMock(return_value=None)
 
-        key = await middleware.get_session_key(ctx)
-        assert key == "global"
+        assert await middleware.get_session_key(ctx) == "session:session-id"
+
+        ctx.session_id = None
+        assert await middleware.get_session_key(ctx) == "global"
 
     @pytest.mark.asyncio
     async def test_middleware_isolates_multiple_sessions(self):
@@ -283,10 +287,11 @@ class TestUnityInstanceMiddlewareInjection:
             with patch("transport.legacy.unity_connection.get_unity_connection_pool", return_value=None):
                 await middleware.on_call_tool(middleware_ctx, mock_call_next)
 
-        # set_state should not be called for unity_instance if no instance found
-        calls = [c for c in mock_context.set_state.call_args_list
-                if len(c[0]) > 0 and c[0][0] == "unity_instance"]
-        assert len(calls) == 0
+        # No instance found: the persisted ctx state is cleared (never left at a
+        # previous call's value), and no instance is ever injected.
+        calls = [c[0] for c in mock_context.set_state.call_args_list
+                 if len(c[0]) > 0 and c[0][0] == "unity_instance"]
+        assert calls == [("unity_instance", None)]
 
     @pytest.mark.asyncio
     async def test_list_tools_filters_disabled_unity_tools_and_aliases(self, mock_context, monkeypatch):
@@ -1463,7 +1468,7 @@ class TestTransportEdgeCases:
     async def test_middleware_handles_client_id_false_but_not_none(self):
         """
         Current behavior: get_session_key checks isinstance(client_id, str) AND len,
-        so falsy non-string values fall through to 'global'.
+        so an empty client_id is ignored and the MCP session id is used instead.
         """
         middleware = UnityInstanceMiddleware()
 
@@ -1473,7 +1478,7 @@ class TestTransportEdgeCases:
         ctx.get_state = AsyncMock(return_value=None)
 
         key = await middleware.get_session_key(ctx)
-        assert key == "global"  # Empty string doesn't pass isinstance+truthy check
+        assert key == "session:session-id"  # Empty string doesn't pass isinstance+truthy check
 
     def test_plugin_hub_encoding_is_json(self):
         """

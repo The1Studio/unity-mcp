@@ -54,6 +54,48 @@ def set_unity_instance_middleware(middleware: 'UnityInstanceMiddleware') -> None
     _unity_instance_middleware = middleware
 
 
+UNITY_INSTANCE_PARAM_DESCRIPTION = (
+    "Optional. Route just this call to a specific connected Unity Editor: "
+    "Name@hash, or a unique hash prefix (or a port number in stdio mode). "
+    "Read mcpforunity://instances for the candidates. Overrides the session's "
+    "active instance for this call only; omit it to use the active/auto-selected one."
+)
+
+
+# Server-local tools that never talk to an Editor, so a per-call target is meaningless.
+# (Not simply "unity_target is None": execute_custom_tool has none yet does route.)
+TOOLS_WITHOUT_UNITY_INSTANCE = frozenset({
+    "set_active_instance",
+    "manage_tools",
+    "debug_request_context",
+    "manage_script_capabilities",
+})
+
+
+def add_unity_instance_param(schema: dict | None) -> dict | None:
+    """Return ``schema`` with an optional ``unity_instance`` property added.
+
+    ``on_call_tool`` has always accepted (and popped) ``unity_instance`` from any
+    tool call, but the advertised schemas are ``additionalProperties: false`` and
+    never listed it, so schema-aware clients neither offered nor accepted it
+    (#101). Advertising it once here, rather than on each tool signature, keeps
+    the 50+ tool functions untouched. Never marks it required, never mutates the
+    input, and is idempotent.
+    """
+    if not isinstance(schema, dict):
+        return schema
+    props = schema.get("properties")
+    if not isinstance(props, dict) or "unity_instance" in props:
+        return schema
+    new_props = dict(props)
+    new_props["unity_instance"] = {
+        "anyOf": [{"type": "string"}, {"type": "null"}],
+        "default": None,
+        "description": UNITY_INSTANCE_PARAM_DESCRIPTION,
+    }
+    return {**schema, "properties": new_props}
+
+
 class UnityInstanceMiddleware(Middleware):
     """
     Middleware that manages per-session Unity instance selection.
@@ -61,6 +103,8 @@ class UnityInstanceMiddleware(Middleware):
     Stores active instance per session_id and injects it into request state
     for all tool and resource calls.
     """
+
+    _MAX_TRACKED_SESSIONS = 1024
 
     def __init__(self):
         super().__init__()
@@ -81,7 +125,11 @@ class UnityInstanceMiddleware(Middleware):
 
         Prioritizes client_id for stability.
         In remote-hosted mode, falls back to user_id for session isolation.
-        Otherwise falls back to 'global' (assuming single-user local mode).
+        Then the MCP session id: one shared HTTP daemon serves many concurrent
+        clients (one ``mcp-session-id`` each), and without this they all collapsed
+        onto the single "global" key, so one client's ``set_active_instance``
+        silently re-routed every other client's calls.
+        Otherwise falls back to 'global' (a single stdio client).
         """
         client_id = getattr(ctx, "client_id", None)
         if isinstance(client_id, str) and client_id:
@@ -92,6 +140,13 @@ class UnityInstanceMiddleware(Middleware):
         if isinstance(user_id, str) and user_id:
             return f"user:{user_id}"
 
+        try:
+            session_id = getattr(ctx, "session_id", None)
+        except RuntimeError:
+            session_id = None  # outside a request context (no session yet)
+        if isinstance(session_id, str) and session_id:
+            return f"session:{session_id}"
+
         # Fallback to global for local dev stability
         return "global"
 
@@ -99,7 +154,13 @@ class UnityInstanceMiddleware(Middleware):
         """Store the active instance for this session."""
         key = await self.get_session_key(ctx)
         with self._lock:
+            # Re-insert so the dict stays ordered by recency of use.
+            self._active_by_key.pop(key, None)
             self._active_by_key[key] = instance_id
+            # A long-lived shared daemon sees an unbounded stream of short-lived
+            # client sessions; drop the least recently set selections.
+            while len(self._active_by_key) > self._MAX_TRACKED_SESSIONS:
+                self._active_by_key.pop(next(iter(self._active_by_key)))
 
     async def get_active_instance(self, ctx) -> str | None:
         """Retrieve the active instance for this session."""
@@ -112,6 +173,13 @@ class UnityInstanceMiddleware(Middleware):
         key = await self.get_session_key(ctx)
         with self._lock:
             self._active_by_key.pop(key, None)
+        # Also drop the persisted ctx state the tools read; otherwise a cleared
+        # selection keeps routing to the old instance until the next injection.
+        try:
+            await ctx.set_state("unity_instance", None)
+            await ctx.set_state("unity_session_id", None)
+        except Exception:  # ctx without state support (tests, lifespan contexts)
+            logger.debug("clear_active_instance: could not clear ctx state", exc_info=True)
 
     async def _discover_instances(self, ctx) -> list:
         """
@@ -391,6 +459,11 @@ class UnityInstanceMiddleware(Middleware):
         from transport.unity_transport import _resolve_user_id_from_request
         return await _resolve_user_id_from_request()
 
+    @staticmethod
+    def _is_instances_resource_read(context: MiddlewareContext) -> bool:
+        uri = getattr(getattr(context, "message", None), "uri", None)
+        return str(uri) == "mcpforunity://instances"
+
     async def _inject_unity_instance(self, context: MiddlewareContext) -> None:
         """Inject active Unity instance and user_id into context if available."""
         ctx = context.fastmcp_context
@@ -422,7 +495,13 @@ class UnityInstanceMiddleware(Middleware):
         if not active_instance:
             active_instance = await self.get_active_instance(ctx)
         if not active_instance:
-            active_instance = await self._maybe_autoselect_instance(ctx)
+            try:
+                active_instance = await self._maybe_autoselect_instance(ctx)
+            except CrossProjectAutoSelectError:
+                # Reading the instance list is how a caller recovers from this
+                # refusal; it must not be refused by the very guard it explains.
+                if not self._is_instances_resource_read(context):
+                    raise
         if active_instance:
             # If using HTTP transport (PluginHub configured), validate session
             # But for stdio transport (no PluginHub needed or maybe partially configured),
@@ -466,6 +545,12 @@ class UnityInstanceMiddleware(Middleware):
             await ctx.set_state("unity_instance", active_instance)
             if session_id is not None:
                 await ctx.set_state("unity_session_id", session_id)
+        else:
+            # ctx state is persisted per MCP session, so without this a previous
+            # call's target (e.g. a per-call unity_instance) would silently be read
+            # back by this selection-less call instead of raising the ambiguity error.
+            await ctx.set_state("unity_instance", None)
+            await ctx.set_state("unity_session_id", None)
 
     async def on_call_tool(self, context: MiddlewareContext, call_next):
         """Inject active Unity instance into tool context if available."""
@@ -498,15 +583,16 @@ class UnityInstanceMiddleware(Middleware):
             len(tools), tool_names_from_fastmcp,
         )
 
+        self._refresh_tool_visibility_metadata_from_registry()
+
         if not self._should_filter_tool_listing():
             _diag.debug("on_list_tools: skipping middleware filter (not HTTP or PluginHub not configured)")
-            return tools
+            return self._advertise_unity_instance(tools)
 
-        self._refresh_tool_visibility_metadata_from_registry()
         enabled_tool_names = await self._resolve_enabled_tool_names_for_context(context)
         if enabled_tool_names is None:
             _diag.debug("on_list_tools: no Unity session data, returning %d tools from FastMCP as-is", len(tools))
-            return tools
+            return self._advertise_unity_instance(tools)
 
         filtered = []
         for tool in tools:
@@ -519,7 +605,27 @@ class UnityInstanceMiddleware(Middleware):
             "enabled_names=%s",
             len(filtered), len(tools), sorted(enabled_tool_names),
         )
-        return filtered
+        return self._advertise_unity_instance(filtered)
+
+    def _advertise_unity_instance(self, tools):
+        """Add the optional ``unity_instance`` argument to every Unity-routed tool schema."""
+        out = []
+        for tool in tools:
+            name = getattr(tool, "name", None)
+            if name in TOOLS_WITHOUT_UNITY_INSTANCE:
+                out.append(tool)
+                continue
+            params = getattr(tool, "parameters", None)
+            new_params = add_unity_instance_param(params)
+            if new_params is params:
+                out.append(tool)
+                continue
+            try:
+                out.append(tool.model_copy(update={"parameters": new_params}))
+            except Exception:  # unknown tool type: leave as advertised
+                _diag.debug("Could not advertise unity_instance on %s", name, exc_info=True)
+                out.append(tool)
+        return out
 
     def _should_filter_tool_listing(self) -> bool:
         transport = (config.transport_mode or "stdio").lower()

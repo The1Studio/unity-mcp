@@ -69,11 +69,11 @@ The server accepts the same value formats as `set_active_instance`: `Name@hash`,
 ## What happens with no active instance
 
 - **One Unity Editor connected** → it's used automatically.
-- **Multiple Editors connected and no active set** → the server errors with the available instance list. Call `set_active_instance` and retry.
+- **Multiple Editors connected and no active set** → on HTTP the server picks the one whose project directory contains the server's working directory, otherwise the call fails with an error listing the connected `Name@hash` values. Pass `unity_instance` or call `set_active_instance` and retry. The server never falls back to "the last one used".
 
 ## HTTP vs stdio differences
 
-- **HTTP**: instance state is keyed per-session by `client_id`, so two MCP clients can target different Editors at the same time on the same Python server.
+- **HTTP**: instance state is keyed per MCP client session (the `client_id` when the client sends one, otherwise the `mcp-session-id`), so two MCP clients can target different Editors at the same time on the same Python server. To run one such server for all your Editors and sessions, see [Run one shared daemon for many editors](https://github.com/The1Studio/unity-mcp/blob/beta/Server/README.md#run-one-shared-daemon-for-many-editors).
 - **Stdio**: port-number shorthand works because there's a separate Python process per client. HTTP shares one process and uses `Name@hash` exclusively.
 
 ## Related reference

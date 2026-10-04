@@ -199,6 +199,69 @@ DISABLE_TELEMETRY=1 uvx --from mcpforunityserver mcp-for-unity --transport stdio
 
 ---
 
+## Run one shared daemon for many editors
+
+By default every MCP client (each Claude Code session) launches its own stdio `mcp-for-unity` process. If you run many sessions and/or many Unity Editors, run **one** HTTP daemon instead: every Editor connects to it, every client talks to it, and calls are routed per Editor.
+
+Why HTTP and not stdio for this: the Editor's stdio bridge (a TCP listener in the Editor) accepts a single client and evicts the previous one, so stdio cannot be shared. The HTTP transport has each Editor open a WebSocket to the daemon (`/hub/plugin`), which is what makes many-to-many routing possible.
+
+### 1. Start the daemon (once per machine)
+
+```bash
+uvx --from mcpforunityserver mcp-for-unity --transport http --http-host 127.0.0.1 --http-port 8080
+```
+
+Bind to `127.0.0.1` only (this is a local, unauthenticated daemon; use `--http-remote-hosted` with API keys if it must be reachable by other machines). Keep it running under your service manager of choice (systemd user unit, launchd, a Windows scheduled task). Health check: `curl http://127.0.0.1:8080/health`.
+
+### 2. Register it once in each MCP client
+
+Claude Code (`.mcp.json`, or `~/.claude.json` for user scope):
+
+```json
+{
+  "mcpServers": {
+    "unityMCP": {
+      "type": "http",
+      "url": "http://127.0.0.1:8080/mcp"
+    }
+  }
+}
+```
+
+or `claude mcp add --transport http unityMCP http://127.0.0.1:8080/mcp`. Note the `/mcp` path.
+
+### 3. Point each Unity Editor at the daemon
+
+Each Editor must be in **HTTP** transport, **local** scope, with the daemon's base URL, and must have its bridge started (a live WebSocket to the daemon). These are stored in the Editor's `EditorPrefs`:
+
+| EditorPrefs key | Value | Default if unset |
+|---|---|---|
+| `MCPForUnity.UseHttpTransport` | `true` | `true` |
+| `MCPForUnity.HttpTransportScope` | `local` (not `remote`) | empty, treated as `local` |
+| `MCPForUnity.HttpUrl` | `http://127.0.0.1:<port>` (base URL, no `/mcp`) | `http://127.0.0.1:8080` |
+| `MCPForUnity.AutoStartOnLoad` | `true` to connect on Editor load | `false` |
+
+So an Editor with untouched defaults already targets `http://127.0.0.1:8080`: run the daemon on port 8080 and the only manual step is clicking **Start Session** in the MCP for Unity window (or enabling "Auto-Start Server on Editor Load" in Advanced Settings; if the daemon is already reachable the Editor just connects to it and does not launch its own server). On another port, set the HTTP URL in the window to match.
+
+Where the values live (Unity's `EditorPrefs` store; per [Unity's EditorPrefs documentation](https://docs.unity3d.com/ScriptReference/EditorPrefs.html)): macOS `~/Library/Preferences/com.unity3d.UnityEditor5.x.plist`, Windows registry key `HKCU\Software\Unity Technologies\Unity Editor 5.x`, Linux `~/.local/share/unity3d/prefs`. These locations come from Unity's docs and were not checked on each OS here. **Window > MCP For Unity > Edit EditorPrefs** edits the values from inside the Editor.
+
+**Pre-seeding for automation: not possible from outside the Editor today.** No environment variable or config file sets the transport mode or HTTP URL. (The Editor package reads environment variables only for unrelated things: `UNITY_MCP_STATUS_DIR`, `UNITY_MCP_ALLOW_BATCH`, the telemetry opt-outs, `CLAUDE_CLI`, and platform path lookups.) Your options are the defaults above (daemon on port 8080), setting the keys by hand once per machine, or an Editor-side `-executeMethod` that calls `EditorPrefs.SetString("MCPForUnity.HttpUrl", ...)` / `SetBool("MCPForUnity.AutoStartOnLoad", true)` at launch. A small Editor change (honour an env var such as `UNITY_MCP_HTTP_URL` in `HttpEndpointUtility.GetLocalBaseUrl`) would remove the manual step but has not been made because it cannot be exercised without an interactive Editor.
+
+### 4. How a call picks its Editor
+
+Rules, in order:
+
+1. **`unity_instance` on the call** (every Editor-routed tool advertises this optional argument): `Name@hash`, or a unique hash prefix. Port numbers are a stdio-bridge concept and are rejected on the HTTP transport with an explanatory error. Applies to that call only: it does not become the session's default, and the next call without a selection is resolved by rules 2-4 as if it had never been given.
+2. **`set_active_instance`** for this MCP client session: sticky until changed. State is per client session (`mcp-session-id`), so two sessions on one daemon can each hold a different Editor without affecting each other. **Exception:** if a client sends a `client_id` in its request metadata, that outranks `mcp-session-id` as the key (existing order), so two sessions that send the *same* `client_id` share one selection. Clients that cannot guarantee a distinct `client_id` should pass `unity_instance` explicitly on every call.
+3. **Exactly one Editor connected**: used automatically, unless its project is unrelated to the daemon's working directory (then the call is refused rather than answered by an Editor you did not mean; set `UNITY_MCP_ALLOW_CROSS_PROJECT_AUTOSELECT=1` to opt out).
+4. **More than one Editor connected**: the daemon picks the single Editor whose project directory contains the daemon process's working directory; if none or several do, **the call fails** with an error that lists the connected `Name@hash` values and tells you to pass `unity_instance` or call `set_active_instance`. It never falls back to "the last one used".
+
+Caveat for a shared daemon: rule 4 compares against the *daemon's* working directory, not each client's, so it only helps when the daemon is started from inside one project. In practice give each session an explicit target (rule 1 or 2); put `set_active_instance` or `unity_instance` in the project's agent instructions.
+
+`mcpforunity://instances` lists the connected Editors and is updated as Editors connect and disconnect; an Editor that drops without closing its socket is reaped by the server's stale-session sweep.
+
+---
+
 ## Remote-Hosted Mode
 
 When deploying the server as a shared remote service (e.g. for a team or Asset Store users), enable `--http-remote-hosted` to activate API key authentication and per-user session isolation.
