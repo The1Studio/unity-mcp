@@ -4,13 +4,14 @@ using MCPForUnity.Editor.Constants;
 using MCPForUnity.Editor.Helpers;
 using MCPForUnity.Editor.Services.Transport;
 using UnityEditor;
+using UnityEngine;
 
 namespace MCPForUnity.Editor.Services
 {
     /// <summary>
     /// Best-effort cleanup when the Unity Editor is quitting.
     /// - Stops active transports so clients don't see a "hung" session longer than necessary.
-    /// - If HTTP Local is selected, attempts to stop the local HTTP server (guarded by PID heuristics).
+    /// - If HTTP Local is selected, stops the local HTTP server only when this Editor launched it (never in batch mode).
     /// </summary>
     [InitializeOnLoad]
     internal static class McpEditorShutdownCleanup
@@ -40,36 +41,31 @@ namespace MCPForUnity.Editor.Services
                 McpLog.Warn($"Shutdown cleanup: failed to stop transports: {ex.Message}");
             }
 
-            // 2) Stop local HTTP server if it was Unity-managed (best-effort).
+            // 2) Stop the local HTTP server only if this Editor launched it.
+            StopOwnedServerOnQuit(MCPServiceLocator.Server, Application.isBatchMode);
+        }
+
+        /// <summary>
+        /// Automatic quit-time stop. Never terminates a server this Editor did not launch
+        /// (e.g. a shared daemon other Editors dial into) and does nothing in batch mode.
+        /// </summary>
+        internal static bool StopOwnedServerOnQuit(IServerManagementService server, bool isBatchMode)
+        {
+            if (isBatchMode)
+            {
+                // Batch runs (-runTests, -executeMethod) must be side-effect free on shared daemons.
+                return false;
+            }
+
             try
             {
-                bool useHttp = EditorConfigurationCache.Instance.UseHttpTransport;
-                string scope = string.Empty;
-                try { scope = EditorPrefs.GetString(EditorPrefKeys.HttpTransportScope, string.Empty); } catch { }
-
-                bool stopped = false;
-                bool httpLocalSelected =
-                    useHttp &&
-                    (string.Equals(scope, "local", StringComparison.OrdinalIgnoreCase)
-                     || (string.IsNullOrEmpty(scope) && MCPServiceLocator.Server.IsLocalUrl()));
-
-                if (httpLocalSelected)
-                {
-                    // StopLocalHttpServer is already guarded to only terminate processes that look like mcp-for-unity.
-                    // If it refuses to stop (e.g. URL was edited away from local), fall back to the Unity-managed stop.
-                    stopped = MCPServiceLocator.Server.StopLocalHttpServer();
-                }
-
-                // Always attempt to stop a Unity-managed server if one exists.
-                // This covers cases where the user switched transports (e.g. to stdio) or StopLocalHttpServer refused.
-                if (!stopped)
-                {
-                    MCPServiceLocator.Server.StopManagedLocalHttpServer();
-                }
+                // Only the handshake-gated stop: it refuses anything without our pidfile+token / recorded PID.
+                return server.StopManagedLocalHttpServer();
             }
             catch (Exception ex)
             {
                 McpLog.Warn($"Shutdown cleanup: failed to stop local HTTP server: {ex.Message}");
+                return false;
             }
         }
     }

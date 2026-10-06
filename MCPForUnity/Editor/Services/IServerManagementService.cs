@@ -26,7 +26,8 @@ namespace MCPForUnity.Editor.Services
 
         /// <summary>
         /// Stop the Unity-managed local HTTP server if a handshake/pidfile exists,
-        /// even if the current transport selection has changed.
+        /// even if the current transport selection has changed. Never stops a server this
+        /// Editor cannot prove it launched (no port-based heuristics).
         /// </summary>
         bool StopManagedLocalHttpServer();
 
