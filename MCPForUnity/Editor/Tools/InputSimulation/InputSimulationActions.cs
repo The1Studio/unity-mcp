@@ -33,7 +33,22 @@ namespace MCPForUnity.Editor.Tools.InputSimulation
         // ── New Input System helpers ───────────────────────────────────────────────
         static int BtnIndex(string n) => n?.ToLowerInvariant() == "right" ? 1 : n?.ToLowerInvariant() == "middle" ? 2 : 0;
         static bool TryKey(string n, out Key k) => Enum.TryParse(n ?? "", true, out k);
-        static void Move(Vector2 p) => InputState.Change(Mouse.current.position, p);
+        // Pointer position/scroll go through a queued state event, NOT InputState.Change:
+        // Change writes straight into the CURRENT update type's state buffer. MCP commands
+        // run on the editor update, so that write lands in the editor buffer and the running
+        // game (which reads the player buffer) keeps seeing (0,0) - every simulated click then
+        // raycasts at the screen's bottom-left corner. A queued event is routed by the input
+        // system itself, exactly like the button writes below.
+        static void Move(Vector2 p) => WriteVector(Mouse.current.position, p);
+        static void WriteVector(Vector2Control control, Vector2 value)
+        {
+            using (StateEvent.From(control.device, out var eventPtr))
+            {
+                control.WriteValueIntoEvent(value, eventPtr);
+                InputSystem.QueueEvent(eventPtr);
+            }
+            InputSystem.Update();
+        }
 
         // Key/Button controls are bitfield-backed (packed sub-byte state) and cannot be
         // written via InputState.Change — that overload only supports byte-aligned state
@@ -125,9 +140,9 @@ namespace MCPForUnity.Editor.Tools.InputSimulation
             var (fr, e1) = Resolve(p, "from_target"); if (e1 != null) return e1;
             var (to, e2) = Resolve(p, "to_target");   if (e2 != null) return e2;
 #if UNITY_INPUT_SYSTEM
-            // Move() writes position immediately via InputState.Change; WriteButton()
-            // forces its own update per transition (see WriteButton), so each subsequent
-            // snapshot already observes the prior Move — no explicit flush needed here.
+            // Move() and WriteButton() each queue a state event and force their own update
+            // (see WriteVector/WriteButton), so each subsequent snapshot already observes
+            // the prior Move - no explicit flush needed here.
             Move(fr.Value);
             WriteButton(Mouse.current.leftButton, 1f);
             Move(to.Value);
@@ -144,7 +159,7 @@ namespace MCPForUnity.Editor.Tools.InputSimulation
             var (pos, e) = Resolve(p); if (e != null) return e;
             float dx = p.GetFloat("delta_x") ?? 0f, dy = p.GetFloat("delta_y") ?? 0f;
 #if UNITY_INPUT_SYSTEM
-            Move(pos.Value); InputState.Change(Mouse.current.scroll, new Vector2(dx, dy)); Flush(p.GetBool("flush", true));
+            Move(pos.Value); WriteVector(Mouse.current.scroll, new Vector2(dx, dy)); Flush(p.GetBool("flush", true));
             return new SuccessResponse($"Scrolled ({pos.Value.x:F0},{pos.Value.y:F0}) Δ({dx},{dy}).",
                 new { x = pos.Value.x, y = pos.Value.y, delta_x = dx, delta_y = dy });
 #else
