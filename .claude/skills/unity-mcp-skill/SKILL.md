@@ -7,13 +7,27 @@ description: Orchestrate Unity Editor via MCP (Model Context Protocol) tools and
 
 This skill helps you effectively use the Unity Editor with MCP tools and resources.
 
-## Template Notice
+## Template
 
 Examples in `references/workflows.md` and `references/tools-reference.md` are reusable templates. They may be inaccurate across Unity versions, package setups (UGUI/TMP/Input System), and project-specific conventions. Please check console, compilation errors, or use screenshot after implementation.
 
 Before applying a template:
 - Validate targets/components first via resources and `find_gameobjects`.
 - Treat names, enum values, and property payloads as placeholders to adapt.
+
+## Resource URIs: Do NOT Guess
+
+Resource URIs use a specific scheme — do NOT guess or fabricate them. If you are unsure of a URI, call `ListMcpResourcesTool(server="UnityMCP")` first to get the exact list. Common URIs:
+
+| Resource | URI |
+|----------|-----|
+| Editor state | `mcpforunity://editor/state` |
+| Project info | `mcpforunity://project/info` |
+| Scene GameObject API | `mcpforunity://scene/gameobject-api` |
+| Tags | `mcpforunity://project/tags` |
+| Layers | `mcpforunity://project/layers` |
+| Instances | `mcpforunity://instances` |
+| Custom tools | `mcpforunity://custom-tools` |
 
 ## Quick Start: Resource-First Workflow
 
