@@ -68,6 +68,8 @@ class PluginHub(WebSocketEndpoint):
     PING_INTERVAL = 10
     # Max time (seconds) to wait for pong before considering connection dead
     PING_TIMEOUT = 20
+    # Registry sessions not touched (pong) for this long are evicted by the ping loop sweep.
+    STALE_SESSION_MAX_AGE = 3 * PING_TIMEOUT
     # Timeout (seconds) for fast-fail commands like ping/read_console/get_editor_state.
     # Keep short so MCP clients aren't blocked during Unity compilation/reload/unfocused throttling.
     FAST_FAIL_TIMEOUT = 2.0
@@ -258,6 +260,12 @@ class PluginHub(WebSocketEndpoint):
             raise RuntimeError("PluginHub not configured")
 
         async with lock:
+            # Liveness check: on_disconnect may have removed this session between
+            # _get_connection() and here; fail fast instead of waiting COMMAND_TIMEOUT.
+            if cls._connections.get(session_id) is not websocket:
+                raise PluginDisconnectedError(
+                    f"Unity plugin session {session_id} disconnected before command could be sent"
+                )
             if command_id in cls._pending:
                 raise RuntimeError(
                     f"Duplicate command id generated: {command_id}")
@@ -486,6 +494,7 @@ class PluginHub(WebSocketEndpoint):
         try:
             while True:
                 await asyncio.sleep(cls.PING_INTERVAL)
+                await cls._sweep_stale_sessions()
 
                 # Check if we're still supposed to be running and get last pong time (under lock)
                 lock = cls._lock
@@ -534,6 +543,19 @@ class PluginHub(WebSocketEndpoint):
             logger.warning(f"[Ping] Ping loop error for session {session_id}: {ex}")
         finally:
             logger.debug(f"[Ping] Ping loop ended for session {session_id}")
+
+    @classmethod
+    async def _sweep_stale_sessions(cls) -> None:
+        """Evict registry sessions whose heartbeat is older than STALE_SESSION_MAX_AGE."""
+        registry = cls._registry
+        if registry is None:
+            return
+        try:
+            stale_ids = await registry.find_stale(cls.STALE_SESSION_MAX_AGE)
+            for sid in stale_ids:
+                await cls._evict_connection(sid, "registry-ttl-expired")
+        except Exception:
+            logger.debug("Stale session sweep failed", exc_info=True)
 
     @classmethod
     async def _get_connection(cls, session_id: str) -> WebSocket:

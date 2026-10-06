@@ -125,6 +125,22 @@ class PluginRegistry:
                         if mapped == session_id:
                             del self._user_hash_to_session[composite_key]
 
+    async def find_stale(self, max_age_seconds: float) -> list[str]:
+        """Return ids of sessions whose last heartbeat (``connected_at``) is older than the TTL."""
+        now = datetime.now(timezone.utc)
+        async with self._lock:
+            return [
+                sid for sid, session in self._sessions.items()
+                if (now - session.connected_at).total_seconds() > max_age_seconds
+            ]
+
+    async def cleanup_stale(self, max_age_seconds: float) -> list[str]:
+        """Unregister sessions not touched within ``max_age_seconds``; return evicted ids."""
+        stale_ids = await self.find_stale(max_age_seconds)
+        for sid in stale_ids:
+            await self.unregister(sid)
+        return stale_ids
+
     async def register_tools_for_session(self, session_id: str, tools: list[ToolDefinitionModel]) -> None:
         """Register tools for a specific session."""
         async with self._lock:
