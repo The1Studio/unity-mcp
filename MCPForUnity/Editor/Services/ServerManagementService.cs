@@ -353,6 +353,13 @@ namespace MCPForUnity.Editor.Services
         {
             if (!TryGetLocalHttpServerHandshake(out var pidFilePath, out _))
             {
+                try
+                {
+                    string url = HttpEndpointUtility.GetLocalBaseUrl();
+                    int p = Uri.TryCreate(url, UriKind.Absolute, out var u) ? u.Port : 0;
+                    McpLog.Info($"MCP-FOR-UNITY: not stopping HTTP server on port {p} (not started by this editor)");
+                }
+                catch { }
                 return false;
             }
 
@@ -373,7 +380,9 @@ namespace MCPForUnity.Editor.Services
                 return false;
             }
 
-            return StopLocalHttpServerInternal(quiet: true, portOverride: port, allowNonLocalUrl: true);
+            // Automatic path: never fall back to port heuristics. Only a server this Editor
+            // launched (pidfile+token, or the recorded PID) may be stopped.
+            return StopLocalHttpServerInternal(quiet: true, portOverride: port, allowNonLocalUrl: true, allowPortHeuristics: false);
         }
 
         public bool IsLocalHttpServerRunning()
@@ -541,7 +550,7 @@ namespace MCPForUnity.Editor.Services
             hosts.Add(candidate);
         }
 
-        private bool StopLocalHttpServerInternal(bool quiet, int? portOverride = null, bool allowNonLocalUrl = false)
+        private bool StopLocalHttpServerInternal(bool quiet, int? portOverride = null, bool allowNonLocalUrl = false, bool allowPortHeuristics = true)
         {
             string httpUrl = HttpEndpointUtility.GetLocalBaseUrl();
             if (!allowNonLocalUrl && !IsLocalUrl(httpUrl))
@@ -783,6 +792,14 @@ namespace MCPForUnity.Editor.Services
                         // Stale PID (no longer listening). Clear.
                         ClearLocalServerPidTracking();
                     }
+                }
+
+                if (!allowPortHeuristics)
+                {
+                    // Automatic stop (quit / domain reload): we could not prove this Editor launched
+                    // whatever is listening, so leave it alone (it may be a shared daemon).
+                    McpLog.Info($"MCP-FOR-UNITY: not stopping HTTP server on port {port} (not started by this editor)");
+                    return stoppedAny;
                 }
 
                 foreach (var pid in pids)
