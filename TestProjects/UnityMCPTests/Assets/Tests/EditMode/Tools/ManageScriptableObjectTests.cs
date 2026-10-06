@@ -214,6 +214,48 @@ namespace MCPForUnityTests.Editor.Tools
         }
 
         [Test]
+        public void Modify_ArrayGrowthByMoreThanOne_OnCallbackReceiver_IsRefusedWithoutWriting()
+        {
+            var create = new JObject
+            {
+                ["action"] = "create",
+                ["typeName"] = typeof(ManageScriptableObjectCallbackReceiverDefinition).FullName,
+                ["folderPath"] = _runRoot,
+                ["assetName"] = "CallbackReceiver_Target",
+                ["overwrite"] = true
+            };
+            var createRes = ToJObject(ManageScriptableObject.HandleCommand(create));
+            Assert.IsTrue(createRes.Value<bool>("success"), createRes.ToString());
+            _createdGuid = createRes["data"]?["guid"]?.ToString();
+            _createdAssetPath = createRes["data"]?["path"]?.ToString();
+
+            JObject Resize(int size) => new JObject
+            {
+                ["action"] = "modify",
+                ["target"] = new JObject { ["guid"] = _createdGuid },
+                ["patches"] = new JArray
+                {
+                    new JObject { ["propertyPath"] = "entries.Array.size", ["op"] = "array_resize", ["value"] = size }
+                }
+            };
+
+            // Growing by more than one element in one call is refused and leaves the asset untouched.
+            var refused = ToJObject(ManageScriptableObject.HandleCommand(Resize(3)));
+            var refusedResults = refused["data"]?["results"] as JArray;
+            Assert.IsNotNull(refusedResults, refused.ToString());
+            Assert.IsFalse(refusedResults![0].Value<bool>("ok"), refusedResults[0].ToString());
+            StringAssert.Contains("one element per call", refusedResults[0].Value<string>("message"));
+            var asset = AssetDatabase.LoadAssetAtPath<ManageScriptableObjectCallbackReceiverDefinition>(_createdAssetPath);
+            Assert.AreEqual(0, asset!.Entries.Count, "A refused call must not write.");
+
+            // Growing by exactly one element per call still works.
+            var allowed = ToJObject(ManageScriptableObject.HandleCommand(Resize(1)));
+            Assert.IsTrue((allowed["data"]?["results"] as JArray)![0].Value<bool>("ok"), allowed.ToString());
+            asset = AssetDatabase.LoadAssetAtPath<ManageScriptableObjectCallbackReceiverDefinition>(_createdAssetPath);
+            Assert.AreEqual(1, asset!.Entries.Count);
+        }
+
+        [Test]
         public void Errors_InvalidAction_TypeNotFound_TargetNotFound()
         {
             // invalid action

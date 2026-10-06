@@ -450,6 +450,20 @@ namespace MCPForUnity.Editor.Tools
             var so = new SerializedObject(target);
             so.Update();
 
+            string growthRefusal = FindUnsafeMultiElementGrowth(target, so, patches);
+            if (growthRefusal != null)
+            {
+                warnings.Add(growthRefusal);
+                for (int i = 0; i < patches.Count; i++)
+                {
+                    var refused = patches[i] as JObject;
+                    string refusedPath = refused?["propertyPath"]?.ToString() ?? refused?["property_path"]?.ToString() ?? refused?["path"]?.ToString() ?? "";
+                    string refusedOp = refused?["op"]?.ToString() ?? "set";
+                    results.Add(new { propertyPath = refusedPath, op = refusedOp, ok = false, message = growthRefusal });
+                }
+                return (results, warnings);
+            }
+
             for (int i = 0; i < patches.Count; i++)
             {
                 if (patches[i] is not JObject patchObj)
@@ -493,6 +507,61 @@ namespace MCPForUnity.Editor.Tools
             }
 
             return (results, warnings);
+        }
+
+        /// <summary>
+        /// Refuses (returns a message, writes nothing) a single call that grows a serialized array by
+        /// more than one element on a target implementing <see cref="ISerializationCallbackReceiver"/>.
+        /// Such a type rebuilds its backing array in OnAfterDeserialize (e.g. AddressableAssetGroup
+        /// re-keys m_SerializeEntries by GUID), so after the intermediate ApplyModifiedProperties that
+        /// array_resize forces, the physical order no longer matches the indices later patches were
+        /// computed against: unrelated entries are dropped and new ones duplicated. One element per
+        /// call is safe; batch_execute can still send many such calls.
+        /// </summary>
+        private static string FindUnsafeMultiElementGrowth(UnityEngine.Object target, SerializedObject so, JArray patches)
+        {
+            if (!(target is ISerializationCallbackReceiver)) return null;
+
+            var originalSizes = new Dictionary<string, int>(StringComparer.Ordinal);
+            var requestedSizes = new Dictionary<string, int>(StringComparer.Ordinal);
+            foreach (var token in patches)
+            {
+                if (token is not JObject patchObj) continue;
+                string op = (patchObj["op"]?.ToString() ?? "set").Trim();
+                if (!string.Equals(op, "array_resize", StringComparison.OrdinalIgnoreCase)) continue;
+
+                string rawPath = patchObj["propertyPath"]?.ToString()
+                    ?? patchObj["property_path"]?.ToString()
+                    ?? patchObj["path"]?.ToString();
+                if (string.IsNullOrWhiteSpace(rawPath)) continue;
+
+                string arrayPath = NormalizePropertyPath(rawPath);
+                const string sizeSuffix = ".Array.size";
+                if (arrayPath.EndsWith(sizeSuffix, StringComparison.Ordinal))
+                    arrayPath = arrayPath.Substring(0, arrayPath.Length - sizeSuffix.Length);
+
+                int requested = ParamCoercion.CoerceInt(patchObj["value"], -1);
+                if (requested < 0) continue;
+
+                var arrayProp = so.FindProperty(arrayPath);
+                if (arrayProp == null || !arrayProp.isArray) continue;
+
+                if (!originalSizes.ContainsKey(arrayPath)) originalSizes[arrayPath] = arrayProp.arraySize;
+                requestedSizes[arrayPath] = requested;
+            }
+
+            foreach (var kvp in requestedSizes)
+            {
+                int growth = kvp.Value - originalSizes[kvp.Key];
+                if (growth > 1)
+                {
+                    return $"Refused: this call would grow '{kvp.Key}' by {growth} elements on {target.GetType().Name}, " +
+                           "which implements ISerializationCallbackReceiver and re-orders/re-keys its arrays when the intermediate " +
+                           "resize is applied, silently dropping or duplicating entries. Grow by one element per call " +
+                           "(batch_execute may send many calls). No changes were made.";
+                }
+            }
+            return null;
         }
 
         private static object ApplyPatch(SerializedObject so, string propertyPath, string op, JObject patchObj, out bool changed)

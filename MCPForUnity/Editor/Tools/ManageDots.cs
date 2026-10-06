@@ -561,7 +561,9 @@ namespace MCPForUnity.Editor.Tools
                 // Parse the value to the correct type
                 object parsedValue = field.FieldType.IsEnum
                     ? ParseEnumFieldValue(field.FieldType, fieldValue)
-                    : Convert.ChangeType(fieldValue, field.FieldType, System.Globalization.CultureInfo.InvariantCulture);
+                    : field.FieldType == typeof(bool) && TryParseBoolLiteral(fieldValue, out var boolValue)
+                        ? boolValue
+                        : Convert.ChangeType(fieldValue, field.FieldType, System.Globalization.CultureInfo.InvariantCulture);
                 field.SetValue(obj, parsedValue);
 
                 if (!ct.Value.IsManagedComponent)
@@ -618,6 +620,19 @@ namespace MCPForUnity.Editor.Tools
                     reported = tie.InnerException;
                 return new ErrorResponse($"Failed to set field: {reported.Message}");
             }
+        }
+
+        /// <summary>
+        /// Accepts "1"/"0" for a bool field, as every other numeric field takes a bare integer.
+        /// "true"/"false" fall through to Convert.ChangeType (bool.Parse) unchanged.
+        /// </summary>
+        private static bool TryParseBoolLiteral(string fieldValue, out bool value)
+        {
+            string trimmed = fieldValue?.Trim();
+            if (trimmed == "1") { value = true; return true; }
+            if (trimmed == "0") { value = false; return true; }
+            value = false;
+            return false;
         }
 
         /// <summary>
