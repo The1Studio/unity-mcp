@@ -40,7 +40,7 @@ concurrency:
 jobs:
   sync:
     name: Sync release notes
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, arc, the1studio, org]
     permissions:
       contents: write
     steps:

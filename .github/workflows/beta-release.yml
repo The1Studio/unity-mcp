@@ -26,9 +26,7 @@ jobs:
 
   update_unity_beta_version:
     name: Update Unity package to beta version
-    # Self-hosted ARC runner in place of the hosted ubuntu-latest (org Actions
-    # budget exhausted for Sept, core#3035). No Docker here, so no `cicd` label.
-    runs-on: [self-hosted, Linux, X64, arc, the1studio, org]
+    runs-on: [self-hosted, linux, x64, arc, the1studio, org]
     needs: [unity_tests, python_tests]
     # Avoid running when the workflow's own automation merges the PR
     # created by this workflow (prevents a version-bump loop).
@@ -44,42 +42,6 @@ jobs:
         with:
           fetch-depth: 0
           ref: beta
-
-      - name: Ensure gh and jq are available
-        # ARC pods ship neither (only ca-certificates/curl/gnupg/docker-ce-cli
-        # are baked in) and this job's later steps need both. Idempotent: a
-        # no-op on a runner (e.g. a persistent host) that already has them.
-        shell: bash
-        run: |
-          set -euo pipefail
-          need_gh=0; need_jq=0
-          command -v gh >/dev/null 2>&1 || need_gh=1
-          command -v jq >/dev/null 2>&1 || need_jq=1
-          if [ "$need_gh" -eq 0 ] && [ "$need_jq" -eq 0 ]; then
-            echo "gh and jq already present"
-            exit 0
-          fi
-          SUDO=""
-          if [ "$(id -u)" -ne 0 ]; then
-            if sudo -n true 2>/dev/null; then
-              SUDO="sudo"
-            else
-              echo "::error::gh/jq missing and no root or passwordless sudo available on this runner" >&2
-              exit 1
-            fi
-          fi
-          $SUDO apt-get update
-          if [ "$need_jq" -eq 1 ]; then
-            $SUDO apt-get install -y jq
-          fi
-          if [ "$need_gh" -eq 1 ]; then
-            $SUDO install -m 0755 -d /etc/apt/keyrings
-            curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | $SUDO tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null
-            $SUDO chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
-            echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | $SUDO tee /etc/apt/sources.list.d/github-cli.list > /dev/null
-            $SUDO apt-get update
-            $SUDO apt-get install -y gh
-          fi
 
       - name: Generate beta version for Unity package
         id: version
@@ -192,9 +154,7 @@ jobs:
 
   publish_pypi_prerelease:
     name: Publish beta to PyPI (pre-release)
-    # Self-hosted ARC runner in place of the hosted ubuntu-latest (org Actions
-    # budget exhausted for Sept, core#3035). No Docker here, so no `cicd` label.
-    runs-on: [self-hosted, Linux, X64, arc, the1studio, org]
+    runs-on: [self-hosted, linux, x64, arc, the1studio, org]
     needs: [unity_tests, python_tests]
     # Avoid double-publish when the bot merges the version bump PR
     if: github.actor != 'github-actions[bot]'
