@@ -58,7 +58,7 @@ concurrency:
 jobs:
   matrix:
     name: Compute Unity version matrix
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, arc, the1studio, org]
     permissions:
       contents: read
     # Gate (mirrored by testAllModes below):
@@ -114,7 +114,7 @@ jobs:
   testAllModes:
     name: Test in ${{ matrix.testMode }} on Unity ${{ matrix.unityVersion }}
     needs: matrix
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, arc, the1studio, org]
     permissions:
       contents: read
     if: >
