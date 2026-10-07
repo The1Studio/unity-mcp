@@ -16,7 +16,7 @@ env:
 
 jobs:
   nl-suite:
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, linux, x64, arc, the1studio, org]
     timeout-minutes: 60
     env:
       JUNIT_OUT: reports/junit-nl-suite.xml
