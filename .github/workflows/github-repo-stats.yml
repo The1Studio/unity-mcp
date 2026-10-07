@@ -11,7 +11,7 @@ jobs:
   j1:
     if: github.repository == 'CoplayDev/unity-mcp'
     name: github-repo-stats
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, arc, the1studio, org]
     steps:
       - name: run-ghrs
         # Use latest release.
