@@ -34,7 +34,7 @@ on:
 jobs:
   check:
     name: Check docs reference is fresh
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, arc, the1studio, org]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
