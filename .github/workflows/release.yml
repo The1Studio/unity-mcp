@@ -34,7 +34,7 @@ jobs:
 
   bump:
     name: Bump version, tag, and create release
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, arc, the1studio, org]
     needs: [unity_tests, python_tests]
     permissions:
       contents: write
@@ -318,7 +318,7 @@ jobs:
     name: Merge main back into beta via PR
     needs:
       - bump
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, arc, the1studio, org]
     permissions:
       contents: write
       pull-requests: write
@@ -458,7 +458,7 @@ jobs:
     name: Publish Docker image
     needs:
       - bump
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, arc, the1studio, org]
     permissions:
       contents: read
     steps:
@@ -484,7 +484,7 @@ jobs:
     name: Publish Python distribution to PyPI
     needs:
       - bump
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, arc, the1studio, org]
     environment:
       name: pypi
       url: https://pypi.org/p/mcpforunityserver
@@ -520,7 +520,7 @@ jobs:
     name: Generate and publish MCPB bundle
     needs:
       - bump
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, arc, the1studio, org]
     permissions:
       contents: write
     steps:
