@@ -54,7 +54,7 @@ git status --porcelain
 
 **If upstream remote missing**: Add it:
 ```bash
-git remote add upstream https://github.com/CoplayDev/unity-mcp.git
+git remote add upstream git@github.com:CoplayDev/unity-mcp.git
 ```
 
 ### 3. Fetch latest upstream

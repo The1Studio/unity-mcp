@@ -102,7 +102,7 @@ For contributing or modifying the server code:
 
 ```bash
 # Clone the repository
-git clone https://github.com/CoplayDev/unity-mcp.git
+git clone git@github.com:CoplayDev/unity-mcp.git
 cd unity-mcp/Server
 
 # Run with uv
