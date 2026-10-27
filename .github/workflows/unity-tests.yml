@@ -261,5 +261,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always() && steps.detect.outputs.unity_ok == 'true' && steps.tests.outcome != 'skipped'
         with:
+          retention-days: 14
           name: Test results for ${{ matrix.testMode }} on Unity ${{ matrix.unityVersion }}
           path: ${{ steps.tests.outputs.artifactsPath }}
