@@ -2,6 +2,7 @@
   "name": "MCPForUnityTests.PlayMode",
   "rootNamespace": "",
   "references": [
+    "MCPForUnity.Runtime",
     "UnityEngine.TestRunner",
     "UnityEditor.TestRunner"
   ],
