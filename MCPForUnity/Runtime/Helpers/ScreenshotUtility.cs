@@ -271,28 +271,40 @@ namespace MCPForUnity.Runtime.Helpers
 #if UNITY_EDITOR
         // Synchronously drive a WaitForEndOfFrame ScreenshotCapturer by pumping the editor's
         // player loop. Play-mode only; EditorApplication.Step is a no-op in edit mode.
+        //
+        // EditorApplication.Step is the editor's "Step" toolbar button: it advances one frame
+        // AND leaves the editor paused. Restore the caller's pause state afterwards, otherwise a
+        // screenshot silently freezes Play mode and the next agent call misreads it as a hung game.
         private static Texture2D CaptureCompositedAfterFrame(int superSize, int timeoutSteps = 5)
         {
             Texture2D result = null;
             bool done = false;
             bool callerReturned = false;
-            ScreenshotCapturer.Begin(superSize, tex =>
+            bool wasPaused = UnityEditor.EditorApplication.isPaused;
+            try
             {
-                // Late completion after the spin loop timed out: caller will never consume
-                // the texture, so destroy it here to avoid leaking a Unity object.
-                if (callerReturned)
+                ScreenshotCapturer.Begin(superSize, tex =>
                 {
-                    if (tex != null) DestroyTexture(tex);
-                    return;
+                    // Late completion after the spin loop timed out: caller will never consume
+                    // the texture, so destroy it here to avoid leaking a Unity object.
+                    if (callerReturned)
+                    {
+                        if (tex != null) DestroyTexture(tex);
+                        return;
+                    }
+                    result = tex;
+                    done = true;
+                });
+                for (int i = 0; i < timeoutSteps && !done; i++)
+                {
+                    UnityEditor.EditorApplication.Step();
                 }
-                result = tex;
-                done = true;
-            });
-            for (int i = 0; i < timeoutSteps && !done; i++)
-            {
-                UnityEditor.EditorApplication.Step();
             }
-            callerReturned = true;
+            finally
+            {
+                callerReturned = true;
+                UnityEditor.EditorApplication.isPaused = wasPaused;
+            }
             return result;
         }
 #endif
