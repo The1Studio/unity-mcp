@@ -329,6 +329,12 @@ class PluginHub(WebSocketEndpoint):
             raise RuntimeError("PluginHub not configured")
 
         async with lock:
+            # Liveness check: on_disconnect may have removed this session between
+            # _get_connection() and here; fail fast instead of waiting COMMAND_TIMEOUT.
+            if cls._connections.get(session_id) is not websocket:
+                raise PluginDisconnectedError(
+                    f"Unity plugin session {session_id} disconnected before command could be sent"
+                )
             if command_id in cls._pending:
                 raise RuntimeError(
                     f"Duplicate command id generated: {command_id}")
